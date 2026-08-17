@@ -17,9 +17,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Tavern Residence — Boutique Stay in Lekki Phase 1",
+  title: "Tavern Residence",
   description:
-    "A 10-room boutique residence at No 20 Dele Adeniji, Lekki Phase 1, Lagos.",
+    "Tavern Residence is a boutique stay in Lekki Phase 1, Lagos, Nigeria. We offer a range of rooms and suites for short and long-term stays.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

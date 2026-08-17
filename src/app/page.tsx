@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
+import { getFeaturedRoomPhotos } from '@/lib/roomImages'
 
 export default async function Home() {
   const { data: rooms } = await supabase
@@ -10,6 +11,7 @@ export default async function Home() {
     .limit(3)
 
   const featured = (rooms ?? []) as Room[]
+  const galleryPhotos = getFeaturedRoomPhotos()
 
   return (
     <main>
@@ -23,9 +25,13 @@ export default async function Home() {
             A quiet residence, minutes from everything.
           </h1>
           <p className="mt-6 max-w-lg text-ivory/80">
-            Ten rooms at No 20 Dele Adeniji — each with a king bed, kitchenette,
-            and an in-house chef on call. Built for guests who want a private
-            base, not a hotel lobby.
+            Our hotel offers well-appointed rooms, modern facilities, and a
+            welcoming atmosphere suitable for both business and leisure
+            travelers. Guests can enjoy comfortable accommodations, attentive
+            service, and convenient amenities designed to make their stay
+            relaxing and enjoyable. Whether you are visiting for a short
+            trip, a business meeting, or a family vacation, our hotel
+            provides a comfortable and convenient home away from home.
           </p>
           <Link
             href="/rooms"
@@ -88,6 +94,29 @@ export default async function Home() {
           </div>
         )}
       </section>
+
+      {/* Gallery */}
+      {galleryPhotos.length > 0 && (
+        <section className="mx-auto max-w-6xl px-6 py-20 md:px-12 md:py-28">
+          <p className="text-xs tracking-widest text-brass uppercase">
+            A closer look
+          </p>
+          <h2 className="mt-3 font-display text-3xl text-charcoal md:text-4xl">
+            Around the residence
+          </h2>
+          <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+            {galleryPhotos.map((photo) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={photo}
+                src={photo}
+                alt=""
+                className="aspect-square w-full rounded-sm object-cover"
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Dining */}
       <section className="bg-charcoal px-6 py-20 text-ivory md:px-12 md:py-28">

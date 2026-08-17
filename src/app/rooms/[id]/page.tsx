@@ -1,7 +1,32 @@
+import fs from 'fs'
+import path from 'path'
 import { notFound } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
 import BookingForm from './BookingForm'
+import RoomGallery from '@/components/RoomGallery'
+
+function getRoomImages(roomNumber: string): string[] {
+  const folderPath = path.join(process.cwd(), 'public', 'images', roomNumber)
+  const coverFileName = `room_${roomNumber}.jpg`
+
+  let files: string[] = []
+  try {
+    files = fs.readdirSync(folderPath)
+  } catch (err) {
+    // Folder doesn't exist yet for this room — that's fine, the gallery
+    console.log('Could not read folder:', folderPath, err)
+    return []
+  }
+  // TEMP DEBUG — remove once photos are working
+  console.log('Folder found:', folderPath, '— files:', files)
+
+  const hasCover = files.includes(coverFileName)
+  const rest = files.filter((f) => f !== coverFileName)
+  const ordered = hasCover ? [coverFileName, ...rest] : files
+
+  return ordered.map((f) => `/images/${roomNumber}/${f}`)
+}
 
 export default async function RoomDetailPage({
   params,
@@ -21,7 +46,21 @@ export default async function RoomDetailPage({
   }
 
   const r = room as Room
-  const images = r.images && r.images.length > 0 ? r.images : null
+  const images = getRoomImages(r.room_number)
+
+  // Pull existing bookings for this room so the calendar can grey out
+  // dates that are already taken — mirrors the same statuses that count
+  // as "blocking" in the server-side availability check.
+  const { data: bookings } = await supabase
+    .from('Bookings')
+    .select('check_in, check_out')
+    .eq('room_id', id)
+    .in('status', ['pending', 'confirmed', 'checked_in'])
+
+  const blockedRanges = (bookings ?? []).map((b) => ({
+    checkIn: b.check_in as string,
+    checkOut: b.check_out as string,
+  }))
 
   const amenities = [
     'King bed',
@@ -30,42 +69,15 @@ export default async function RoomDetailPage({
     'Iron',
     'Free Wi-Fi',
     'Ensuite bathroom with shower',
-    r.has_kitchenette && 'Kitchenette',
-    r.has_living_area && 'Separate living area',
+    r.has_kitchenette && 'Dry Kitchenette',
+    r.has_living_area && 'Living area',
   ].filter(Boolean) as string[]
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-16 md:px-12 md:py-24">
       <div className="grid gap-12 lg:grid-cols-2">
         <div>
-          <div className="aspect-[4/3] w-full overflow-hidden rounded-sm bg-verdant/10">
-            {images ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={images[0]}
-                alt={r.name}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-verdant/40 uppercase">
-                Photo coming soon
-              </div>
-            )}
-          </div>
-
-          {images && images.length > 1 && (
-            <div className="mt-4 grid grid-cols-4 gap-4">
-              {images.slice(1, 5).map((img, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={i}
-                  src={img}
-                  alt={`${r.name} ${i + 2}`}
-                  className="aspect-square w-full rounded-sm object-cover"
-                />
-              ))}
-            </div>
-          )}
+          <RoomGallery images={images} roomName={r.name} />
         </div>
 
         <div>
@@ -104,7 +116,7 @@ export default async function RoomDetailPage({
           </ul>
 
           <div className="mt-10">
-            <BookingForm room={r} />
+            <BookingForm room={r} blockedRanges={blockedRanges} />
           </div>
         </div>
       </div>
