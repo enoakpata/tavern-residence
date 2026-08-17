@@ -1,69 +1,145 @@
-import Image from "next/image";
+import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
+import type { Room } from '@/lib/types'
 
-export default function Home() {
+export default async function Home() {
+  const { data: rooms } = await supabase
+    .from('Rooms')
+    .select('*')
+    .order('price_per_night', { ascending: true })
+    .limit(3)
+
+  const featured = (rooms ?? []) as Room[]
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main>
+      {/* Hero */}
+      <section className="relative flex min-h-[85vh] flex-col justify-end bg-verdant px-6 pb-16 text-ivory md:px-12 md:pb-24">
+        <div className="max-w-2xl">
+          <p className="text-xs tracking-widest text-brass uppercase">
+            Lekki Phase 1, Lagos
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          <h1 className="mt-4 font-display text-5xl leading-tight md:text-7xl">
+            A quiet residence, minutes from everything.
+          </h1>
+          <p className="mt-6 max-w-lg text-ivory/80">
+            Ten rooms at No 20 Dele Adeniji — each with a king bed, kitchenette,
+            and an in-house chef on call. Built for guests who want a private
+            base, not a hotel lobby.
+          </p>
+          <Link
+            href="/rooms"
+            className="mt-8 inline-block rounded-full bg-brass px-8 py-4 text-sm tracking-widest text-verdant uppercase transition-opacity hover:opacity-90"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            Check availability
+          </Link>
         </div>
-      </main>
-    </div>
-  );
+      </section>
+
+      {/* Rooms preview */}
+      <section className="mx-auto max-w-6xl px-6 py-20 md:px-12 md:py-28">
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-xs tracking-widest text-brass uppercase">
+              Where you&apos;ll stay
+            </p>
+            <h2 className="mt-3 font-display text-3xl text-charcoal md:text-4xl">
+              Studios, suites, and a standard room
+            </h2>
+          </div>
+          <Link
+            href="/rooms"
+            className="hidden text-sm text-verdant hover:underline sm:inline"
+          >
+            View all rooms →
+          </Link>
+        </div>
+
+        {featured.length > 0 && (
+          <div className="mt-12 grid gap-8 sm:grid-cols-3">
+            {featured.map((room) => (
+              <Link
+                key={room.id}
+                href={`/rooms/${room.id}`}
+                className="group block"
+              >
+                <div className="aspect-[4/3] w-full overflow-hidden rounded-sm bg-verdant/10">
+                  {room.images && room.images.length > 0 ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={room.images[0]}
+                      alt={room.name}
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-verdant/40 uppercase">
+                      Photo coming soon
+                    </div>
+                  )}
+                </div>
+                <p className="mt-4 font-display text-xl text-charcoal">
+                  {room.name}
+                </p>
+                <p className="mt-1 text-sm text-charcoal/60">
+                  From ₦{room.price_per_night.toLocaleString()}/night
+                </p>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Dining */}
+      <section className="bg-charcoal px-6 py-20 text-ivory md:px-12 md:py-28">
+        <div className="mx-auto grid max-w-6xl gap-12 md:grid-cols-2 md:items-center">
+          <div>
+            <p className="text-xs tracking-widest text-brass uppercase">
+              In-house dining
+            </p>
+            <h2 className="mt-3 font-display text-3xl md:text-4xl">
+              A chef, a QR code, and whatever you&apos;re craving.
+            </h2>
+            <p className="mt-4 text-ivory/70">
+              Every room has a kitchenette — but if you&apos;d rather not cook,
+              scan the QR code in your room to order from our in-house chef.
+              Meals are charged separately from your stay.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Location + policies snapshot */}
+      <section className="mx-auto max-w-6xl px-6 py-20 md:px-12 md:py-28">
+        <div className="grid gap-12 md:grid-cols-3">
+          <div>
+            <p className="text-xs tracking-widest text-brass uppercase">
+              Location
+            </p>
+            <p className="mt-3 text-charcoal">
+              No 20 Dele Adeniji, Lekki Phase 1, Lagos
+            </p>
+            <p className="mt-1 text-sm text-charcoal/60">
+              Free on-site parking for all guests.
+            </p>
+          </div>
+          <div>
+            <p className="text-xs tracking-widest text-brass uppercase">
+              Stay times
+            </p>
+            <p className="mt-3 text-charcoal">Check-in from 2:00 PM</p>
+            <p className="text-charcoal">Check-out by 12:00 PM</p>
+          </div>
+          <div>
+            <p className="text-xs tracking-widest text-brass uppercase">
+              Good to know
+            </p>
+            <p className="mt-3 text-sm text-charcoal/60">
+              Free cancellation up to 24 hours before check-in. This is a
+              non-smoking property.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+  )
 }

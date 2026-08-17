@@ -1,0 +1,9 @@
+{"timestamp":"00:00:08.573","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:11.686","source":"Server","level":"LOG","message":"○ Compiling /rooms ..."}
+{"timestamp":"00:00:21.729","source":"Browser","level":"INFO","message":"Download the React DevTools for a better development experience: https://react.dev/link/react-devtools"}
+{"timestamp":"00:03:28.862","source":"Browser","level":"INFO","message":"Download the React DevTools for a better development experience: https://react.dev/link/react-devtools"}
+{"timestamp":"00:03:44.606","source":"Server","level":"LOG","message":"○ Compiling /rooms/[id] ..."}
+{"timestamp":"01:39:24.490","source":"Server","level":"ERROR","message":"{}"}
+{"timestamp":"03:24:11.345","source":"Server","level":"ERROR","message":"{}"}
+{"timestamp":"60:35:05.491","source":"Browser","level":"INFO","message":"Download the React DevTools for a better development experience: https://react.dev/link/react-devtools"}
+{"timestamp":"60:50:28.486","source":"Server","level":"LOG","message":"○ Compiling / ..."}
