@@ -1,7 +1,8 @@
 {
+  "/rooms/[id]/page": "app/rooms/[id]/page.js",
   "/page": "app/page.js",
   "/rooms/page": "app/rooms/page.js",
-  "/rooms/[id]/page": "app/rooms/[id]/page.js",
+  "/policies/page": "app/policies/page.js",
   "/admin/bookings/page": "app/admin/bookings/page.js",
   "/admin/bookings/new/page": "app/admin/bookings/new/page.js"
 }

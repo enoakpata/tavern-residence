@@ -117,6 +117,7 @@ export default function BookingForm({
         </div>
       ) : (
         <form action={handleSubmit} className="space-y-5">
+          <input type="hidden" name="room_id" value={room.id} />
           <div>
             <label className="text-xs tracking-widest text-charcoal/60 uppercase">
               Dates

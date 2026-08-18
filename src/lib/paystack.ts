@@ -107,10 +107,31 @@ export async function chargeAuthorization(
   })
 
   const json = await res.json()
+  console.log('Paystack charge response:', JSON.stringify(json, null, 2))
 
-  if (!res.ok || !json.status || json.data?.status !== 'success') {
-    return { success: false, error: json.message || 'Charge failed.' }
+  if (!res.ok || !json.status) {
+    return { success: false, error: json.data?.gateway_response || json.message || 'Charge failed.' }
   }
 
-  return { success: true, reference: json.data.reference }
+  // Paystack's top-level "message" is ALWAYS "Charge attempted" — the real
+  // result is in data.status. If it's not immediately "success", it may
+  // still be processing (common with some test/bank cards) — wait, then
+  // check again with the verify endpoint before giving up.
+  if (json.data?.status === 'success') {
+    return { success: true, reference: json.data.reference }
+  }
+
+  if (json.data?.status === 'pending') {
+    await new Promise((resolve) => setTimeout(resolve, 10000)) // wait 10s
+    const verification = await verifyTransaction(json.data.reference)
+    if (verification.success) {
+      return { success: true, reference: json.data.reference }
+    }
+    return {
+      success: false,
+      error: json.data?.gateway_response || 'Charge is still processing. Please check again shortly.',
+    }
+  }
+
+  return { success: false, error: json.data?.gateway_response || `Charge ${json.data?.status ?? 'failed'}.` }
 }

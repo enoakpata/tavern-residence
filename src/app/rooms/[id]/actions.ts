@@ -80,28 +80,27 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   // server-side so it can be checked manually.
   await refundTransaction(verification.transactionId)
 
-  const { data, error } = await supabase
-    .from('Bookings')
-    .insert({
-      room_id: roomId,
-      guest_name: guestName,
-      guest_phone: guestPhone,
-      guest_email: guestEmail,
-      check_in: checkIn,
-      check_out: checkOut,
-      status: 'pending',
-      source: 'online',
-      payment_method: 'card',
-      payment_status: 'unpaid', // the real charge happens later, manually
-      payment_token: verification.authorizationCode,
-    })
-    .select('id')
-    .single()
+const bookingId = crypto.randomUUID()
 
-  if (error) {
-    console.error('Booking insert failed:', error)
-    return { success: false, error: 'Something went wrong. Please try again.' }
-  }
+const { error } = await supabase.from('Bookings').insert({
+  id: bookingId,
+  room_id: roomId,
+  guest_name: guestName,
+  guest_phone: guestPhone,
+  guest_email: guestEmail,
+  check_in: checkIn,
+  check_out: checkOut,
+  status: 'pending',
+  source: 'online',
+  payment_method: 'card',
+  payment_status: 'unpaid',
+  payment_token: verification.authorizationCode,
+})
 
-  return { success: true, bookingId: data.id }
+if (error) {
+  console.error('Booking insert failed:', error)
+  return { success: false, error: 'Something went wrong. Please try again.' }
+}
+
+return { success: true, bookingId }
 }

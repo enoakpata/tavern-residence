@@ -10,6 +10,7 @@ export default function Header() {
         Tavern Residence
       </Link>
       <nav className="flex items-center gap-6 text-sm tracking-wide text-ivory/90 md:gap-10">
+        <Link href="/policies">Policies</Link>
         <Link href="/rooms" className="hover:text-brass transition-colors">
           Rooms
         </Link>

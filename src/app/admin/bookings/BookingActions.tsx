@@ -39,11 +39,14 @@ export default function BookingActions({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
 
-  function run(action: () => Promise<{ success: boolean; error?: string }>) {
+  function run(
+    action: () => Promise<{ success: boolean; error?: string }>,
+    errorPrefix = ''
+  ) {
     setError('')
     startTransition(async () => {
       const res = await action()
-      if (!res.success) setError(res.error ?? 'Something went wrong.')
+      if (!res.success) setError(`${errorPrefix}${res.error ?? 'Something went wrong.'}`)
     })
   }
 
@@ -69,8 +72,9 @@ export default function BookingActions({
           disabled={isPending}
           onClick={() => {
             if (!confirm(`Charge full stay (₦${totalAmount.toLocaleString()}) to this guest's saved card?`)) return
-            run(() =>
-              chargeFullStay(bookingId, paymentToken!, totalAmount, guestEmail!)
+            run(
+              () => chargeFullStay(bookingId, paymentToken!, totalAmount, guestEmail!),
+              'Card declined: '
             )
           }}
           className="rounded-full bg-verdant px-3 py-1 text-xs text-ivory hover:bg-verdant/90 disabled:opacity-50"
@@ -85,8 +89,9 @@ export default function BookingActions({
           onClick={() => {
             const fee = Math.round(totalAmount * 0.5)
             if (!confirm(`Charge 50% no-show/late-cancellation fee (₦${fee.toLocaleString()}) to this guest's saved card?`)) return
-            run(() =>
-              chargeNoShowFee(bookingId, paymentToken!, totalAmount, guestEmail!)
+            run(
+              () => chargeNoShowFee(bookingId, paymentToken!, totalAmount, guestEmail!),
+              'Card declined: '
             )
           }}
           className="rounded-full bg-clay/10 px-3 py-1 text-xs text-clay hover:bg-clay/20 disabled:opacity-50"
