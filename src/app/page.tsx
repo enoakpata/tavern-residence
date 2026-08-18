@@ -145,7 +145,7 @@ export default async function Home() {
               Location
             </p>
             <p className="mt-3 text-charcoal">
-              No 20 Dele Adeniji, Lekki Phase 1, Lagos
+              No 20 Dele Adedeji, Lekki Phase 1, Lagos
             </p>
             <p className="mt-1 text-sm text-charcoal/60">
               Free on-site parking for all guests.

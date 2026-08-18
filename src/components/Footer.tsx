@@ -5,7 +5,7 @@ export default function Footer() {
         <div>
           <p className="font-display text-2xl">Tavern Residence</p>
           <p className="mt-4 text-sm leading-relaxed text-ivory/70">
-            No 20 Dele Adeniji
+            No 20 Dele Adedeji
             <br />
             Lekki Phase 1, Lagos
           </p>

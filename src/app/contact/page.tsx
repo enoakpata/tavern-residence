@@ -56,7 +56,7 @@ export default function ContactPage() {
             Address
           </p>
           <p className="mt-2 text-lg text-charcoal">
-            No 20 Dele Adeniji, Lekki Phase 1, Lagos
+            No 20 Dele Adedeji, Lekki Phase 1, Lagos
           </p>
         </div>
       </div>
