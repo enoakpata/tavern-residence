@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
 import { getFeaturedRoomPhotos } from '@/lib/roomImages'
@@ -106,13 +107,18 @@ export default async function Home() {
           </h2>
           <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {galleryPhotos.map((photo) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <div
                 key={photo}
-                src={photo}
-                alt=""
-                className="aspect-square w-full rounded-sm object-cover"
-              />
+                className="relative aspect-square w-full overflow-hidden rounded-sm"
+              >
+                <Image
+                  src={photo}
+                  alt=""
+                  fill
+                  sizes="(min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw"
+                  className="object-cover"
+                />
+              </div>
             ))}
           </div>
         </section>

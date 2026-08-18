@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
 import { getRoomCoverImage } from '@/lib/roomImages'
@@ -45,13 +46,14 @@ export default async function RoomsPage() {
                 href={`/rooms/${room.id}`}
                 className="group flex flex-col overflow-hidden rounded-sm border border-charcoal/10 bg-white transition-shadow hover:shadow-lg"
               >
-                <div className="aspect-[4/3] w-full overflow-hidden bg-verdant/10">
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-verdant/10">
                   {cover ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <Image
                       src={cover}
                       alt={room.name}
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      fill
+                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                      className="object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-verdant/40 uppercase">

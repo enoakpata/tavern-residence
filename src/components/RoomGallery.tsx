@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import Image from 'next/image'
 
 const DRAG_THRESHOLD = 50
 
@@ -63,12 +64,14 @@ export default function RoomGallery({
         onPointerCancel={handlePointerCancel}
         onPointerLeave={handlePointerCancel}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src={images[active]}
           alt={roomName}
+          fill
           draggable={false}
-          className="h-full w-full object-cover"
+          priority
+          sizes="(min-width: 1024px) 50vw, 100vw"
+          className="object-cover"
         />
 
         {images.length > 1 && (
@@ -102,17 +105,18 @@ export default function RoomGallery({
               key={img}
               type="button"
               onClick={() => setActive(i)}
-              className={`aspect-square w-full overflow-hidden rounded-sm transition-opacity ${
+              className={`relative aspect-square w-full overflow-hidden rounded-sm transition-opacity ${
                 i === active
                   ? 'opacity-100 ring-2 ring-verdant ring-offset-2'
                   : 'opacity-70 hover:opacity-100'
               }`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src={img}
                 alt={`${roomName} ${i + 1}`}
-                className="h-full w-full object-cover"
+                fill
+                sizes="(min-width: 1024px) 12vw, 25vw"
+                className="object-cover"
               />
             </button>
           ))}
