@@ -107,7 +107,7 @@ export default function BookingForm({
           <p className="font-display text-xl text-verdant">Request received</p>
           <p className="mt-2 text-sm text-charcoal/70">
             Your card has been verified and your booking request is in. We&apos;ll
-            confirm with you shortly by phone or WhatsApp. Your booking
+            confirm with you shortly by email. Your booking
             reference is{' '}
             <span className="font-medium text-charcoal">
               {bookingId.slice(0, 8)}

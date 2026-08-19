@@ -7,6 +7,7 @@ import {
   chargeNoShowFee,
   updateBookingStatus,
 } from './actions'
+import ConfirmModal from '@/components/ConfirmModal'
 
 type BookingActionsProps = {
   bookingId: string
@@ -38,6 +39,9 @@ export default function BookingActions({
 }: BookingActionsProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
+  const [pendingCharge, setPendingCharge] = useState<
+    null | { type: 'full_stay' | 'no_show'; amount: number }
+  >(null)
 
   function run(
     action: () => Promise<{ success: boolean; error?: string }>,
@@ -52,6 +56,23 @@ export default function BookingActions({
 
   const canChargeCard =
     paymentMethod === 'card' && paymentToken && paymentStatus !== 'paid' && guestEmail
+
+  function handleConfirmCharge() {
+    if (!pendingCharge) return
+    const { type } = pendingCharge
+    setPendingCharge(null)
+    if (type === 'full_stay') {
+      run(
+        () => chargeFullStay(bookingId, paymentToken!, totalAmount, guestEmail!),
+        'Card declined: '
+      )
+    } else {
+      run(
+        () => chargeNoShowFee(bookingId, paymentToken!, totalAmount, guestEmail!),
+        'Card declined: '
+      )
+    }
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -70,13 +91,7 @@ export default function BookingActions({
       {canChargeCard && (
         <button
           disabled={isPending}
-          onClick={() => {
-            if (!confirm(`Charge full stay (₦${totalAmount.toLocaleString()}) to this guest's saved card?`)) return
-            run(
-              () => chargeFullStay(bookingId, paymentToken!, totalAmount, guestEmail!),
-              'Card declined: '
-            )
-          }}
+          onClick={() => setPendingCharge({ type: 'full_stay', amount: totalAmount })}
           className="rounded-full bg-verdant px-3 py-1 text-xs text-ivory hover:bg-verdant/90 disabled:opacity-50"
         >
           Charge full stay
@@ -86,14 +101,9 @@ export default function BookingActions({
       {canChargeCard && (
         <button
           disabled={isPending}
-          onClick={() => {
-            const fee = Math.round(totalAmount * 0.5)
-            if (!confirm(`Charge 50% no-show/late-cancellation fee (₦${fee.toLocaleString()}) to this guest's saved card?`)) return
-            run(
-              () => chargeNoShowFee(bookingId, paymentToken!, totalAmount, guestEmail!),
-              'Card declined: '
-            )
-          }}
+          onClick={() =>
+            setPendingCharge({ type: 'no_show', amount: Math.round(totalAmount * 0.5) })
+          }
           className="rounded-full bg-clay/10 px-3 py-1 text-xs text-clay hover:bg-clay/20 disabled:opacity-50"
         >
           Charge no-show fee
@@ -114,6 +124,21 @@ export default function BookingActions({
       </select>
 
       {error && <p className="w-full text-xs text-clay">{error}</p>}
+
+      <ConfirmModal
+        open={pendingCharge !== null}
+        title={
+          pendingCharge?.type === 'full_stay' ? 'Charge full stay' : 'Charge no-show fee'
+        }
+        message={
+          pendingCharge
+            ? `₦${pendingCharge.amount.toLocaleString()} will be charged to this guest's saved card.`
+            : ''
+        }
+        confirmLabel={pendingCharge?.type === 'full_stay' ? 'Charge full stay' : 'Charge fee'}
+        onConfirm={handleConfirmCharge}
+        onCancel={() => setPendingCharge(null)}
+      />
     </div>
   )
 }

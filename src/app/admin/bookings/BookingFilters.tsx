@@ -60,7 +60,7 @@ export default function BookingFilters({ years }: { years: number[] }) {
   )
 
   return (
-    <div className="mt-6 flex flex-wrap items-end gap-4">
+    <div className="mt-6 flex flex-wrap items-end gap-5">
       <form onSubmit={handleSearchSubmit} className="min-w-[220px] flex-1">
         <label className="text-xs tracking-widest text-charcoal/60 uppercase">
           Search guest
@@ -71,11 +71,11 @@ export default function BookingFilters({ years }: { years: number[] }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Name or phone"
-            className="w-full rounded-sm border border-charcoal/20 px-4 py-2 text-sm focus:border-verdant focus:outline-none"
+            className="w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
           />
           <button
             type="submit"
-            className="rounded-sm border border-charcoal/20 px-4 py-2 text-sm text-charcoal hover:bg-charcoal/5"
+            className="rounded-sm border border-charcoal/20 px-4 py-3 text-sm text-charcoal transition-colors hover:bg-charcoal/5"
           >
             Search
           </button>
@@ -89,7 +89,7 @@ export default function BookingFilters({ years }: { years: number[] }) {
         <select
           value={searchParams.get('month') ?? ''}
           onChange={(e) => updateParam('month', e.target.value)}
-          className="mt-2 rounded-sm border border-charcoal/20 px-3 py-2 text-sm focus:border-verdant focus:outline-none"
+          className="mt-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
         >
           <option value="">All months</option>
           {MONTHS.map((m) => (
@@ -107,7 +107,7 @@ export default function BookingFilters({ years }: { years: number[] }) {
         <select
           value={searchParams.get('year') ?? ''}
           onChange={(e) => updateParam('year', e.target.value)}
-          className="mt-2 rounded-sm border border-charcoal/20 px-3 py-2 text-sm focus:border-verdant focus:outline-none"
+          className="mt-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
         >
           <option value="">All years</option>
           {years.map((y) => (
@@ -125,7 +125,7 @@ export default function BookingFilters({ years }: { years: number[] }) {
         <select
           value={searchParams.get('source') ?? ''}
           onChange={(e) => updateParam('source', e.target.value)}
-          className="mt-2 rounded-sm border border-charcoal/20 px-3 py-2 text-sm focus:border-verdant focus:outline-none"
+          className="mt-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
         >
           {SOURCES.map((s) => (
             <option key={s.value} value={s.value}>
@@ -139,7 +139,7 @@ export default function BookingFilters({ years }: { years: number[] }) {
         <button
           type="button"
           onClick={clearFilters}
-          className="rounded-sm px-3 py-2 text-sm text-clay hover:underline"
+          className="rounded-sm px-4 py-3 text-sm text-clay transition-colors hover:underline"
         >
           Clear filters
         </button>

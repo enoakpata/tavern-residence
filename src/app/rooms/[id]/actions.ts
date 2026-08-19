@@ -3,6 +3,13 @@
 import { supabase } from '@/lib/supabase'
 import { isRoomAvailable } from '@/lib/bookings'
 import { verifyTransaction, refundTransaction } from '@/lib/paystack'
+import {
+  sendEmail,
+  buildGuestConfirmationEmail,
+  buildHotelNotificationEmail,
+} from '@/lib/email'
+
+const HOTEL_NOTIFICATION_EMAIL = 'tavernresidence@gmail.com'
 
 export async function checkAvailability(
   roomId: string,
@@ -100,6 +107,41 @@ const { error } = await supabase.from('Bookings').insert({
 if (error) {
   console.error('Booking insert failed:', error)
   return { success: false, error: 'Something went wrong. Please try again.' }
+}
+
+// Booking is already recorded at this point — email is a nice-to-have on
+// top, so a failure here must never turn a successful booking into an
+// error response. Sent concurrently and independently so one failing
+// doesn't stop the other from going out.
+const { data: roomData } = await supabase
+  .from('Rooms')
+  .select('name')
+  .eq('id', roomId)
+  .single()
+const roomName = roomData?.name ?? 'your room'
+
+const guestEmailContent = buildGuestConfirmationEmail({
+  guestName,
+  roomName,
+  checkIn,
+  checkOut,
+})
+const hotelEmailContent = buildHotelNotificationEmail({
+  guestName,
+  guestPhone,
+  roomName,
+  checkIn,
+  checkOut,
+})
+
+const emailResults = await Promise.allSettled([
+  sendEmail({ to: guestEmail, ...guestEmailContent }),
+  sendEmail({ to: HOTEL_NOTIFICATION_EMAIL, ...hotelEmailContent }),
+])
+for (const result of emailResults) {
+  if (result.status === 'rejected') {
+    console.error('Booking confirmation email failed to send:', result.reason)
+  }
 }
 
 return { success: true, bookingId }

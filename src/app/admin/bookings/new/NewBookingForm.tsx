@@ -3,6 +3,8 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createManualBooking, getAvailableRooms } from '../actions'
+import DateRangePicker from '@/components/DateRangePicker'
+import RoomSelect from '@/components/RoomSelect'
 import type { Room } from '@/lib/types'
 
 export default function NewBookingForm() {
@@ -12,8 +14,8 @@ export default function NewBookingForm() {
   const [source, setSource] = useState<'walk_in' | 'phone'>('walk_in')
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'transfer'>('card')
 
-  const [checkIn, setCheckIn] = useState('')
-  const [checkOut, setCheckOut] = useState('')
+  const [checkIn, setCheckIn] = useState<string | null>(null)
+  const [checkOut, setCheckOut] = useState<string | null>(null)
   const [rooms, setRooms] = useState<(Room & { available: boolean })[]>([])
   const [loadingRooms, setLoadingRooms] = useState(false)
   const [roomId, setRoomId] = useState('')
@@ -24,12 +26,14 @@ export default function NewBookingForm() {
     if (!checkIn || !checkOut) {
       return
     }
+    const currentCheckIn = checkIn
+    const currentCheckOut = checkOut
 
     let cancelled = false
 
     async function fetchAvailability() {
       setLoadingRooms(true)
-      const result = await getAvailableRooms(checkIn, checkOut)
+      const result = await getAvailableRooms(currentCheckIn, currentCheckOut)
       if (cancelled) return
       setRooms(result)
       setLoadingRooms(false)
@@ -61,33 +65,21 @@ export default function NewBookingForm() {
 
   return (
     <form action={handleSubmit} className="max-w-xl space-y-5">
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <label className="text-xs tracking-widest text-charcoal/60 uppercase">
-            Check-in
-          </label>
-          <input
-            type="date"
-            name="check_in"
-            required
-            value={checkIn}
-            onChange={(e) => setCheckIn(e.target.value)}
-            className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+      <div>
+        <label className="text-xs tracking-widest text-charcoal/60 uppercase">
+          Dates
+        </label>
+        <div className="mt-2">
+          <DateRangePicker
+            blockedRanges={[]}
+            onChange={(newCheckIn, newCheckOut) => {
+              setCheckIn(newCheckIn)
+              setCheckOut(newCheckOut)
+            }}
           />
         </div>
-        <div>
-          <label className="text-xs tracking-widest text-charcoal/60 uppercase">
-            Check-out
-          </label>
-          <input
-            type="date"
-            name="check_out"
-            required
-            value={checkOut}
-            onChange={(e) => setCheckOut(e.target.value)}
-            className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
-          />
-        </div>
+        <input type="hidden" name="check_in" value={checkIn ?? ''} />
+        <input type="hidden" name="check_out" value={checkOut ?? ''} />
       </div>
 
       <div>
@@ -122,29 +114,22 @@ export default function NewBookingForm() {
         <label className="text-xs tracking-widest text-charcoal/60 uppercase">
           Room
         </label>
-        <select
-          name="room_id"
-          required
-          value={roomId}
-          onChange={(e) => setRoomId(e.target.value)}
-          disabled={!hasDates || loadingRooms}
-          className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none disabled:opacity-50"
-        >
-          <option value="">
-            {!hasDates
-              ? 'Select check-in and check-out dates first'
-              : loadingRooms
-                ? 'Checking availability…'
-                : 'Select a room'}
-          </option>
-          {visibleRooms.map((room) => (
-            <option key={room.id} value={room.id} disabled={!room.available}>
-              {room.room_number} — {room.name} (₦
-              {room.price_per_night.toLocaleString()}/night)
-              {!room.available ? ' — Unavailable for these dates' : ''}
-            </option>
-          ))}
-        </select>
+        <div className="mt-2">
+          <RoomSelect
+            rooms={visibleRooms}
+            value={roomId}
+            onChange={setRoomId}
+            disabled={!hasDates || loadingRooms}
+            placeholder={
+              !hasDates
+                ? 'Select check-in and check-out dates first'
+                : loadingRooms
+                  ? 'Checking availability…'
+                  : 'Select a room'
+            }
+          />
+        </div>
+        <input type="hidden" name="room_id" value={roomId} />
       </div>
 
       <div>

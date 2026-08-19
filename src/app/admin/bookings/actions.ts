@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { isRoomAvailable } from '@/lib/bookings'
 import { chargeAuthorization } from '@/lib/paystack'
+import { sendEmail, buildGuestConfirmationEmail } from '@/lib/email'
 import type { Room } from '@/lib/types'
 
 type ActionResult = { success: true } | { success: false; error: string }
@@ -64,6 +65,31 @@ export async function createManualBooking(formData: FormData): Promise<ActionRes
   if (error) {
     console.error('Manual booking insert failed:', error)
     return { success: false, error: 'Something went wrong. Please try again.' }
+  }
+
+  // Booking is already recorded at this point — email is a nice-to-have on
+  // top, so a failure here must never turn a successful booking into an
+  // error response. Staff already know a booking came in (they just
+  // created it), so only the guest gets emailed here.
+  if (guestEmail) {
+    try {
+      const { data: roomData } = await supabase
+        .from('Rooms')
+        .select('name')
+        .eq('id', roomId)
+        .single()
+      const roomName = roomData?.name ?? 'your room'
+
+      const guestEmailContent = buildGuestConfirmationEmail({
+        guestName,
+        roomName,
+        checkIn,
+        checkOut,
+      })
+      await sendEmail({ to: guestEmail, ...guestEmailContent })
+    } catch (emailError) {
+      console.error('Booking confirmation email failed to send:', emailError)
+    }
   }
 
   revalidatePath('/admin/bookings')
