@@ -9,6 +9,16 @@ export function toISODate(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
+/**
+ * Parses a 'YYYY-MM-DD' string into a local-time Date at midnight.
+ * Deliberately not `new Date(isoString)` — that parses as UTC and can
+ * shift the calendar day once converted back to local time.
+ */
+export function parseISODate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 export function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1)
 }

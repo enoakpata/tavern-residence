@@ -14,12 +14,12 @@ export async function isRoomAvailable(
   checkOut: string
 ) {
   const { data, error } = await supabase
-    .from('Bookings')
-    .select('id')
-    .eq('room_id', roomId)
-    .in('status', ['pending', 'confirmed', 'checked_in'])
-    .lt('check_in', checkOut)
-    .gt('check_out', checkIn)
+  .from('booking_availability')
+  .select('room_id')
+  .eq('room_id', roomId)
+  .in('status', ['pending', 'confirmed', 'checked_in'])
+  .lt('check_in', checkOut)
+  .gt('check_out', checkIn)
 
   if (error) {
     console.error('Availability check failed:', error)
