@@ -75,17 +75,18 @@ export async function createManualBooking(formData: FormData): Promise<ActionRes
     try {
       const { data: roomData } = await supabase
         .from('Rooms')
-        .select('name')
+        .select('name, room_number')
         .eq('id', roomId)
         .single()
       const roomName = roomData?.name ?? 'your room'
+      const roomNumber = roomData?.room_number ?? ''
 
       const guestEmailContent = buildGuestConfirmationEmail({
         guestName,
+        roomNumber,
         roomName,
         checkIn,
         checkOut,
-      
       })
       await sendEmail({ to: guestEmail, ...guestEmailContent })
     } catch (emailError) {

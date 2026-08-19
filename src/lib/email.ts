@@ -1,12 +1,6 @@
-// Server-only email helper. Never import this file into a client component —
-// it uses the Resend secret key, which must never reach the browser.
-
 import { Resend } from 'resend'
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY!
-
-// Resend's shared onboarding sender — swap for a verified custom domain
-// address once one is set up in the Resend dashboard.
 const FROM_ADDRESS = 'Tavern Residence <onboarding@resend.dev>'
 
 const resend = new Resend(RESEND_API_KEY)
@@ -19,96 +13,100 @@ export async function sendEmail({
   to: string
   subject: string
   html: string
-}): Promise<void> {
-  const { error } = await resend.emails.send({
+}) {
+  await resend.emails.send({
     from: FROM_ADDRESS,
     to,
     subject,
     html,
+    replyTo: 'tavernresidence@gmail.com',
   })
-
-  if (error) {
-    throw new Error(error.message)
-  }
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function formatDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+function formatDate(isoDate: string) {
+  return new Date(isoDate).toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
   })
 }
 
-/**
- * The guest-facing confirmation — same content whether the booking came in
- * through the guest-facing card-verification flow or was entered manually
- * by staff for a walk-in/phone booking.
- */
 export function buildGuestConfirmationEmail({
   guestName,
+  roomNumber,
   roomName,
   checkIn,
   checkOut,
 }: {
   guestName: string
+  roomNumber: string
   roomName: string
   checkIn: string
   checkOut: string
-}): { subject: string; html: string } {
-  const subject = `Booking request received — ${roomName}`
+}) {
   const html = `
-    <p>Hi ${escapeHtml(guestName)},</p>
-    <p>Thanks for booking with Tavern Residence. Your request for the <strong>${escapeHtml(roomName)}</strong> has been received.</p>
-    <p>
-      <strong>Check-in:</strong> ${formatDate(checkIn)}<br />
-      <strong>Check-out:</strong> ${formatDate(checkOut)}
-    </p>
-    <p>We'll confirm with you shortly by phone or WhatsApp.</p>
-    <p>— Tavern Residence</p>
+    <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
+      <p>Hi ${guestName},</p>
+
+      <p>Thanks for booking with Tavern Residence. Your request for Room ${roomNumber} — ${roomName} — has been received.</p>
+
+      <p>
+        <strong>Check-in:</strong> ${formatDate(checkIn)}<br />
+        <strong>Check-out:</strong> ${formatDate(checkOut)}
+      </p>
+
+      <p>Check-in time is 2:00 PM and check-out time is 12:00 PM. Early check-in or late check-out is available for a fee of 50% of the room's nightly rate, subject to availability.</p>
+
+      <p>Please note our cancellation policy: free cancellation up to 24 hours before check-in. Cancellations within 24 hours of check-in, or no-shows, are charged 50% of the total booking value.</p>
+
+      <p>If you have any questions, reach us at 0701 583 2637 or tavernresidence@gmail.com.</p>
+
+      <p>Thank you again — we look forward to having you and hope you have a wonderful stay!</p>
+
+      <p>— Tavern Residence</p>
+    </div>
   `
-  return { subject, html }
+
+  return {
+    subject: 'Booking Request Received — Tavern Residence',
+    html,
+  }
 }
 
-/**
- * Sent to the hotel's own inbox so staff know a new booking came in without
- * having to check the admin dashboard proactively.
- */
 export function buildHotelNotificationEmail({
   guestName,
   guestPhone,
+  guestEmail,
+  roomNumber,
   roomName,
   checkIn,
   checkOut,
 }: {
   guestName: string
   guestPhone: string
+  guestEmail?: string
+  roomNumber: string
   roomName: string
   checkIn: string
   checkOut: string
-}): { subject: string; html: string } {
-  const subject = `New booking — ${roomName}`
+}) {
   const html = `
-    <p>A new booking request just came in.</p>
-    <p>
-      <strong>Guest:</strong> ${escapeHtml(guestName)}<br />
-      <strong>Phone:</strong> ${escapeHtml(guestPhone)}
-    </p>
-    <p>
-      <strong>Room:</strong> ${escapeHtml(roomName)}<br />
-      <strong>Check-in:</strong> ${formatDate(checkIn)}<br />
-      <strong>Check-out:</strong> ${formatDate(checkOut)}
-    </p>
+    <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
+      <p>New booking request received:</p>
+      <p>
+        <strong>Guest:</strong> ${guestName}<br />
+        <strong>Phone:</strong> ${guestPhone}<br />
+        ${guestEmail ? `<strong>Email:</strong> ${guestEmail}<br />` : ''}
+        <strong>Room:</strong> ${roomNumber} — ${roomName}<br />
+        <strong>Check-in:</strong> ${formatDate(checkIn)}<br />
+        <strong>Check-out:</strong> ${formatDate(checkOut)}
+      </p>
+      <p>View and confirm this booking in the admin dashboard.</p>
+    </div>
   `
-  return { subject, html }
+
+  return {
+    subject: `New booking: ${guestName} — Room ${roomNumber}`,
+    html,
+  }
 }

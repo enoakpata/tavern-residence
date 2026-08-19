@@ -3,7 +3,7 @@ import Image from 'next/image'
 import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
-import { getFeaturedRoomPhotos } from '@/lib/roomImages'
+import { getFeaturedRoomPhotos, getRoomCoverImage } from '@/lib/roomImages'
 
 const HOMEPAGE_DESCRIPTION =
   'Tavern Residence is a boutique hotel in Lekki Phase 1, Lagos, offering Studio, 1-Bedroom, and Standard rooms — each with a king bed, kitchenette, and access to an in-house chef.'
@@ -22,17 +22,47 @@ function roomNumberFromPhotoPath(photoPath: string): string | null {
   return photoPath.match(/\/images\/(\d+)\//)?.[1] ?? null
 }
 
+const FEATURED_ROOM_TYPES: Room['room_type'][] = ['Standard', 'Studio', '1-Bedroom']
+
+/**
+ * One representative room per type (cheapest within each, since roomList
+ * is price-sorted ascending) so the homepage shows the variety of stays
+ * on offer rather than just the 3 cheapest rooms overall. Falls back to
+ * filling any remaining slots from whatever's left if a type has no rooms.
+ */
+function pickFeaturedRooms(roomList: Room[]): Room[] {
+  const featured: Room[] = []
+  const usedIds = new Set<string>()
+
+  for (const type of FEATURED_ROOM_TYPES) {
+    const match = roomList.find((room) => room.room_type === type)
+    if (match) {
+      featured.push(match)
+      usedIds.add(match.id)
+    }
+  }
+
+  for (const room of roomList) {
+    if (featured.length >= 3) break
+    if (!usedIds.has(room.id)) {
+      featured.push(room)
+      usedIds.add(room.id)
+    }
+  }
+
+  return featured
+}
+
 export default async function Home() {
   const { data: rooms } = await supabase
     .from('Rooms')
     .select('*')
     .order('price_per_night', { ascending: true })
-    .limit(3)
 
   const { data: priceRows } = await supabase.from('Rooms').select('price_per_night')
   const prices = (priceRows ?? []).map((p) => p.price_per_night as number)
 
-  const featured = (rooms ?? []) as Room[]
+  const featured = pickFeaturedRooms((rooms ?? []) as Room[])
   const galleryPhotos = getFeaturedRoomPhotos()
 
   const hotelJsonLd = {
@@ -107,34 +137,38 @@ export default async function Home() {
 
           {featured.length > 0 && (
             <div className="mt-12 grid gap-8 sm:grid-cols-3">
-              {featured.map((room) => (
-                <Link
-                  key={room.id}
-                  href={`/rooms/${room.id}`}
-                  className="group block"
-                >
-                  <div className="aspect-[4/3] w-full overflow-hidden rounded-sm bg-verdant/10">
-                    {room.images && room.images.length > 0 ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={room.images[0]}
-                        alt={`${room.name} — Room ${room.room_number} at Tavern Residence`}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-verdant/40 uppercase">
-                        Photo coming soon
-                      </div>
-                    )}
-                  </div>
-                  <p className="mt-4 font-display text-xl text-charcoal">
-                    {room.name}
-                  </p>
-                  <p className="mt-1 text-sm text-charcoal/60">
-                    From ₦{room.price_per_night.toLocaleString()}/night
-                  </p>
-                </Link>
-              ))}
+              {featured.map((room) => {
+                const cover = getRoomCoverImage(room.room_number)
+                return (
+                  <Link
+                    key={room.id}
+                    href={`/rooms/${room.id}`}
+                    className="group block"
+                  >
+                    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-sm bg-verdant/10">
+                      {cover ? (
+                        <Image
+                          src={cover}
+                          alt={`${room.name} — Room ${room.room_number} at Tavern Residence`}
+                          fill
+                          sizes="(min-width: 640px) 33vw, 100vw"
+                          className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-verdant/40 uppercase">
+                          Photo coming soon
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-4 font-display text-xl text-charcoal">
+                      {room.name}
+                    </p>
+                    <p className="mt-1 text-sm text-charcoal/60">
+                      From ₦{room.price_per_night.toLocaleString()}/night
+                    </p>
+                  </Link>
+                )
+              })}
             </div>
           )}
         </section>
