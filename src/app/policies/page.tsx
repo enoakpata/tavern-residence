@@ -1,3 +1,11 @@
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Policies | Tavern Residence',
+  description:
+    'Check-in from 2:00 PM, check-out by 12:00 PM. Free cancellation up to 24 hours before check-in; a strictly non-smoking property in Lekki Phase 1, Lagos.',
+}
+
 export default function PoliciesPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16 md:px-12 md:py-24">

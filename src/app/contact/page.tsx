@@ -1,3 +1,11 @@
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Contact | Tavern Residence',
+  description:
+    'Reach Tavern Residence at No 20 Dele Adedeji, Lekki Phase 1, Lagos — call or WhatsApp 0701 583 2637, or email tavernresidence@gmail.com.',
+}
+
 export default function ContactPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-20 md:px-12 md:py-28">

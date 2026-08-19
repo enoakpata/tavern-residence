@@ -1,10 +1,18 @@
 import fs from 'fs'
 import path from 'path'
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
 import BookingForm from './BookingForm'
 import RoomGallery from '@/components/RoomGallery'
+
+const META_DESCRIPTION_LENGTH = 155
+
+function truncateForMeta(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, maxLength - 1).trimEnd()}…`
+}
 
 function getRoomImages(roomNumber: string): string[] {
   const folderPath = path.join(process.cwd(), 'public', 'images', roomNumber)
@@ -26,6 +34,35 @@ function getRoomImages(roomNumber: string): string[] {
   const ordered = hasCover ? [coverFileName, ...rest] : files
 
   return ordered.map((f) => `/images/${roomNumber}/${f}`)
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const { id } = await params
+
+  const { data: room } = await supabase.from('Rooms').select('*').eq('id', id).single()
+
+  if (!room) {
+    return { title: 'Room not found | Tavern Residence' }
+  }
+
+  const r = room as Room
+  const title = `${r.name} | Tavern Residence`
+  const description = truncateForMeta(r.description, META_DESCRIPTION_LENGTH)
+  const coverImage = getRoomImages(r.room_number)[0]
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: coverImage ? [coverImage] : undefined,
+    },
+  }
 }
 
 export default async function RoomDetailPage({
@@ -77,7 +114,7 @@ export default async function RoomDetailPage({
     <main className="mx-auto max-w-6xl px-6 py-16 md:px-12 md:py-24">
       <div className="grid gap-12 lg:grid-cols-2">
         <div>
-          <RoomGallery images={images} roomName={r.name} />
+          <RoomGallery images={images} roomName={r.name} roomNumber={r.room_number} />
         </div>
 
         <div>

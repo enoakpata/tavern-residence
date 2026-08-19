@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { SITE_URL } from "@/lib/siteConfig";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -17,6 +18,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Tavern Residence",
   description:
     "Tavern Residence is a boutique stay in Lekki Phase 1, Lagos, Nigeria. We offer a range of rooms and suites for short and long-term stays.",

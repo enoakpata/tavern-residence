@@ -8,9 +8,11 @@ const DRAG_THRESHOLD = 50
 export default function RoomGallery({
   images,
   roomName,
+  roomNumber,
 }: {
   images: string[]
   roomName: string
+  roomNumber: string
 }) {
   const [active, setActive] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
@@ -66,7 +68,7 @@ export default function RoomGallery({
       >
         <Image
           src={images[active]}
-          alt={roomName}
+          alt={`${roomName} — Room ${roomNumber} at Tavern Residence, photo ${active + 1} of ${images.length}`}
           fill
           draggable={false}
           priority
@@ -113,7 +115,7 @@ export default function RoomGallery({
             >
               <Image
                 src={img}
-                alt={`${roomName} ${i + 1}`}
+                alt={`${roomName} — Room ${roomNumber} at Tavern Residence, photo ${i + 1} of ${images.length}`}
                 fill
                 sizes="(min-width: 1024px) 12vw, 25vw"
                 className="object-cover"

@@ -1,8 +1,15 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
 import { getRoomCoverImage } from '@/lib/roomImages'
+
+export const metadata: Metadata = {
+  title: 'Rooms & Suites | Tavern Residence',
+  description:
+    'Browse Studio, 1-Bedroom, and Standard rooms at Tavern Residence in Lekki Phase 1, Lagos — from ₦90,000 to ₦200,000 per night, each with a king bed and kitchenette.',
+}
 
 export default async function RoomsPage() {
   const { data: rooms, error } = await supabase
@@ -50,7 +57,7 @@ export default async function RoomsPage() {
                   {cover ? (
                     <Image
                       src={cover}
-                      alt={room.name}
+                      alt={`${room.name} — Room ${room.room_number} at Tavern Residence`}
                       fill
                       sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       className="object-cover transition-transform duration-500 group-hover:scale-105"

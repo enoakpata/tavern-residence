@@ -85,6 +85,7 @@ export async function createManualBooking(formData: FormData): Promise<ActionRes
         roomName,
         checkIn,
         checkOut,
+      
       })
       await sendEmail({ to: guestEmail, ...guestEmailContent })
     } catch (emailError) {
