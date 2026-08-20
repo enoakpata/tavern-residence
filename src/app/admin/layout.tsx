@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { signOut } from './actions'
+import NotificationBell from './NotificationBell'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -23,6 +24,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/calendar" className="hover:text-brass">
             Calendar
           </Link>
+          <NotificationBell />
           <form action={signOut}>
             <button type="submit" className="text-ivory/60 hover:text-brass">
               Sign out

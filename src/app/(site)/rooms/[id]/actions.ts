@@ -1,6 +1,7 @@
 'use server'
 
 import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { isRoomAvailable } from '@/lib/bookings'
 import { verifyTransaction, refundTransaction } from '@/lib/paystack'
 import {
@@ -97,7 +98,7 @@ const { error } = await supabase.from('Bookings').insert({
   guest_email: guestEmail,
   check_in: checkIn,
   check_out: checkOut,
-  status: 'pending',
+  status: 'confirmed', // card already verified via Paystack by this point
   source: 'online',
   payment_method: 'card',
   payment_status: 'unpaid',
@@ -138,13 +139,18 @@ const hotelEmailContent = buildHotelNotificationEmail({
   checkOut,
 })
 
-const emailResults = await Promise.allSettled([
+const notificationResults = await Promise.allSettled([
   sendEmail({ to: guestEmail, ...guestEmailContent }),
   sendEmail({ to: HOTEL_NOTIFICATION_EMAIL, ...hotelEmailContent }),
+  supabaseAdmin.from('Notifications').insert({
+    type: 'new_booking',
+    message: `New booking: ${guestName} — Room ${roomNumber}`,
+    booking_id: bookingId,
+  }),
 ])
-for (const result of emailResults) {
+for (const result of notificationResults) {
   if (result.status === 'rejected') {
-    console.error('Booking confirmation email failed to send:', result.reason)
+    console.error('Booking confirmation email/notification failed:', result.reason)
   }
 }
 

@@ -4,10 +4,33 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { isRoomAvailable } from '@/lib/bookings'
 import { chargeAuthorization } from '@/lib/paystack'
-import { sendEmail, buildGuestConfirmationEmail } from '@/lib/email'
+import {
+  sendEmail,
+  buildGuestConfirmationEmail,
+  buildCancellationNotificationEmail,
+} from '@/lib/email'
 import type { Room } from '@/lib/types'
 
 type ActionResult = { success: true } | { success: false; error: string }
+
+const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
+const HOTEL_NOTIFICATION_EMAIL = 'tavernresidence@gmail.com'
+
+/**
+ * 2:00 PM Lagos time (WAT, UTC+1, no daylight saving) for the given
+ * check-in date, expressed as an explicit UTC instant — same calculation
+ * the guest-facing cancellation action uses (see
+ * src/app/(site)/booking/[id]/actions.ts) so the 24-hour cutoff agrees
+ * regardless of which flow cancelled the booking.
+ */
+function checkInMoment(checkInDate: string): Date {
+  return new Date(`${checkInDate}T13:00:00Z`)
+}
+
+function nightsBetween(checkIn: string, checkOut: string): number {
+  const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
+  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
+}
 
 /**
  * Manual booking entry — used for walk-ins and phone bookings. Unlike the
@@ -184,6 +207,26 @@ export async function chargeFullStay(
 }
 
 /**
+ * Combined action for the Today's Check-ins flow: charges the guest's
+ * saved card for the full stay, and only flips status to checked_in if
+ * that charge actually succeeds — reuses chargeFullStay and
+ * updateBookingStatus as-is rather than duplicating either piece of logic.
+ */
+export async function chargeAndCheckIn(
+  bookingId: string,
+  authorizationCode: string,
+  amountNaira: number,
+  guestEmail: string
+): Promise<ActionResult> {
+  const chargeResult = await chargeFullStay(bookingId, authorizationCode, amountNaira, guestEmail)
+  if (!chargeResult.success) {
+    return chargeResult
+  }
+
+  return updateBookingStatus(bookingId, 'checked_in')
+}
+
+/**
  * Charges the 50% fee for a no-show or late cancellation — same mechanism
  * as the full-stay charge, just a different amount and charge_type so your
  * records show why the guest was charged.
@@ -233,4 +276,125 @@ export async function updateBookingStatus(
   if (error) return { success: false, error: error.message }
   revalidatePath('/admin/bookings')
   return { success: true }
+}
+
+export type CancelBookingResult =
+  | { success: true; feeCharged: boolean; feeAmount: number }
+  | { success: false; error: string }
+
+/**
+ * Staff-initiated cancellation from the admin dashboard — mirrors the
+ * guest-facing cancelBooking action (src/app/(site)/booking/[id]/actions.ts)
+ * but runs under the authenticated admin session instead of the
+ * service-role client, and revalidates the admin bookings page instead of
+ * the guest's manage-booking page. Also treats a booking with no card on
+ * file (e.g. paid by transfer) as always free to cancel, since there's
+ * nothing to charge — staff handle any fee collection for those manually.
+ */
+export async function cancelBookingByStaff(bookingId: string): Promise<CancelBookingResult> {
+  const supabase = await createClient()
+
+  const { data: booking, error: fetchError } = await supabase
+    .from('Bookings')
+    .select('*, Rooms(price_per_night, room_number, name)')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchError || !booking) {
+    return { success: false, error: 'Booking not found.' }
+  }
+
+  if (NON_CANCELLABLE_STATUSES.includes(booking.status)) {
+    return { success: false, error: 'This booking can no longer be cancelled.' }
+  }
+
+  const hoursUntilCheckIn =
+    (checkInMoment(booking.check_in).getTime() - Date.now()) / (1000 * 60 * 60)
+  const hasCardOnFile = booking.payment_method === 'card' && booking.payment_token
+
+  // Free cancellation: more than 24 hours before check-in, or no card on
+  // file to charge at all.
+  if (hoursUntilCheckIn > 24 || !hasCardOnFile) {
+    const { error } = await supabase
+      .from('Bookings')
+      .update({ status: 'cancelled' })
+      .eq('id', bookingId)
+
+    if (error) return { success: false, error: 'Something went wrong. Please try again.' }
+
+    await notifyCancellationByEmail(booking, false, 0)
+
+    revalidatePath('/admin/bookings')
+    return { success: true, feeCharged: false, feeAmount: 0 }
+  }
+
+  // Within 24 hours of check-in (or check-in has already passed), with a
+  // card on file — a 50% late-cancellation fee applies.
+  const pricePerNight = booking.Rooms?.price_per_night ?? 0
+  const feeAmount = Math.round(
+    pricePerNight * nightsBetween(booking.check_in, booking.check_out) * 0.5
+  )
+
+  if (!booking.guest_email) {
+    return {
+      success: false,
+      error: 'No email on file to process this charge — cancel and collect the fee manually.',
+    }
+  }
+
+  const charge = await chargeAuthorization(booking.payment_token, feeAmount, booking.guest_email)
+  if (!charge.success) {
+    return { success: false, error: `Card declined: ${charge.error}` }
+  }
+
+  const { error } = await supabase
+    .from('Bookings')
+    .update({
+      status: 'cancelled',
+      payment_status: 'paid',
+      charge_type: 'late_cancellation_fee',
+      amount_charged: feeAmount,
+    })
+    .eq('id', bookingId)
+
+  if (error) return { success: false, error: 'Something went wrong. Please try again.' }
+
+  await notifyCancellationByEmail(booking, true, feeAmount)
+
+  revalidatePath('/admin/bookings')
+  return { success: true, feeCharged: true, feeAmount }
+}
+
+/**
+ * Emails the hotel when staff cancel a booking — no in-app notification
+ * row here, since staff already know they just did it (those are only
+ * created for guest-initiated cancellations). Best-effort: never blocks
+ * the cancellation, which has already succeeded by the time this runs.
+ */
+async function notifyCancellationByEmail(
+  booking: {
+    guest_name: string
+    check_in: string
+    check_out: string
+    Rooms?: { room_number: string; name: string } | null
+  },
+  feeCharged: boolean,
+  feeAmount: number
+) {
+  try {
+    await sendEmail({
+      to: HOTEL_NOTIFICATION_EMAIL,
+      ...buildCancellationNotificationEmail({
+        guestName: booking.guest_name,
+        roomNumber: booking.Rooms?.room_number ?? '',
+        roomName: booking.Rooms?.name ?? 'the room',
+        checkIn: booking.check_in,
+        checkOut: booking.check_out,
+        feeCharged,
+        feeAmount,
+      }),
+    })
+  } catch (emailError) {
+    console.error('Cancellation notification email failed to send:', emailError)
+  }
 }

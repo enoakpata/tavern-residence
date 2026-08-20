@@ -19,6 +19,15 @@ export function parseISODate(iso: string): Date {
   return new Date(y, m - 1, d)
 }
 
+/**
+ * Today's date in Lagos, Nigeria (WAT, UTC+1, no daylight saving) as
+ * 'YYYY-MM-DD' — for anywhere "today" needs to match the hotel's local
+ * calendar day regardless of what timezone the server process runs in.
+ */
+export function todayInLagos(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date())
+}
+
 export function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1)
 }

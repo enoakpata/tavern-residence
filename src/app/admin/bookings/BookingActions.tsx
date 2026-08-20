@@ -1,46 +1,49 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import {
-  markAsPaid,
-  chargeFullStay,
-  chargeNoShowFee,
-  updateBookingStatus,
-} from './actions'
+import { markAsPaid, cancelBookingByStaff } from './actions'
 import ConfirmModal from '@/components/ConfirmModal'
 
 type BookingActionsProps = {
   bookingId: string
   status: string
+  checkIn: string
   paymentMethod: string
   paymentStatus: string
   paymentToken: string | null
-  guestEmail: string | null
   totalAmount: number
 }
 
-const STATUS_OPTIONS = [
-  'pending',
-  'confirmed',
-  'checked_in',
-  'checked_out',
-  'cancelled',
-  'no_show',
-]
+const CANCELLABLE_STATUSES = ['pending', 'confirmed']
+const FREE_CANCELLATION_WINDOW_HOURS = 24
+
+/**
+ * Mirrors the guest-facing cancellation flow's own client-side check (see
+ * CancelBookingButton.tsx) purely to pick the right confirm-modal message
+ * before the click — cancelBookingByStaff re-derives this independently
+ * server-side as the actual authority. A booking whose check-in date has
+ * already passed naturally falls into the fee branch here too, which is
+ * how a no-show gets its 50% fee without needing a separate button.
+ */
+function isWithinFeeWindow(checkIn: string): boolean {
+  const checkInMoment = new Date(`${checkIn}T13:00:00Z`)
+  const hoursUntilCheckIn = (checkInMoment.getTime() - Date.now()) / (1000 * 60 * 60)
+  return hoursUntilCheckIn <= FREE_CANCELLATION_WINDOW_HOURS
+}
 
 export default function BookingActions({
   bookingId,
   status,
+  checkIn,
   paymentMethod,
   paymentStatus,
   paymentToken,
-  guestEmail,
   totalAmount,
 }: BookingActionsProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
-  const [pendingCharge, setPendingCharge] = useState<
-    null | { type: 'full_stay' | 'no_show'; amount: number }
+  const [pendingCancel, setPendingCancel] = useState<
+    null | { feeApplies: boolean; feeAmount: number }
   >(null)
 
   function run(
@@ -54,24 +57,25 @@ export default function BookingActions({
     })
   }
 
-  const canChargeCard =
-    paymentMethod === 'card' && paymentToken && paymentStatus !== 'paid' && guestEmail
+  const canCancel = CANCELLABLE_STATUSES.includes(status)
 
-  function handleConfirmCharge() {
-    if (!pendingCharge) return
-    const { type } = pendingCharge
-    setPendingCharge(null)
-    if (type === 'full_stay') {
-      run(
-        () => chargeFullStay(bookingId, paymentToken!, totalAmount, guestEmail!),
-        'Card declined: '
-      )
-    } else {
-      run(
-        () => chargeNoShowFee(bookingId, paymentToken!, totalAmount, guestEmail!),
-        'Card declined: '
-      )
+  function handleCancelClick() {
+    // No saved card to charge (e.g. paid by transfer) — always the simple
+    // free-cancellation confirm, regardless of timing.
+    if (paymentMethod !== 'card' || !paymentToken) {
+      setPendingCancel({ feeApplies: false, feeAmount: 0 })
+      return
     }
+    const feeApplies = isWithinFeeWindow(checkIn)
+    setPendingCancel({
+      feeApplies,
+      feeAmount: feeApplies ? Math.round(totalAmount * 0.5) : 0,
+    })
+  }
+
+  function handleConfirmCancel() {
+    setPendingCancel(null)
+    run(() => cancelBookingByStaff(bookingId))
   }
 
   return (
@@ -79,65 +83,36 @@ export default function BookingActions({
       {paymentMethod === 'transfer' && paymentStatus === 'awaiting_verification' && (
         <button
           disabled={isPending}
-          onClick={() =>
-            run(() => markAsPaid(bookingId))
-          }
+          onClick={() => run(() => markAsPaid(bookingId))}
           className="rounded-full bg-verdant/10 px-3 py-1 text-xs text-verdant hover:bg-verdant/20 disabled:opacity-50"
         >
           Mark as paid
         </button>
       )}
 
-      {canChargeCard && (
+      {canCancel && (
         <button
           disabled={isPending}
-          onClick={() => setPendingCharge({ type: 'full_stay', amount: totalAmount })}
-          className="rounded-full bg-verdant px-3 py-1 text-xs text-ivory hover:bg-verdant/90 disabled:opacity-50"
+          onClick={handleCancelClick}
+          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
         >
-          Charge full stay
+          Cancel booking
         </button>
       )}
-
-      {canChargeCard && (
-        <button
-          disabled={isPending}
-          onClick={() =>
-            setPendingCharge({ type: 'no_show', amount: Math.round(totalAmount * 0.5) })
-          }
-          className="rounded-full bg-clay/10 px-3 py-1 text-xs text-clay hover:bg-clay/20 disabled:opacity-50"
-        >
-          Charge no-show fee
-        </button>
-      )}
-
-      <select
-        value={status}
-        disabled={isPending}
-        onChange={(e) => run(() => updateBookingStatus(bookingId, e.target.value))}
-        className="rounded-full border border-charcoal/20 bg-white px-2 py-1 text-xs text-charcoal disabled:opacity-50"
-      >
-        {STATUS_OPTIONS.map((s) => (
-          <option key={s} value={s}>
-            {s.replace('_', ' ')}
-          </option>
-        ))}
-      </select>
 
       {error && <p className="w-full text-xs text-clay">{error}</p>}
 
       <ConfirmModal
-        open={pendingCharge !== null}
-        title={
-          pendingCharge?.type === 'full_stay' ? 'Charge full stay' : 'Charge no-show fee'
-        }
+        open={pendingCancel !== null}
+        title="Cancel booking"
         message={
-          pendingCharge
-            ? `₦${pendingCharge.amount.toLocaleString()} will be charged to this guest's saved card.`
-            : ''
+          pendingCancel?.feeApplies
+            ? `Cancelling now is within 24 hours of check-in. A cancellation fee of ₦${pendingCancel.feeAmount.toLocaleString()} will be charged to this guest's saved card. Continue?`
+            : 'Cancel this booking? This is a free cancellation.'
         }
-        confirmLabel={pendingCharge?.type === 'full_stay' ? 'Charge full stay' : 'Charge fee'}
-        onConfirm={handleConfirmCharge}
-        onCancel={() => setPendingCharge(null)}
+        confirmLabel={pendingCancel?.feeApplies ? 'Charge fee & cancel' : 'Cancel booking'}
+        onConfirm={handleConfirmCancel}
+        onCancel={() => setPendingCancel(null)}
       />
     </div>
   )

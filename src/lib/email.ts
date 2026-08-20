@@ -117,3 +117,46 @@ export function buildHotelNotificationEmail({
     html,
   }
 }
+
+export function buildCancellationNotificationEmail({
+  guestName,
+  roomNumber,
+  roomName,
+  checkIn,
+  checkOut,
+  feeCharged,
+  feeAmount,
+}: {
+  guestName: string
+  roomNumber: string
+  roomName: string
+  checkIn: string
+  checkOut: string
+  feeCharged: boolean
+  feeAmount?: number
+}) {
+  const html = `
+    <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
+      <p>A booking has been cancelled:</p>
+      <p>
+        <strong>Guest:</strong> ${guestName}<br />
+        <strong>Room:</strong> ${roomNumber} — ${roomName}<br />
+        <strong>Original check-in:</strong> ${formatDate(checkIn)}<br />
+        <strong>Original check-out:</strong> ${formatDate(checkOut)}
+      </p>
+      <p>
+        ${
+          feeCharged
+            ? `A cancellation fee of ₦${(feeAmount ?? 0).toLocaleString()} was charged to the guest's saved card.`
+            : 'No cancellation fee was charged.'
+        }
+      </p>
+      <p>View details in the admin dashboard.</p>
+    </div>
+  `
+
+  return {
+    subject: `Booking cancelled: ${guestName} — Room ${roomNumber}`,
+    html,
+  }
+}
