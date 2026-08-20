@@ -101,7 +101,7 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 max-h-96 w-80 overflow-y-auto rounded-sm border border-charcoal/10 bg-white shadow-xl">
+        <div className="absolute right-0 z-50 mt-2 max-h-96 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-sm border border-charcoal/10 bg-white shadow-xl">
           {notifications.length === 0 ? (
             <p className="p-4 text-sm text-charcoal/50">No notifications yet.</p>
           ) : (

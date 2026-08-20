@@ -57,14 +57,14 @@ export default function CalendarGrid({
                 disabled={!hasBookings}
                 onClick={() => setSelectedDate(iso)}
                 className={[
-                  'flex min-h-24 flex-col items-start gap-1.5 border-b border-r border-charcoal/10 p-2 text-left transition-colors',
+                  'flex min-h-16 flex-col items-start gap-1 border-b border-r border-charcoal/10 p-1 text-left transition-colors sm:min-h-24 sm:gap-1.5 sm:p-2',
                   inMonth ? 'bg-white' : 'bg-ivory/60',
                   hasBookings ? 'cursor-pointer hover:bg-verdant/5' : 'cursor-default',
                 ].join(' ')}
               >
                 <span
                   className={[
-                    'flex h-6 w-6 items-center justify-center rounded-full text-xs',
+                    'flex h-5 w-5 items-center justify-center rounded-full text-[11px] sm:h-6 sm:w-6 sm:text-xs',
                     isToday
                       ? 'bg-brass/15 font-semibold text-charcoal ring-1 ring-brass'
                       : inMonth
@@ -76,17 +76,17 @@ export default function CalendarGrid({
                 </span>
 
                 {hasBookings && (
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-0.5 sm:gap-1">
                     {dayBookings.slice(0, MAX_VISIBLE_BADGES).map((booking, idx) => (
                       <span
                         key={idx}
-                        className={`rounded-full px-2 py-0.5 text-[10px] ${STATUS_STYLES[booking.status] ?? 'bg-charcoal/10 text-charcoal/60'}`}
+                        className={`rounded-full px-1 py-0.5 text-[9px] sm:px-2 sm:text-[10px] ${STATUS_STYLES[booking.status] ?? 'bg-charcoal/10 text-charcoal/60'}`}
                       >
                         {booking.roomNumber}
                       </span>
                     ))}
                     {dayBookings.length > MAX_VISIBLE_BADGES && (
-                      <span className="rounded-full bg-charcoal/10 px-2 py-0.5 text-[10px] text-charcoal/60">
+                      <span className="rounded-full bg-charcoal/10 px-1 py-0.5 text-[9px] text-charcoal/60 sm:px-2 sm:text-[10px]">
                         +{dayBookings.length - MAX_VISIBLE_BADGES}
                       </span>
                     )}

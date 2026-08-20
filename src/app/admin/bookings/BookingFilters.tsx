@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+
+const SEARCH_DEBOUNCE_MS = 300
 
 const MONTHS = [
   { value: '01', label: 'January' },
@@ -31,6 +33,15 @@ export default function BookingFilters({ years }: { years: number[] }) {
   const searchParams = useSearchParams()
 
   const [search, setSearch] = useState(searchParams.get('search') ?? '')
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cancel any pending debounced update if the component unmounts before
+  // it fires.
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    }
+  }, [])
 
   function updateParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams.toString())
@@ -42,12 +53,22 @@ export default function BookingFilters({ years }: { years: number[] }) {
     router.push(next.size > 0 ? `${pathname}?${next.toString()}` : pathname)
   }
 
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => {
+      updateParam('search', value.trim())
+    }, SEARCH_DEBOUNCE_MS)
+  }
+
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     updateParam('search', search.trim())
   }
 
   function clearFilters() {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     setSearch('')
     router.push(pathname)
   }
@@ -69,7 +90,7 @@ export default function BookingFilters({ years }: { years: number[] }) {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Name or phone"
             className="w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
           />

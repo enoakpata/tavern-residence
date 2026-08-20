@@ -113,74 +113,79 @@ export default async function BookingsPage({
             : 'No bookings yet.'}
         </p>
       ) : (
-        <div className="mt-8 max-h-[600px] overflow-auto rounded-sm border border-charcoal/10 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="sticky top-0 z-10 bg-white">
-              <tr className="border-b border-charcoal/10 text-xs tracking-widest text-charcoal/50 uppercase">
-                <th className="px-4 py-3">Guest</th>
-                <th className="px-4 py-3">Room</th>
-                <th className="px-4 py-3">Check-in</th>
-                <th className="px-4 py-3">Check-out</th>
-                <th className="px-4 py-3">Source</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Payment</th>
-                <th className="px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bookings.map((b) => (
-                <tr key={b.id} className="border-b border-charcoal/5 last:border-0">
-                  <td className="px-4 py-3">
-                    <p className="text-charcoal">{b.guest_name}</p>
-                    <p className="text-xs text-charcoal/50">{b.guest_phone}</p>
-                  </td>
-                  <td className="px-4 py-3 text-charcoal/80">
-                    {b.Rooms
-                      ? `${b.Rooms.room_number} · ${b.Rooms.room_type}`
-                      : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-charcoal/80">{b.check_in}</td>
-                  <td className="px-4 py-3 text-charcoal/80">{b.check_out}</td>
-                  <td className="px-4 py-3 text-charcoal/60 capitalize">
-                    {b.source}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`whitespace-nowrap rounded-full px-3 py-1 text-xs capitalize ${STATUS_STYLES[b.status] ?? 'bg-charcoal/10 text-charcoal/60'}`}
-                    >
-                      {b.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs capitalize ${PAYMENT_STYLES[b.payment_status] ?? 'bg-charcoal/10 text-charcoal/60'}`}
-                    >
-                      {b.payment_status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <BookingActions
-                      bookingId={b.id}
-                      status={b.status}
-                      checkIn={b.check_in}
-                      guestName={b.guest_name}
-                      roomNumber={b.Rooms?.room_number ?? ''}
-                      paymentMethod={b.payment_method}
-                      paymentStatus={b.payment_status}
-                      paymentToken={b.payment_token}
-                      totalAmount={
-                        b.Rooms
-                          ? b.Rooms.price_per_night *
-                            nightsBetween(b.check_in, b.check_out)
-                          : 0
-                      }
-                    />
-                  </td>
+        <>
+          <p className="mt-2 text-xs text-charcoal/50 sm:hidden">
+            Scroll horizontally to see more →
+          </p>
+          <div className="mt-2 max-h-[600px] overflow-auto rounded-sm border border-charcoal/10 bg-white sm:mt-8">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="sticky top-0 z-10 bg-white">
+                <tr className="border-b border-charcoal/10 text-xs tracking-widest text-charcoal/50 uppercase">
+                  <th className="px-4 py-3">Guest</th>
+                  <th className="px-4 py-3">Room</th>
+                  <th className="px-4 py-3">Check-in</th>
+                  <th className="px-4 py-3">Check-out</th>
+                  <th className="px-4 py-3">Source</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Payment</th>
+                  <th className="px-4 py-3">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {bookings.map((b) => (
+                  <tr key={b.id} className="border-b border-charcoal/5 last:border-0">
+                    <td className="px-4 py-3">
+                      <p className="text-charcoal">{b.guest_name}</p>
+                      <p className="text-xs text-charcoal/50">{b.guest_phone}</p>
+                    </td>
+                    <td className="px-4 py-3 text-charcoal/80">
+                      {b.Rooms
+                        ? `${b.Rooms.room_number} · ${b.Rooms.room_type}`
+                        : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-charcoal/80">{b.check_in}</td>
+                    <td className="px-4 py-3 text-charcoal/80">{b.check_out}</td>
+                    <td className="px-4 py-3 text-charcoal/60 capitalize">
+                      {b.source}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`whitespace-nowrap rounded-full px-3 py-1 text-xs capitalize ${STATUS_STYLES[b.status] ?? 'bg-charcoal/10 text-charcoal/60'}`}
+                      >
+                        {b.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs capitalize ${PAYMENT_STYLES[b.payment_status] ?? 'bg-charcoal/10 text-charcoal/60'}`}
+                      >
+                        {b.payment_status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <BookingActions
+                        bookingId={b.id}
+                        status={b.status}
+                        checkIn={b.check_in}
+                        guestName={b.guest_name}
+                        roomNumber={b.Rooms?.room_number ?? ''}
+                        paymentMethod={b.payment_method}
+                        paymentStatus={b.payment_status}
+                        paymentToken={b.payment_token}
+                        totalAmount={
+                          b.Rooms
+                            ? b.Rooms.price_per_night *
+                              nightsBetween(b.check_in, b.check_out)
+                            : 0
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </main>
   )

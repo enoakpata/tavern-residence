@@ -126,7 +126,7 @@ export default function DateRangePicker({
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-2 w-[320px] rounded-sm border border-charcoal/10 bg-white p-4 shadow-xl">
+        <div className="absolute z-20 mt-2 w-[min(320px,calc(100vw-2rem))] rounded-sm border border-charcoal/10 bg-white p-4 shadow-xl">
           <div className="flex items-center justify-between">
             <button
               type="button"

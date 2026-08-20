@@ -66,21 +66,32 @@ export default function RoomGallery({
         onPointerCancel={handlePointerCancel}
         onPointerLeave={handlePointerCancel}
       >
-        <Image
-          src={images[active]}
-          alt={`${roomName} — Room ${roomNumber} at Tavern Residence, photo ${active + 1} of ${images.length}`}
-          fill
-          draggable={false}
-          priority
-          sizes="(min-width: 1024px) 50vw, 100vw"
-          className="object-cover"
-        />
+        {/* All of a room's photos (typically 4-7) are rendered and
+            preloaded up front, stacked via `fill` and toggled with
+            opacity, rather than swapping which single <Image> is mounted
+            — that way swiping/clicking to an already-loaded photo is
+            instant instead of triggering a fresh fetch each time. */}
+        {images.map((src, i) => (
+          <Image
+            key={src}
+            src={src}
+            alt={`${roomName} — Room ${roomNumber} at Tavern Residence, photo ${i + 1} of ${images.length}`}
+            fill
+            draggable={false}
+            priority
+            sizes="(min-width: 1024px) 50vw, 100vw"
+            className={`object-cover transition-opacity duration-200 ${
+              i === active ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          />
+        ))}
 
         {images.length > 1 && (
           <>
             <button
               type="button"
               onClick={() => goTo(active - 1)}
+              onPointerDown={(e) => e.stopPropagation()}
               disabled={active === 0}
               aria-label="Previous photo"
               className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-charcoal/50 text-lg text-ivory opacity-100 transition-opacity hover:bg-charcoal/70 disabled:opacity-30 md:opacity-0 md:group-hover:opacity-100"
@@ -90,6 +101,7 @@ export default function RoomGallery({
             <button
               type="button"
               onClick={() => goTo(active + 1)}
+              onPointerDown={(e) => e.stopPropagation()}
               disabled={active === images.length - 1}
               aria-label="Next photo"
               className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-charcoal/50 text-lg text-ivory opacity-100 transition-opacity hover:bg-charcoal/70 disabled:opacity-30 md:opacity-0 md:group-hover:opacity-100"
