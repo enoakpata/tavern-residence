@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { SITE_URL } from './siteConfig'
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY!
 const FROM_ADDRESS = 'Tavern Residence <onboarding@resend.dev>'
@@ -37,13 +38,17 @@ export function buildGuestConfirmationEmail({
   roomName,
   checkIn,
   checkOut,
+  bookingId,
 }: {
   guestName: string
   roomNumber: string
   roomName: string
   checkIn: string
   checkOut: string
+  bookingId: string
 }) {
+  const manageUrl = `${SITE_URL}/booking/${bookingId}`
+
   const html = `
     <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
       <p>Hi ${guestName},</p>
@@ -60,6 +65,8 @@ export function buildGuestConfirmationEmail({
       <p>Please note our cancellation policy: free cancellation up to 24 hours before check-in. Cancellations within 24 hours of check-in, or no-shows, are charged 50% of the total booking value.</p>
 
       <p>If you have any questions, reach us at 0701 583 2637 or tavernresidence@gmail.com.</p>
+
+      <p>Need to make changes? Manage your booking here: <a href="${manageUrl}">${manageUrl}</a></p>
 
       <p>Thank you again — we look forward to having you and hope you have a wonderful stay!</p>
 

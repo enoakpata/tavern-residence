@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 import { SITE_URL } from "@/lib/siteConfig";
 import "./globals.css";
 
@@ -28,9 +26,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
       <body className="flex min-h-screen flex-col bg-ivory text-charcoal antialiased">
-        <Header />
-        <div className="flex-1">{children}</div>
-        <Footer />
+        {children}
       </body>
     </html>
   );

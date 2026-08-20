@@ -7,6 +7,7 @@ import {
   isDateBlocked,
   isSameDay,
   isWithinRange,
+  parseISODate,
   startOfMonth,
   toISODate,
   type BlockedRange,
@@ -17,14 +18,24 @@ const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 export default function DateRangePicker({
   blockedRanges,
   onChange,
+  initialCheckIn,
+  initialCheckOut,
 }: {
   blockedRanges: BlockedRange[]
   onChange: (checkIn: string | null, checkOut: string | null) => void
+  initialCheckIn?: string | null
+  initialCheckOut?: string | null
 }) {
   const [open, setOpen] = useState(false)
-  const [visibleMonth, setVisibleMonth] = useState(startOfMonth(new Date()))
-  const [checkIn, setCheckIn] = useState<Date | null>(null)
-  const [checkOut, setCheckOut] = useState<Date | null>(null)
+  const [visibleMonth, setVisibleMonth] = useState(() =>
+    initialCheckIn ? startOfMonth(parseISODate(initialCheckIn)) : startOfMonth(new Date())
+  )
+  const [checkIn, setCheckIn] = useState<Date | null>(() =>
+    initialCheckIn ? parseISODate(initialCheckIn) : null
+  )
+  const [checkOut, setCheckOut] = useState<Date | null>(() =>
+    initialCheckOut ? parseISODate(initialCheckOut) : null
+  )
   const containerRef = useRef<HTMLDivElement>(null)
 
   const today = new Date()

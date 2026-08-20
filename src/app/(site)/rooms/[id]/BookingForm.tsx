@@ -22,16 +22,20 @@ type Step = 'form' | 'verifying' | 'success' | 'error'
 export default function BookingForm({
   room,
   blockedRanges,
+  initialCheckIn = null,
+  initialCheckOut = null,
 }: {
   room: Room
   blockedRanges: BlockedRange[]
+  initialCheckIn?: string | null
+  initialCheckOut?: string | null
 }) {
   const [isPending, startTransition] = useTransition()
   const [step, setStep] = useState<Step>('form')
   const [errorMessage, setErrorMessage] = useState('')
   const [bookingId, setBookingId] = useState('')
-  const [checkIn, setCheckIn] = useState<string | null>(null)
-  const [checkOut, setCheckOut] = useState<string | null>(null)
+  const [checkIn, setCheckIn] = useState<string | null>(initialCheckIn)
+  const [checkOut, setCheckOut] = useState<string | null>(initialCheckOut)
 
   function handleSubmit(formData: FormData) {
     setErrorMessage('')
@@ -125,6 +129,8 @@ export default function BookingForm({
             <div className="mt-2">
               <DateRangePicker
                 blockedRanges={blockedRanges}
+                initialCheckIn={initialCheckIn}
+                initialCheckOut={initialCheckOut}
                 onChange={(newCheckIn, newCheckOut) => {
                   setCheckIn(newCheckIn)
                   setCheckOut(newCheckOut)

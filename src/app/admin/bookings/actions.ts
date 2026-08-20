@@ -48,7 +48,13 @@ export async function createManualBooking(formData: FormData): Promise<ActionRes
     return { success: false, error: 'This room is not available for those dates.' }
   }
 
+  // Generated up front (rather than left to the DB default) so it's
+  // available below for the guest's "manage your booking" email link,
+  // matching the same pattern the guest-facing booking flow already uses.
+  const bookingId = crypto.randomUUID()
+
   const { error } = await supabase.from('Bookings').insert({
+    id: bookingId,
     room_id: roomId,
     guest_name: guestName,
     guest_phone: guestPhone,
@@ -87,6 +93,7 @@ export async function createManualBooking(formData: FormData): Promise<ActionRes
         roomName,
         checkIn,
         checkOut,
+        bookingId,
       })
       await sendEmail({ to: guestEmail, ...guestEmailContent })
     } catch (emailError) {

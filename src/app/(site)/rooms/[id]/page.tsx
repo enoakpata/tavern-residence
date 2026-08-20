@@ -8,10 +8,29 @@ import BookingForm from './BookingForm'
 import RoomGallery from '@/components/RoomGallery'
 
 const META_DESCRIPTION_LENGTH = 155
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 function truncateForMeta(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text
   return `${text.slice(0, maxLength - 1).trimEnd()}…`
+}
+
+/**
+ * Dates carried over from the rooms listing page's date picker, via
+ * ?checkin=&checkout= — only trusted if both are present, well-formed,
+ * and checkout is after checkin; otherwise the calendar just starts empty
+ * like it always has.
+ */
+function parseInitialDates(searchParams: { [key: string]: string | string[] | undefined }): {
+  checkIn: string | null
+  checkOut: string | null
+} {
+  const checkIn = typeof searchParams.checkin === 'string' ? searchParams.checkin : ''
+  const checkOut = typeof searchParams.checkout === 'string' ? searchParams.checkout : ''
+  const valid =
+    ISO_DATE_PATTERN.test(checkIn) && ISO_DATE_PATTERN.test(checkOut) && checkOut > checkIn
+
+  return valid ? { checkIn, checkOut } : { checkIn: null, checkOut: null }
 }
 
 function getRoomImages(roomNumber: string): string[] {
@@ -67,10 +86,15 @@ export async function generateMetadata({
 
 export default async function RoomDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const { id } = await params
+  const { checkIn: initialCheckIn, checkOut: initialCheckOut } = parseInitialDates(
+    await searchParams
+  )
 
   const { data: room, error } = await supabase
     .from('Rooms')
@@ -153,7 +177,12 @@ export default async function RoomDetailPage({
           </ul>
 
           <div className="mt-10">
-            <BookingForm room={r} blockedRanges={blockedRanges} />
+            <BookingForm
+              room={r}
+              blockedRanges={blockedRanges}
+              initialCheckIn={initialCheckIn}
+              initialCheckOut={initialCheckOut}
+            />
           </div>
         </div>
       </div>

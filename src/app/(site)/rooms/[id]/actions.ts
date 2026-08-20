@@ -127,6 +127,7 @@ const guestEmailContent = buildGuestConfirmationEmail({
   roomName,
   checkIn,
   checkOut,
+  bookingId,
 })
 const hotelEmailContent = buildHotelNotificationEmail({
   guestName,
