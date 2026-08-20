@@ -5,7 +5,7 @@ import NotificationBell from './NotificationBell'
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-ivory">
-      <header className="flex items-center justify-between border-b-4 border-brass bg-charcoal px-6 py-4 text-ivory md:px-12">
+      <header className="sticky top-0 z-50 flex items-center justify-between border-b-4 border-brass bg-charcoal px-6 py-4 text-ivory md:px-12">
         <div className="flex items-center gap-3">
           <Link href="/admin/bookings" className="font-display text-lg">
             Tavern Residence
@@ -15,6 +15,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </span>
         </div>
         <nav className="flex items-center gap-6 text-sm">
+          <Link href="/admin/check-in/check-out" className="hover:text-brass">
+            Check-ins / Check-outs
+          </Link>
           <Link href="/admin/bookings" className="hover:text-brass">
             Bookings
           </Link>

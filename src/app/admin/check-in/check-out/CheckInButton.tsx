@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { chargeAndCheckIn, updateBookingStatus } from './actions'
+import { chargeAndCheckIn, updateBookingStatus } from '../../bookings/actions'
 import ConfirmModal from '@/components/ConfirmModal'
 
 export default function CheckInButton({

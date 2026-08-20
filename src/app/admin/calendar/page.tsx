@@ -26,11 +26,12 @@ export default async function CalendarPage({
 
   // Same overlap idiom as isRoomAvailable in lib/bookings.ts, so a booking
   // that starts before the visible month and ends inside it (or vice
-  // versa) is still picked up.
+  // versa) is still picked up. Every status is included (not just active
+  // ones) so staff see the complete picture for a date, color-coded by
+  // status in the grid.
   const { data: bookings, error } = await supabase
     .from('Bookings')
     .select('*, Rooms(room_number)')
-    .in('status', ['confirmed', 'checked_in'])
     .lt('check_in', toISODate(monthEnd))
     .gt('check_out', toISODate(visibleMonth))
 
@@ -58,6 +59,7 @@ export default async function CalendarPage({
       guestPhone: booking.guest_phone,
       paymentMethod: booking.payment_method,
       source: booking.source,
+      status: booking.status,
     }
 
     const bookingStart = parseISODate(booking.check_in)
@@ -81,7 +83,7 @@ export default async function CalendarPage({
   const nextMonth = addMonths(visibleMonth, 1)
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12 md:px-12">
+    <main className="mx-auto max-w-6xl px-6 pt-6 pb-12 md:px-12">
       <div className="flex items-end justify-between">
         <div>
           <p className="text-xs tracking-widest text-brass uppercase">

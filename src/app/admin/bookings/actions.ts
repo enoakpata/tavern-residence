@@ -125,6 +125,7 @@ export async function createManualBooking(formData: FormData): Promise<ActionRes
   }
 
   revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
   return { success: true }
 }
 
@@ -172,6 +173,7 @@ export async function markAsPaid(bookingId: string): Promise<ActionResult> {
 
   if (error) return { success: false, error: error.message }
   revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
   return { success: true }
 }
 
@@ -203,6 +205,7 @@ export async function chargeFullStay(
 
   if (error) return { success: false, error: error.message }
   revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
   return { success: true }
 }
 
@@ -256,6 +259,7 @@ export async function chargeNoShowFee(
 
   if (error) return { success: false, error: error.message }
   revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
   return { success: true }
 }
 
@@ -275,6 +279,7 @@ export async function updateBookingStatus(
 
   if (error) return { success: false, error: error.message }
   revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
   return { success: true }
 }
 
@@ -325,6 +330,7 @@ export async function cancelBookingByStaff(bookingId: string): Promise<CancelBoo
     await notifyCancellationByEmail(booking, false, 0)
 
     revalidatePath('/admin/bookings')
+    revalidatePath('/admin/check-in/check-out')
     return { success: true, feeCharged: false, feeAmount: 0 }
   }
 
@@ -362,6 +368,7 @@ export async function cancelBookingByStaff(bookingId: string): Promise<CancelBoo
   await notifyCancellationByEmail(booking, true, feeAmount)
 
   revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
   return { success: true, feeCharged: true, feeAmount }
 }
 

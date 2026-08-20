@@ -1,13 +1,15 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { markAsPaid, cancelBookingByStaff } from './actions'
+import { markAsPaid, cancelBookingByStaff, updateBookingStatus } from './actions'
 import ConfirmModal from '@/components/ConfirmModal'
 
 type BookingActionsProps = {
   bookingId: string
   status: string
   checkIn: string
+  guestName: string
+  roomNumber: string
   paymentMethod: string
   paymentStatus: string
   paymentToken: string | null
@@ -35,6 +37,8 @@ export default function BookingActions({
   bookingId,
   status,
   checkIn,
+  guestName,
+  roomNumber,
   paymentMethod,
   paymentStatus,
   paymentToken,
@@ -45,6 +49,7 @@ export default function BookingActions({
   const [pendingCancel, setPendingCancel] = useState<
     null | { feeApplies: boolean; feeAmount: number }
   >(null)
+  const [pendingCheckout, setPendingCheckout] = useState(false)
 
   function run(
     action: () => Promise<{ success: boolean; error?: string }>,
@@ -58,6 +63,7 @@ export default function BookingActions({
   }
 
   const canCancel = CANCELLABLE_STATUSES.includes(status)
+  const canCheckOut = status === 'checked_in'
 
   function handleCancelClick() {
     // No saved card to charge (e.g. paid by transfer) — always the simple
@@ -78,6 +84,11 @@ export default function BookingActions({
     run(() => cancelBookingByStaff(bookingId))
   }
 
+  function handleConfirmCheckout() {
+    setPendingCheckout(false)
+    run(() => updateBookingStatus(bookingId, 'checked_out'))
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {paymentMethod === 'transfer' && paymentStatus === 'awaiting_verification' && (
@@ -87,6 +98,16 @@ export default function BookingActions({
           className="rounded-full bg-verdant/10 px-3 py-1 text-xs text-verdant hover:bg-verdant/20 disabled:opacity-50"
         >
           Mark as paid
+        </button>
+      )}
+
+      {canCheckOut && (
+        <button
+          disabled={isPending}
+          onClick={() => setPendingCheckout(true)}
+          className="rounded-full bg-verdant px-3 py-1 text-xs text-ivory hover:bg-verdant/90 disabled:opacity-50"
+        >
+          Check out
         </button>
       )}
 
@@ -113,6 +134,15 @@ export default function BookingActions({
         confirmLabel={pendingCancel?.feeApplies ? 'Charge fee & cancel' : 'Cancel booking'}
         onConfirm={handleConfirmCancel}
         onCancel={() => setPendingCancel(null)}
+      />
+
+      <ConfirmModal
+        open={pendingCheckout}
+        title="Check out guest"
+        message={`Check out ${guestName} from Room ${roomNumber}? This will make the room available for new bookings again.`}
+        confirmLabel="Check out"
+        onConfirm={handleConfirmCheckout}
+        onCancel={() => setPendingCheckout(false)}
       />
     </div>
   )

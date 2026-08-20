@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { parseISODate } from '@/lib/dateUtils'
+import { STATUS_STYLES } from '@/lib/statusStyles'
 import type { DayBookingEntry } from './CalendarGrid'
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -77,9 +78,16 @@ export default function DayBookingsModal({
         <div className="mt-5 space-y-3">
           {bookings.map((booking, i) => (
             <div key={i} className="rounded-sm border border-charcoal/10 p-4 text-sm">
-              <p className="text-xs tracking-widest text-brass uppercase">
-                Room {booking.roomNumber}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs tracking-widest text-brass uppercase">
+                  Room {booking.roomNumber}
+                </p>
+                <span
+                  className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] capitalize ${STATUS_STYLES[booking.status] ?? 'bg-charcoal/10 text-charcoal/60'}`}
+                >
+                  {booking.status.replace('_', ' ')}
+                </span>
+              </div>
               <p className="mt-2 text-charcoal">{booking.guestName}</p>
               <p className="text-charcoal/60">{booking.guestPhone}</p>
               <div className="mt-3 flex gap-2 text-xs text-charcoal/60">

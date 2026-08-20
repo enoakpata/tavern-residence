@@ -2,7 +2,7 @@ import NewBookingForm from './NewBookingForm'
 
 export default function NewBookingPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 md:px-12">
+    <main className="mx-auto max-w-3xl px-6 pt-6 pb-12 md:px-12">
       <p className="text-xs tracking-widest text-brass uppercase">
         Front desk
       </p>

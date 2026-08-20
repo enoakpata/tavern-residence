@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { buildMonthGrid, isSameDay, parseISODate, toISODate } from '@/lib/dateUtils'
+import { STATUS_STYLES } from '@/lib/statusStyles'
 import DayBookingsModal from './DayBookingsModal'
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -13,6 +14,7 @@ export type DayBookingEntry = {
   guestPhone: string
   paymentMethod: string
   source: string
+  status: string
 }
 
 export default function CalendarGrid({
@@ -78,7 +80,7 @@ export default function CalendarGrid({
                     {dayBookings.slice(0, MAX_VISIBLE_BADGES).map((booking, idx) => (
                       <span
                         key={idx}
-                        className="rounded-full bg-verdant/15 px-2 py-0.5 text-[10px] text-verdant"
+                        className={`rounded-full px-2 py-0.5 text-[10px] ${STATUS_STYLES[booking.status] ?? 'bg-charcoal/10 text-charcoal/60'}`}
                       >
                         {booking.roomNumber}
                       </span>
