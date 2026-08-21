@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import { SITE_URL } from './siteConfig'
+import { formatLagosTime } from './dateUtils'
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY!
 const FROM_ADDRESS = 'Tavern Residence <onboarding@resend.dev>'
@@ -39,6 +40,8 @@ export function buildGuestConfirmationEmail({
   checkIn,
   checkOut,
   bookingId,
+  createdAt,
+  isSameDayBooking = false,
 }: {
   guestName: string
   roomNumber: string
@@ -46,8 +49,22 @@ export function buildGuestConfirmationEmail({
   checkIn: string
   checkOut: string
   bookingId: string
+  createdAt?: string
+  isSameDayBooking?: boolean
 }) {
   const manageUrl = `${SITE_URL}/booking/${bookingId}`
+
+  // Same-day bookings can never be 24 hours from check-in, so they get a
+  // separate 1-hour grace period from booking time instead — worth
+  // calling out explicitly since the general policy paragraph below
+  // wouldn't otherwise make that clear. Only shown when we actually have
+  // a created_at to compute the cutoff from (the online booking flow
+  // passes one; other callers of this email don't need this notice).
+  const sameDayGraceNotice = isSameDayBooking && createdAt
+    ? ` Since your check-in is today, you can also cancel for free until ${formatLagosTime(
+        new Date(new Date(createdAt).getTime() + 60 * 60 * 1000)
+      )} (1 hour after booking).`
+    : ''
 
   const html = `
     <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
@@ -62,7 +79,7 @@ export function buildGuestConfirmationEmail({
 
       <p>Check-in time is 2:00 PM and check-out time is 12:00 PM. Early check-in or late check-out is available for a fee of 50% of the room's nightly rate, subject to availability.</p>
 
-      <p>Please note our cancellation policy: free cancellation up to 24 hours before check-in. Cancellations within 24 hours of check-in, or no-shows, are charged 50% of the total booking value.</p>
+      <p>Please note our cancellation policy: free cancellation up to 24 hours before check-in. Cancellations within 24 hours of check-in, or no-shows, are charged 50% of the total booking value.${sameDayGraceNotice}</p>
 
       <p>If you have any questions, reach us at 0701 583 2637 or tavernresidence@gmail.com.</p>
 

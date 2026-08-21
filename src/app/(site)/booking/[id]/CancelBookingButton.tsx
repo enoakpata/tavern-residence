@@ -3,28 +3,18 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import ConfirmModal from '@/components/ConfirmModal'
+import { getCancellationOutcome } from '@/lib/cancellationPolicy'
 import { cancelBooking } from './actions'
-
-const FREE_CANCELLATION_WINDOW_HOURS = 24
-
-/**
- * Mirrors the server action's own 2:00 PM Lagos time (UTC+1) cutoff, so
- * the confirmation modal shows the right message before the user commits
- * — the server independently re-checks this as the actual authority.
- */
-function isWithinFeeWindow(checkIn: string): boolean {
-  const checkInMoment = new Date(`${checkIn}T13:00:00Z`)
-  const hoursUntilCheckIn = (checkInMoment.getTime() - Date.now()) / (1000 * 60 * 60)
-  return hoursUntilCheckIn <= FREE_CANCELLATION_WINDOW_HOURS
-}
 
 export default function CancelBookingButton({
   bookingId,
   checkIn,
+  createdAt,
   totalAmount,
 }: {
   bookingId: string
   checkIn: string
+  createdAt: string
   totalAmount: number
 }) {
   const router = useRouter()
@@ -34,8 +24,17 @@ export default function CancelBookingButton({
     null
   )
 
-  const feeApplies = isWithinFeeWindow(checkIn)
-  const feeAmount = Math.round(totalAmount * 0.5)
+  // totalAmount is already pricePerNight × nights, so passing it as
+  // pricePerNight with nights: 1 yields the same fee (pricePerNight ×
+  // nights is only ever used as one combined product) without this
+  // component needing the two figures split out separately.
+  const { free, feeAmount } = getCancellationOutcome({
+    createdAt,
+    checkIn,
+    pricePerNight: totalAmount,
+    nights: 1,
+  })
+  const feeApplies = !free
 
   const message = feeApplies
     ? `Cancelling now is within 24 hours of check-in. A cancellation fee of ₦${feeAmount.toLocaleString()} will be charged to your card. Continue?`

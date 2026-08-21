@@ -28,6 +28,21 @@ export function todayInLagos(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date())
 }
 
+/**
+ * A time-of-day in Lagos, Nigeria (WAT, UTC+1, no daylight saving) as a
+ * 12-hour clock string like "3:45 PM" — for anywhere a specific
+ * cutoff/deadline moment needs to read in the hotel's local time
+ * regardless of what timezone the code runs in.
+ */
+export function formatLagosTime(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Africa/Lagos',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date)
+}
+
 export function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1)
 }

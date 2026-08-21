@@ -167,6 +167,7 @@ export default async function BookingsPage({
                         bookingId={b.id}
                         status={b.status}
                         checkIn={b.check_in}
+                        createdAt={b.created_at}
                         guestName={b.guest_name}
                         roomNumber={b.Rooms?.room_number ?? ''}
                         paymentMethod={b.payment_method}

@@ -47,6 +47,12 @@ export default function PoliciesPage() {
               of the total booking value.
             </p>
             <p>No-shows are also charged 50% of the total booking value.</p>
+            <p>
+              If you book for same-day check-in, you have 1 hour from the
+              time of booking to cancel for free, even if check-in is less
+              than 24 hours away. After that grace period, the standard
+              cancellation fee applies.
+            </p>
           </div>
         </section>
 

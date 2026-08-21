@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { isRoomAvailable } from '@/lib/bookings'
+import { isRoomAvailable, calculateCancellationOutcome } from '@/lib/bookings'
 import { chargeAuthorization } from '@/lib/paystack'
 import {
   sendEmail,
@@ -15,22 +15,6 @@ type ActionResult = { success: true } | { success: false; error: string }
 
 const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
 const HOTEL_NOTIFICATION_EMAIL = 'tavernresidence@gmail.com'
-
-/**
- * 2:00 PM Lagos time (WAT, UTC+1, no daylight saving) for the given
- * check-in date, expressed as an explicit UTC instant — same calculation
- * the guest-facing cancellation action uses (see
- * src/app/(site)/booking/[id]/actions.ts) so the 24-hour cutoff agrees
- * regardless of which flow cancelled the booking.
- */
-function checkInMoment(checkInDate: string): Date {
-  return new Date(`${checkInDate}T13:00:00Z`)
-}
-
-function nightsBetween(checkIn: string, checkOut: string): number {
-  const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
-  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
-}
 
 /**
  * Manual booking entry — used for walk-ins and phone bookings. Unlike the
@@ -313,13 +297,13 @@ export async function cancelBookingByStaff(bookingId: string): Promise<CancelBoo
     return { success: false, error: 'This booking can no longer be cancelled.' }
   }
 
-  const hoursUntilCheckIn =
-    (checkInMoment(booking.check_in).getTime() - Date.now()) / (1000 * 60 * 60)
   const hasCardOnFile = booking.payment_method === 'card' && booking.payment_token
+  const { free, feeAmount } = calculateCancellationOutcome(booking, booking.Rooms)
 
-  // Free cancellation: more than 24 hours before check-in, or no card on
-  // file to charge at all.
-  if (hoursUntilCheckIn > 24 || !hasCardOnFile) {
+  // Free cancellation: either within a free-cancellation window (more
+  // than 24 hours before check-in, or the 1-hour grace period after
+  // booking), or no card on file to charge at all.
+  if (free || !hasCardOnFile) {
     const { error } = await supabase
       .from('Bookings')
       .update({ status: 'cancelled' })
@@ -334,13 +318,8 @@ export async function cancelBookingByStaff(bookingId: string): Promise<CancelBoo
     return { success: true, feeCharged: false, feeAmount: 0 }
   }
 
-  // Within 24 hours of check-in (or check-in has already passed), with a
-  // card on file — a 50% late-cancellation fee applies.
-  const pricePerNight = booking.Rooms?.price_per_night ?? 0
-  const feeAmount = Math.round(
-    pricePerNight * nightsBetween(booking.check_in, booking.check_out) * 0.5
-  )
-
+  // Outside both free-cancellation windows, with a card on file — a 50%
+  // late-cancellation fee applies.
   if (!booking.guest_email) {
     return {
       success: false,

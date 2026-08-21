@@ -3,11 +3,13 @@
 import { useState, useTransition } from 'react'
 import { markAsPaid, cancelBookingByStaff, updateBookingStatus } from './actions'
 import ConfirmModal from '@/components/ConfirmModal'
+import { getCancellationOutcome } from '@/lib/cancellationPolicy'
 
 type BookingActionsProps = {
   bookingId: string
   status: string
   checkIn: string
+  createdAt: string
   guestName: string
   roomNumber: string
   paymentMethod: string
@@ -17,26 +19,12 @@ type BookingActionsProps = {
 }
 
 const CANCELLABLE_STATUSES = ['pending', 'confirmed']
-const FREE_CANCELLATION_WINDOW_HOURS = 24
-
-/**
- * Mirrors the guest-facing cancellation flow's own client-side check (see
- * CancelBookingButton.tsx) purely to pick the right confirm-modal message
- * before the click — cancelBookingByStaff re-derives this independently
- * server-side as the actual authority. A booking whose check-in date has
- * already passed naturally falls into the fee branch here too, which is
- * how a no-show gets its 50% fee without needing a separate button.
- */
-function isWithinFeeWindow(checkIn: string): boolean {
-  const checkInMoment = new Date(`${checkIn}T13:00:00Z`)
-  const hoursUntilCheckIn = (checkInMoment.getTime() - Date.now()) / (1000 * 60 * 60)
-  return hoursUntilCheckIn <= FREE_CANCELLATION_WINDOW_HOURS
-}
 
 export default function BookingActions({
   bookingId,
   status,
   checkIn,
+  createdAt,
   guestName,
   roomNumber,
   paymentMethod,
@@ -72,11 +60,19 @@ export default function BookingActions({
       setPendingCancel({ feeApplies: false, feeAmount: 0 })
       return
     }
-    const feeApplies = isWithinFeeWindow(checkIn)
-    setPendingCancel({
-      feeApplies,
-      feeAmount: feeApplies ? Math.round(totalAmount * 0.5) : 0,
+    // totalAmount is already pricePerNight × nights, so passing it as
+    // pricePerNight with nights: 1 yields the same fee without this
+    // component needing the two figures split out separately. A booking
+    // whose check-in date has already passed naturally falls into the fee
+    // branch here too (hoursUntilCheckIn goes negative), which is how a
+    // no-show gets its 50% fee without needing a separate button.
+    const { free, feeAmount } = getCancellationOutcome({
+      createdAt,
+      checkIn,
+      pricePerNight: totalAmount,
+      nights: 1,
     })
+    setPendingCancel({ feeApplies: !free, feeAmount })
   }
 
   function handleConfirmCancel() {

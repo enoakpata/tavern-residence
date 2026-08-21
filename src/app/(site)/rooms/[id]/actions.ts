@@ -3,6 +3,7 @@
 import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { isRoomAvailable } from '@/lib/bookings'
+import { todayInLagos } from '@/lib/dateUtils'
 import { verifyTransaction, refundTransaction } from '@/lib/paystack'
 import {
   sendEmail,
@@ -31,7 +32,7 @@ export async function checkAvailability(
 }
 
 export type BookingResult =
-  | { success: true; bookingId: string }
+  | { success: true; bookingId: string; createdAt: string }
   | { success: false; error: string }
 
 export async function createBooking(formData: FormData): Promise<BookingResult> {
@@ -89,6 +90,11 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   await refundTransaction(verification.transactionId)
 
 const bookingId = crypto.randomUUID()
+// Generated up front (rather than left to the DB default) so the exact
+// same instant is available below for the confirmation email and the
+// success screen's free-cancellation cutoff on same-day bookings.
+const createdAt = new Date().toISOString()
+const isSameDayBooking = checkIn === todayInLagos()
 
 const { error } = await supabase.from('Bookings').insert({
   id: bookingId,
@@ -103,6 +109,7 @@ const { error } = await supabase.from('Bookings').insert({
   payment_method: 'card',
   payment_status: 'unpaid',
   payment_token: verification.authorizationCode,
+  created_at: createdAt,
 })
 
 if (error) {
@@ -129,6 +136,8 @@ const guestEmailContent = buildGuestConfirmationEmail({
   checkIn,
   checkOut,
   bookingId,
+  createdAt,
+  isSameDayBooking,
 })
 const hotelEmailContent = buildHotelNotificationEmail({
   guestName,
@@ -154,5 +163,5 @@ for (const result of notificationResults) {
   }
 }
 
-return { success: true, bookingId }
+return { success: true, bookingId, createdAt }
 }

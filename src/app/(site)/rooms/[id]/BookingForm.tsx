@@ -4,8 +4,11 @@ import { useState, useTransition } from 'react'
 import Script from 'next/script'
 import { checkAvailability, createBooking } from './actions'
 import DateRangePicker from '@/components/DateRangePicker'
+import ConfirmModal from '@/components/ConfirmModal'
 import type { Room } from '@/lib/types'
-import type { BlockedRange } from '@/lib/dateUtils'
+import { formatLagosTime, todayInLagos, type BlockedRange } from '@/lib/dateUtils'
+
+const FREE_CANCELLATION_GRACE_PERIOD_MS = 60 * 60 * 1000
 
 // Paystack's inline widget attaches itself to window once its script loads —
 // this just tells TypeScript that global exists, since it's not an import.
@@ -34,12 +37,28 @@ export default function BookingForm({
   const [step, setStep] = useState<Step>('form')
   const [errorMessage, setErrorMessage] = useState('')
   const [bookingId, setBookingId] = useState('')
+  const [bookingCreatedAt, setBookingCreatedAt] = useState('')
   const [checkIn, setCheckIn] = useState<string | null>(initialCheckIn)
   const [checkOut, setCheckOut] = useState<string | null>(initialCheckOut)
+  const [pendingFormData, setPendingFormData] = useState<FormData | null>(null)
+
+  // Controlled so React's automatic form reset (which fires once the
+  // form's `action` function returns — here, as soon as the policy modal
+  // opens, well before payment succeeds or fails) can't wipe out what the
+  // guest already typed. Only a genuinely successful booking should lose
+  // this, and at that point the form is replaced by the success view
+  // entirely, so there's nothing left to reset.
+  const [guestName, setGuestName] = useState('')
+  const [guestPhone, setGuestPhone] = useState('')
+  const [guestEmail, setGuestEmail] = useState('')
+
+  // Same-day bookings can never be more than 24 hours from check-in, so
+  // they rely on the separate 1-hour-after-booking grace period instead —
+  // this note only makes sense for them.
+  const isSameDayBooking = checkIn === todayInLagos()
 
   function handleSubmit(formData: FormData) {
     setErrorMessage('')
-    const guestEmail = formData.get('guest_email') as string
 
     if (!checkIn || !checkOut) {
       setErrorMessage('Please select your check-in and check-out dates.')
@@ -47,11 +66,34 @@ export default function BookingForm({
       return
     }
 
+    // Before proceeding to the availability check and payment, the guest
+    // must see and acknowledge a condensed summary of the policies.
+    setPendingFormData(formData)
+  }
+
+  function handlePolicyCancel() {
+    setPendingFormData(null)
+  }
+
+  function handlePolicyConfirm() {
+    const formData = pendingFormData
+    setPendingFormData(null)
+    if (!formData) return
+
+    // Read from formData rather than the checkIn/checkOut state — this
+    // function runs from the policy modal's confirm button, a separate
+    // closure from the validation in handleSubmit, so re-deriving from the
+    // same values already baked into the form's hidden inputs sidesteps
+    // needing TypeScript to re-narrow the nullable state here.
+    const submittedCheckIn = formData.get('check_in') as string
+    const submittedCheckOut = formData.get('check_out') as string
+    const submittedGuestEmail = formData.get('guest_email') as string
+
     startTransition(async () => {
       // Step 1: check the room is actually free before we ever ask for
       // card details — no point charging/refunding ₦100 for a room
       // someone else just booked.
-      const availability = await checkAvailability(room.id, checkIn, checkOut)
+      const availability = await checkAvailability(room.id, submittedCheckIn, submittedCheckOut)
       if (!availability.available) {
         setErrorMessage(availability.error ?? 'This room is not available.')
         setStep('error')
@@ -71,7 +113,7 @@ export default function BookingForm({
 
       const handler = window.PaystackPop.setup({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
-        email: guestEmail,
+        email: submittedGuestEmail,
         amount: 10000, // ₦100 in kobo — refunded automatically after verification
         currency: 'NGN',
         ref: `tavern_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
@@ -84,6 +126,7 @@ export default function BookingForm({
             const res = await createBooking(formData)
             if (res.success) {
               setBookingId(res.bookingId)
+              setBookingCreatedAt(res.createdAt)
               setStep('success')
             } else {
               setErrorMessage(res.error)
@@ -118,6 +161,15 @@ export default function BookingForm({
             </span>
             .
           </p>
+          {isSameDayBooking && bookingCreatedAt && (
+            <p className="mt-2 text-sm text-charcoal/70">
+              You can cancel for free until{' '}
+              {formatLagosTime(
+                new Date(new Date(bookingCreatedAt).getTime() + FREE_CANCELLATION_GRACE_PERIOD_MS)
+              )}
+              .
+            </p>
+          )}
         </div>
       ) : (
         <form action={handleSubmit} className="space-y-5">
@@ -149,6 +201,8 @@ export default function BookingForm({
               type="text"
               name="guest_name"
               required
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
               className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
             />
           </div>
@@ -162,6 +216,8 @@ export default function BookingForm({
                 type="tel"
                 name="guest_phone"
                 required
+                value={guestPhone}
+                onChange={(e) => setGuestPhone(e.target.value)}
                 className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
               />
             </div>
@@ -173,6 +229,8 @@ export default function BookingForm({
                 type="email"
                 name="guest_email"
                 required
+                value={guestEmail}
+                onChange={(e) => setGuestEmail(e.target.value)}
                 className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
               />
             </div>
@@ -199,12 +257,42 @@ export default function BookingForm({
               : `Book now — ₦${room.price_per_night.toLocaleString()}/night`}
           </button>
 
+          {isSameDayBooking && (
+            <p className="text-xs text-charcoal/50">
+              Since check-in is today, you&apos;ll have 1 hour after booking
+              to cancel for free. After that, cancelling incurs a 50% fee.
+            </p>
+          )}
+
           <p className="text-xs text-charcoal/50">
             Free cancellation up to 24 hours before check-in. Cancellations
             within 24 hours or no-shows are charged 50% of the booking value.
           </p>
         </form>
       )}
+
+      <ConfirmModal
+        open={pendingFormData !== null}
+        title="Before you continue"
+        message={
+          <ul className="list-disc space-y-1.5 pl-4">
+            <li>Check-in from 2:00 PM, check-out by 12:00 PM.</li>
+            <li>Free cancellation up to 24 hours before check-in.</li>
+            <li>
+              Same-day bookings: You can cancel free of charge within 1 hour of booking.
+              After this period, cancellations and no-shows incur a 50% charge.
+            </li>
+            <li>
+              Strictly non-smoking — a ₦200,000 fee applies if
+              violated.
+            </li>
+          </ul>
+        }
+        confirmLabel="I understand, continue to payment"
+        cancelLabel="Back"
+        onConfirm={handlePolicyConfirm}
+        onCancel={handlePolicyCancel}
+      />
     </>
   )
 }

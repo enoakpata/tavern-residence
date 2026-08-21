@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 
 export default function ConfirmModal({
   open,
@@ -13,7 +13,7 @@ export default function ConfirmModal({
 }: {
   open: boolean
   title: string
-  message: string
+  message: ReactNode
   confirmLabel?: string
   cancelLabel?: string
   onConfirm: () => void
@@ -46,7 +46,7 @@ export default function ConfirmModal({
         <p id="confirm-modal-title" className="font-display text-xl text-charcoal">
           {title}
         </p>
-        <p className="mt-2 text-sm text-charcoal/70">{message}</p>
+        <div className="mt-2 text-sm text-charcoal/70">{message}</div>
 
         <div className="mt-6 flex justify-end gap-3">
           <button

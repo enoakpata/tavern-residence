@@ -114,6 +114,7 @@ export default async function ManageBookingPage({
           <CancelBookingButton
             bookingId={booking.id}
             checkIn={booking.check_in}
+            createdAt={booking.created_at}
             totalAmount={totalAmount}
           />
         </div>

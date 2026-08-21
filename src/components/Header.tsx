@@ -1,13 +1,49 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
 export default function Header() {
   const [open, setOpen] = useState(false)
+  const headerRef = useRef<HTMLElement>(null)
+
+  // Mirrors the outside-click-closes pattern in DateRangePicker.tsx.
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Also close when the guest starts scrolling — listening for 'wheel'
+  // and 'touchmove' (the actual user gestures) rather than 'scroll' (the
+  // resulting position change) is deliberate: focusing the hamburger
+  // button while the page is already scrolled triggers the browser's own
+  // focus-into-view scroll animation on a sticky-positioned header, which
+  // fires genuine 'scroll' events with no user input involved — that
+  // self-inflicted scroll would otherwise close the menu the instant it
+  // opens. Wheel/touchmove can only originate from the guest.
+  useEffect(() => {
+    if (!open) return
+    function handleUserScroll() {
+      setOpen(false)
+    }
+    window.addEventListener('wheel', handleUserScroll, { passive: true })
+    window.addEventListener('touchmove', handleUserScroll, { passive: true })
+    return () => {
+      window.removeEventListener('wheel', handleUserScroll)
+      window.removeEventListener('touchmove', handleUserScroll)
+    }
+  }, [open])
 
   return (
-    <header className="sticky top-0 z-50 bg-verdant px-6 py-5 md:px-12 md:py-6">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-50 bg-verdant px-6 py-5 md:px-12 md:py-6"
+    >
       <div className="flex items-center justify-between">
         <Link
           href="/"
@@ -18,10 +54,10 @@ export default function Header() {
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm tracking-wide text-ivory/90 md:flex md:gap-10">
-          <Link href="/policies">Policies</Link>
           <Link href="/rooms" className="hover:text-brass transition-colors">
             Rooms
           </Link>
+          <Link href="/policies">Policies</Link>
           <Link href="/contact" className="hover:text-brass transition-colors">
             Contact
           </Link>
