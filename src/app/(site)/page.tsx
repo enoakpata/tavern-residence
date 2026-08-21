@@ -18,10 +18,6 @@ export const metadata: Metadata = {
   },
 }
 
-function roomNumberFromPhotoPath(photoPath: string): string | null {
-  return photoPath.match(/\/images\/(\d+)\//)?.[1] ?? null
-}
-
 const FEATURED_ROOM_TYPES: Room['room_type'][] = ['Standard', 'Studio', '1-Bedroom']
 
 /**
@@ -63,7 +59,7 @@ export default async function Home() {
   const prices = (priceRows ?? []).map((p) => p.price_per_night as number)
 
   const featured = pickFeaturedRooms((rooms ?? []) as Room[])
-  const galleryPhotos = getFeaturedRoomPhotos()
+  const videoPoster = getFeaturedRoomPhotos(1)[0]
 
   const hotelJsonLd = {
     '@context': 'https://schema.org',
@@ -180,40 +176,20 @@ export default async function Home() {
           )}
         </section>
 
-        {/* Gallery */}
-        {galleryPhotos.length > 0 && (
-          <section className="mx-auto max-w-6xl px-6 py-20 md:px-12 md:py-28">
-            <p className="text-xs tracking-widest text-brass uppercase">
-              A closer look
-            </p>
-            <h2 className="mt-3 font-display text-3xl text-charcoal md:text-4xl">
-              Around the residence
-            </h2>
-            <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-              {galleryPhotos.map((photo) => {
-                const roomNumber = roomNumberFromPhotoPath(photo)
-                return (
-                  <div
-                    key={photo}
-                    className="relative aspect-square w-full overflow-hidden rounded-sm"
-                  >
-                    <Image
-                      src={photo}
-                      alt={
-                        roomNumber
-                          ? `Interior view of Room ${roomNumber} at Tavern Residence`
-                          : 'Interior view at Tavern Residence'
-                      }
-                      fill
-                      sizes="(min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw"
-                      className="object-cover"
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )}
+        {/* Video */}
+        <section className="mx-auto max-w-6xl px-6 py-20 md:px-12 md:py-28">
+          <p className="text-xs tracking-widest text-brass uppercase">
+            A closer look
+          </p>
+          <h2 className="mt-3 font-display text-3xl text-charcoal md:text-4xl">
+            Around the residence
+          </h2>
+          <div className="mt-10 aspect-video w-full overflow-hidden rounded-sm bg-charcoal/10">
+            <video controls poster={videoPoster} className="h-full w-full object-cover">
+              <source src="https://t6fjm5ll9rzopbrh.private.blob.vercel-storage.com/around-the-residence.mp4?vercel-blob-delegation=eyJzdG9yZUlkIjoic3RvcmVfdDZGSm01bGw5UnpvcGJSaCIsIm93bmVySWQiOiJ0ZWFtX2ptQ00ydHNnRzZWZGdQdGs2Qk9aNTJ3SyIsInBhdGhuYW1lIjoiKiIsIm9wZXJhdGlvbnMiOlsiZ2V0IiwiaGVhZCJdLCJ2YWxpZFVudGlsIjoxNzg3MzU3MDk4ODk3LCJpYXQiOjE3ODczMTM4OTk3OTR9.yT0uaDJyi4Ran2-wQ6pK9Etdfgk4-1-1mo6z7fDHdQk&vercel-blob-signature=b0W6_oTktrfT50AMAeeCVrsswJNSO7sxgRFPnbJBv-k" type="video/mp4" />
+            </video>
+          </div>
+        </section>
 
         {/* Dining */}
         <section className="bg-charcoal px-6 py-20 text-ivory md:px-12 md:py-28">
