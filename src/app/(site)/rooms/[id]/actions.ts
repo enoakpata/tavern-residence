@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { isRoomAvailable } from '@/lib/bookings'
@@ -162,6 +163,13 @@ for (const result of notificationResults) {
     console.error('Booking confirmation email/notification failed:', result.reason)
   }
 }
+
+// Keeps the admin dashboard's cached pages from showing stale data —
+// without this, a room a guest just booked online would still look
+// available to staff until they hard-reload.
+revalidatePath('/admin/bookings')
+revalidatePath('/admin/check-in/check-out')
+revalidatePath('/admin/calendar')
 
 return { success: true, bookingId, createdAt }
 }

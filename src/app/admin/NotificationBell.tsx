@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import {
   getNotifications,
   markNotificationRead,
+  clearNotification,
+  clearAllNotifications,
   type Notification,
 } from './notifications-actions'
 
@@ -72,6 +74,35 @@ export default function NotificationBell() {
     }
   }
 
+  async function handleDismiss(notification: Notification) {
+    setNotifications((prev) => prev.filter((n) => n.id !== notification.id))
+    if (!notification.read) {
+      setUnreadCount((prev) => Math.max(0, prev - 1))
+    }
+
+    const res = await clearNotification(notification.id)
+    if (!res.success) {
+      // Roll back by re-fetching, rather than trying to reconstruct the
+      // removed row's exact position in the list.
+      const result = await getNotifications()
+      setNotifications(result.notifications)
+      setUnreadCount(result.unreadCount)
+    }
+  }
+
+  async function handleClearAll() {
+    const ids = notifications.map((n) => n.id)
+    setNotifications([])
+    setUnreadCount(0)
+
+    const res = await clearAllNotifications(ids)
+    if (!res.success) {
+      const result = await getNotifications()
+      setNotifications(result.notifications)
+      setUnreadCount(result.unreadCount)
+    }
+  }
+
   return (
     <div className="relative" ref={containerRef}>
       <button
@@ -101,29 +132,57 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 max-h-96 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-sm border border-charcoal/10 bg-white shadow-xl">
-          {notifications.length === 0 ? (
-            <p className="p-4 text-sm text-charcoal/50">No notifications yet.</p>
-          ) : (
-            <ul>
-              {notifications.map((notification) => (
-                <li key={notification.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleNotificationClick(notification)}
-                    className={`block w-full border-b border-charcoal/5 px-4 py-3 text-left text-sm transition-colors last:border-0 hover:bg-charcoal/5 ${
-                      notification.read ? 'text-charcoal/50' : 'bg-brass/10 font-medium text-charcoal'
-                    }`}
-                  >
-                    <p>{notification.message}</p>
-                    <p className="mt-1 text-xs text-charcoal/40">
-                      {timeAgo(notification.created_at)}
-                    </p>
-                  </button>
-                </li>
-              ))}
-            </ul>
+        <div className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-sm border border-charcoal/10 bg-white shadow-xl">
+          {notifications.length > 0 && (
+            <div className="flex items-center justify-between border-b border-charcoal/10 px-4 py-2">
+              <p className="text-xs tracking-widest text-charcoal/50 uppercase">
+                Notifications
+              </p>
+              <button
+                type="button"
+                onClick={handleClearAll}
+                className="text-xs text-verdant hover:underline"
+              >
+                Clear all
+              </button>
+            </div>
           )}
+
+          <div className="max-h-96 overflow-y-auto">
+            {notifications.length === 0 ? (
+              <p className="p-4 text-sm text-charcoal/50">No notifications yet.</p>
+            ) : (
+              <ul>
+                {notifications.map((notification) => (
+                  <li
+                    key={notification.id}
+                    className="relative border-b border-charcoal/5 last:border-0"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`block w-full px-4 py-3 pr-9 text-left text-sm transition-colors hover:bg-charcoal/5 ${
+                        notification.read ? 'text-charcoal/50' : 'bg-brass/10 font-medium text-charcoal'
+                      }`}
+                    >
+                      <p>{notification.message}</p>
+                      <p className="mt-1 text-xs text-charcoal/40">
+                        {timeAgo(notification.created_at)}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDismiss(notification)}
+                      aria-label="Dismiss notification"
+                      className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-lg leading-none text-charcoal/40 transition-colors hover:bg-charcoal/10 hover:text-charcoal"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
     </div>

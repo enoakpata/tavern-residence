@@ -47,3 +47,37 @@ export async function markNotificationRead(id: string): Promise<{ success: boole
   }
   return { success: true }
 }
+
+/**
+ * Actually deletes the notification row — distinct from marking it read.
+ * Once cleared, it's gone from the list entirely rather than just
+ * greyed out.
+ */
+export async function clearNotification(id: string): Promise<{ success: boolean }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('Notifications').delete().eq('id', id)
+
+  if (error) {
+    console.error('Failed to clear notification:', error)
+    return { success: false }
+  }
+  return { success: true }
+}
+
+/**
+ * Deletes exactly the notifications currently shown in the dropdown (the
+ * ids the client already has) — not every row that might exist beyond
+ * that, so it matches what "Clear all" visibly promised.
+ */
+export async function clearAllNotifications(ids: string[]): Promise<{ success: boolean }> {
+  if (ids.length === 0) return { success: true }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('Notifications').delete().in('id', ids)
+
+  if (error) {
+    console.error('Failed to clear all notifications:', error)
+    return { success: false }
+  }
+  return { success: true }
+}

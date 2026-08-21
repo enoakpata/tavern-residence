@@ -93,6 +93,11 @@ export async function cancelBooking(bookingId: string): Promise<CancelBookingRes
     await notifyCancellation(bookingId, booking, false, 0)
 
     revalidatePath(`/booking/${bookingId}`)
+    // Keeps the admin dashboard's cached pages from showing a booking as
+    // still active after a guest cancels it themselves online.
+    revalidatePath('/admin/bookings')
+    revalidatePath('/admin/check-in/check-out')
+    revalidatePath('/admin/calendar')
     return { success: true, feeCharged: false, feeAmount: 0 }
   }
 
@@ -129,5 +134,8 @@ export async function cancelBooking(bookingId: string): Promise<CancelBookingRes
   await notifyCancellation(bookingId, booking, true, feeAmount)
 
   revalidatePath(`/booking/${bookingId}`)
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
+  revalidatePath('/admin/calendar')
   return { success: true, feeCharged: true, feeAmount }
 }
