@@ -20,12 +20,15 @@ export default function DateRangePicker({
   onChange,
   initialCheckIn,
   initialCheckOut,
+  size = 'default',
 }: {
   blockedRanges: BlockedRange[]
   onChange: (checkIn: string | null, checkOut: string | null) => void
   initialCheckIn?: string | null
   initialCheckOut?: string | null
+  size?: 'default' | 'large'
 }) {
+  const isLarge = size === 'large'
   const [open, setOpen] = useState(false)
   const [visibleMonth, setVisibleMonth] = useState(() =>
     initialCheckIn ? startOfMonth(parseISODate(initialCheckIn)) : startOfMonth(new Date())
@@ -107,14 +110,16 @@ export default function DateRangePicker({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between rounded-sm border border-charcoal/20 px-4 py-3 text-left text-sm focus:border-verdant focus:outline-none"
+        className={`flex w-full items-center justify-between rounded-sm border border-charcoal/20 text-left focus:border-verdant focus:outline-none ${
+          isLarge ? 'px-6 py-5 text-base' : 'px-4 py-3 text-sm'
+        }`}
       >
         <span className={checkIn ? 'text-charcoal' : 'text-charcoal/40'}>
           {displayLabel}
         </span>
         <svg
-          width="16"
-          height="16"
+          width={isLarge ? 22 : 16}
+          height={isLarge ? 22 : 16}
           viewBox="0 0 24 24"
           fill="none"
           className="text-verdant"
@@ -126,34 +131,46 @@ export default function DateRangePicker({
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-2 w-[min(320px,calc(100vw-2rem))] rounded-sm border border-charcoal/10 bg-white p-4 shadow-xl">
+        <div
+          className={`absolute z-20 mt-2 rounded-sm border border-charcoal/10 bg-white shadow-xl ${
+            isLarge
+              ? 'w-[min(420px,calc(100vw-2rem))] p-6'
+              : 'w-[min(320px,calc(100vw-2rem))] p-4'
+          }`}
+        >
           <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={() => setVisibleMonth((m) => addMonths(m, -1))}
-              className="rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant"
+              className={`rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant ${isLarge ? 'text-lg' : ''}`}
               aria-label="Previous month"
             >
               ←
             </button>
-            <p className="font-display text-sm text-charcoal">{monthLabel}</p>
+            <p className={`font-display text-charcoal ${isLarge ? 'text-base' : 'text-sm'}`}>
+              {monthLabel}
+            </p>
             <button
               type="button"
               onClick={() => setVisibleMonth((m) => addMonths(m, 1))}
-              className="rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant"
+              className={`rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant ${isLarge ? 'text-lg' : ''}`}
               aria-label="Next month"
             >
               →
             </button>
           </div>
 
-          <div className="mt-3 grid grid-cols-7 gap-y-1 text-center text-[11px] tracking-wide text-charcoal/40 uppercase">
+          <div
+            className={`mt-3 grid grid-cols-7 gap-y-1 text-center tracking-wide text-charcoal/40 uppercase ${
+              isLarge ? 'text-xs' : 'text-[11px]'
+            }`}
+          >
             {WEEKDAY_LABELS.map((d, i) => (
               <span key={i}>{d}</span>
             ))}
           </div>
 
-          <div className="mt-1 grid grid-cols-7 gap-y-1">
+          <div className={`mt-1 grid grid-cols-7 ${isLarge ? 'gap-y-2' : 'gap-y-1'}`}>
             {grid.map(({ date, inMonth }, i) => {
               const disabled =
                 !inMonth || isBeforeToday(date) || isDateBlocked(date, blockedRanges)
@@ -169,7 +186,8 @@ export default function DateRangePicker({
                   disabled={disabled}
                   onClick={() => handleDayClick(date)}
                   className={[
-                    'aspect-square text-xs transition-colors',
+                    'aspect-square transition-colors',
+                    isLarge ? 'text-sm md:text-base' : 'text-xs',
                     disabled
                       ? 'cursor-not-allowed text-charcoal/15 line-through'
                       : 'text-charcoal hover:bg-verdant/10',
@@ -185,7 +203,11 @@ export default function DateRangePicker({
             })}
           </div>
 
-          <div className="mt-3 flex items-center gap-3 border-t border-charcoal/10 pt-3 text-[11px] text-charcoal/50">
+          <div
+            className={`mt-3 flex items-center gap-3 border-t border-charcoal/10 pt-3 text-charcoal/50 ${
+              isLarge ? 'text-xs' : 'text-[11px]'
+            }`}
+          >
             <span className="flex items-center gap-1">
               <span className="inline-block h-2 w-2 bg-verdant" /> Selected
             </span>

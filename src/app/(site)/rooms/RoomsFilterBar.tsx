@@ -23,8 +23,15 @@ export default function RoomsFilterBar() {
     router.push(next.size > 0 ? `${pathname}?${next.toString()}` : pathname)
   }
 
+  const hasDates = Boolean(searchParams.get('checkin') && searchParams.get('checkout'))
+
   return (
-    <div className="mt-8 max-w-xs">
+    <div className="mt-8 max-w-sm">
+      {!hasDates && (
+        <p className="mb-4 border-l-4 border-brass bg-verdant/5 px-4 py-3 text-sm text-verdant">
+          Select your dates to see what&apos;s available
+        </p>
+      )}
       <label className="text-xs tracking-widest text-charcoal/60 uppercase">
         Check availability
       </label>
@@ -34,6 +41,7 @@ export default function RoomsFilterBar() {
           initialCheckIn={searchParams.get('checkin')}
           initialCheckOut={searchParams.get('checkout')}
           onChange={handleChange}
+          size="large"
         />
       </div>
     </div>

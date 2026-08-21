@@ -135,6 +135,13 @@ export default async function Home() {
             </Link>
           </div>
 
+          <p className="mt-6 max-w-lg border-l-4 border-brass bg-verdant/5 px-4 py-3 text-sm text-verdant">
+            Select your dates to see what&apos;s available —{' '}
+            <Link href="/rooms" className="underline underline-offset-2 hover:no-underline">
+              check availability
+            </Link>
+          </p>
+
           {featured.length > 0 && (
             <div className="mt-12 grid gap-8 sm:grid-cols-3">
               {featured.map((room) => {
