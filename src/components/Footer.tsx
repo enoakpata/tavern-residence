@@ -1,3 +1,5 @@
+import { AtSign, Mail, Phone } from 'lucide-react'
+
 export default function Footer() {
   return (
     <footer className="bg-verdant px-6 py-16 text-ivory md:px-12">
@@ -16,15 +18,20 @@ export default function Footer() {
             Reach us
           </p>
           <p>
-            <a href="tel:+2347015832637" className="hover:text-ivory">
+            <a
+              href="tel:+2347015832637"
+              className="flex items-center gap-2 hover:text-ivory"
+            >
+              <Phone size={16} className="text-brass" />
               0701 583 2637
             </a>
           </p>
           <p className="mt-1">
             <a
               href="mailto:tavernresidence@gmail.com"
-              className="hover:text-ivory"
+              className="flex items-center gap-2 hover:text-ivory"
             >
+              <Mail size={16} className="text-brass" />
               tavernresidence@gmail.com
             </a>
           </p>
@@ -33,8 +40,9 @@ export default function Footer() {
               href="https://www.instagram.com/tavernresidencelekki"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-ivory"
+              className="flex items-center gap-2 hover:text-ivory"
             >
+              <AtSign size={16} className="text-brass" />
               @tavernresidencelekki
             </a>
           </p>

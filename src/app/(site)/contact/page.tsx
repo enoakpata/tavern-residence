@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { AtSign, Mail, Phone } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'Contact | Tavern Residence',
@@ -27,8 +28,9 @@ export default function ContactPage() {
           </p>
           <a
             href="tel:+2347015832637"
-            className="mt-2 block text-lg text-charcoal hover:text-verdant"
+            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
           >
+            <Phone size={18} className="text-verdant" />
             0701 583 2637
           </a>
         </div>
@@ -39,8 +41,9 @@ export default function ContactPage() {
           </p>
           <a
             href="mailto:tavernresidence@gmail.com"
-            className="mt-2 block text-lg text-charcoal hover:text-verdant"
+            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
           >
+            <Mail size={18} className="text-verdant" />
             tavernresidence@gmail.com
           </a>
         </div>
@@ -53,8 +56,9 @@ export default function ContactPage() {
             href="https://www.instagram.com/tavernresidencelekki"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 block text-lg text-charcoal hover:text-verdant"
+            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
           >
+            <AtSign size={18} className="text-verdant" />
             @tavernresidencelekki
           </a>
         </div>
