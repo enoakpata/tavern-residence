@@ -6,7 +6,7 @@ import type { Room } from '@/lib/types'
 import { getFeaturedRoomPhotos, getRoomCoverImage } from '@/lib/roomImages'
 
 const HOMEPAGE_DESCRIPTION =
-  'Tavern Residence is a boutique hotel in Lekki Phase 1, Lagos, offering Studio, 1-Bedroom, and Standard rooms — each with a king bed, kitchenette, and access to an in-house chef.'
+  'Tavern Residence is a boutique hotel in Lekki Phase 1, Lagos, offering well-appointed rooms, modern facilities, and a welcoming atmosphere suitable for both business and leisure travelers. Guests can enjoy comfortable accommodations, attentive service, and convenient amenities designed to make their stay relaxing and enjoyable.'
 
 export const metadata: Metadata = {
   title: 'Tavern Residence — Boutique Hotel in Lekki Phase 1, Lagos',
