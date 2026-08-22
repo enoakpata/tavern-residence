@@ -78,10 +78,11 @@ export default async function RoomsPage({
         <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {roomList.map((room) => {
             const cover = getRoomCoverImage(room.room_number)
-            const isAvailable = !hasDates || availabilityMap.get(room.id) !== false
-            const roomHref = hasDates
-              ? `/rooms/${room.id}?checkin=${rawCheckIn}&checkout=${rawCheckOut}`
-              : `/rooms/${room.id}`
+            // Availability is only known once dates are picked — before
+            // that, cards stay non-interactive rather than defaulting to
+            // "available" and clickable.
+            const isAvailable = hasDates && availabilityMap.get(room.id) !== false
+            const isClickable = hasDates && isAvailable
             const cardContent = (
               <>
                 <div className="relative aspect-[4/3] w-full overflow-hidden bg-verdant/10">
@@ -91,14 +92,14 @@ export default async function RoomsPage({
                       alt={`${room.name} — Room ${room.room_number} at Tavern Residence`}
                       fill
                       sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                      className={`object-cover transition-transform duration-500 ${isAvailable ? 'group-hover:scale-105' : ''}`}
+                      className={`object-cover transition-transform duration-500 ${isClickable ? 'group-hover:scale-105' : ''}`}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-verdant/40 uppercase">
                       Photo coming soon
                     </div>
                   )}
-                  {!isAvailable && (
+                  {hasDates && !isAvailable && (
                     <div className="absolute inset-0 flex items-center justify-center bg-ivory/80">
                       <span className="rounded-full bg-charcoal px-3 py-1 text-xs tracking-widest text-ivory uppercase">
                         Unavailable for these dates
@@ -125,9 +126,14 @@ export default async function RoomsPage({
                       </p>
                       <p className="text-xs text-charcoal/50">per night</p>
                     </div>
-                    {isAvailable && (
+                    {isClickable && (
                       <span className="text-sm text-verdant underline-offset-4 group-hover:underline">
                         View room →
+                      </span>
+                    )}
+                    {!hasDates && (
+                      <span className="text-xs text-charcoal/40">
+                        Select dates to view
                       </span>
                     )}
                   </div>
@@ -135,11 +141,13 @@ export default async function RoomsPage({
               </>
             )
 
-            if (!isAvailable) {
+            if (!isClickable) {
               return (
                 <div
                   key={room.id}
-                  className="flex flex-col overflow-hidden rounded-sm border border-charcoal/10 bg-white opacity-60"
+                  className={`flex flex-col overflow-hidden rounded-sm border border-charcoal/10 bg-white ${
+                    hasDates ? 'opacity-60' : ''
+                  }`}
                 >
                   {cardContent}
                 </div>
@@ -149,7 +157,7 @@ export default async function RoomsPage({
             return (
               <Link
                 key={room.id}
-                href={roomHref}
+                href={`/rooms/${room.id}?checkin=${rawCheckIn}&checkout=${rawCheckOut}`}
                 className="group flex flex-col overflow-hidden rounded-sm border border-charcoal/10 bg-white transition-shadow hover:shadow-lg"
               >
                 {cardContent}

@@ -9,18 +9,16 @@ export default function RoomsFilterBar() {
   const searchParams = useSearchParams()
 
   function handleChange(checkIn: string | null, checkOut: string | null) {
+    // DateRangePicker's onChange fires once after picking check-in alone
+    // (checkOut still null) and again once the range is complete — only
+    // push a URL update on the latter, so picking dates triggers a single
+    // refetch instead of one after each individual click.
+    if (!checkIn || !checkOut) return
+
     const next = new URLSearchParams(searchParams.toString())
-    if (checkIn) {
-      next.set('checkin', checkIn)
-    } else {
-      next.delete('checkin')
-    }
-    if (checkOut) {
-      next.set('checkout', checkOut)
-    } else {
-      next.delete('checkout')
-    }
-    router.push(next.size > 0 ? `${pathname}?${next.toString()}` : pathname)
+    next.set('checkin', checkIn)
+    next.set('checkout', checkOut)
+    router.push(`${pathname}?${next.toString()}`)
   }
 
   const hasDates = Boolean(searchParams.get('checkin') && searchParams.get('checkout'))

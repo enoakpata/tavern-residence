@@ -143,9 +143,13 @@ export default async function Home() {
               {featured.map((room) => {
                 const cover = getRoomCoverImage(room.room_number)
                 return (
+                  // Links to the listing page rather than straight into
+                  // this room's detail page — the homepage has no date
+                  // picker of its own, so this funnels guests through the
+                  // same dates-first flow as browsing from /rooms.
                   <Link
                     key={room.id}
-                    href={`/rooms/${room.id}`}
+                    href="/rooms"
                     className="group block"
                   >
                     <div className="relative aspect-[4/3] w-full overflow-hidden rounded-sm bg-verdant/10">
