@@ -1,11 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-export default function AdminLoginPage() {
+const DEFAULT_REDIRECT = '/admin/bookings'
+
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -25,7 +28,16 @@ export default function AdminLoginPage() {
       return
     }
 
-    router.push('/admin/bookings')
+    // Only trust a redirect target that actually points back into the
+    // admin area — anything else (missing, malformed, or pointed at the
+    // login page itself) falls back to the default dashboard.
+    const redirectParam = searchParams.get('redirect')
+    const target =
+      redirectParam && redirectParam.startsWith('/admin/') && redirectParam !== '/admin/login'
+        ? redirectParam
+        : DEFAULT_REDIRECT
+
+    router.push(target)
     router.refresh()
   }
 
@@ -80,5 +92,13 @@ export default function AdminLoginPage() {
         </button>
       </form>
     </main>
+  )
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   )
 }

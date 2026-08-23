@@ -30,9 +30,12 @@ export async function middleware(request: NextRequest) {
   const isAdminRoute = request.nextUrl.pathname.startsWith('/admin')
   const isLoginPage = request.nextUrl.pathname === '/admin/login'
 
-  // Not logged in and trying to reach a protected admin page — send to login
+  // Not logged in and trying to reach a protected admin page — send to
+  // login, remembering where they were headed so a successful sign-in
+  // can return them there instead of always landing on the dashboard.
   if (isAdminRoute && !isLoginPage && !user) {
     const loginUrl = new URL('/admin/login', request.url)
+    loginUrl.searchParams.set('redirect', request.nextUrl.pathname + request.nextUrl.search)
     return NextResponse.redirect(loginUrl)
   }
 

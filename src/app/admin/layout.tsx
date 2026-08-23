@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { signOut } from './actions'
 import NotificationBell from './NotificationBell'
+import InactivityTimeout from './InactivityTimeout'
 
 const NAV_LINKS = [
   { href: '/admin/check-in/check-out', label: 'Check-ins / Check-outs' },
@@ -105,6 +106,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </nav>
         </div>
       </header>
+      <InactivityTimeout />
       {children}
     </div>
   )

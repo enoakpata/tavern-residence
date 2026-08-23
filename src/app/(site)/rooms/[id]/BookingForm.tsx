@@ -10,6 +10,11 @@ import { formatLagosTime, todayInLagos, type BlockedRange } from '@/lib/dateUtil
 
 const FREE_CANCELLATION_GRACE_PERIOD_MS = 60 * 60 * 1000
 
+function nightsBetween(checkIn: string, checkOut: string): number {
+  const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
+  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
+}
+
 // Paystack's inline widget attaches itself to window once its script loads —
 // this just tells TypeScript that global exists, since it's not an import.
 declare global {
@@ -56,6 +61,9 @@ export default function BookingForm({
   // they rely on the separate 1-hour-after-booking grace period instead —
   // this note only makes sense for them.
   const isSameDayBooking = checkIn === todayInLagos()
+
+  const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0
+  const totalPrice = nights * room.price_per_night
 
   function handleSubmit(formData: FormData) {
     setErrorMessage('')
@@ -193,6 +201,19 @@ export default function BookingForm({
             <input type="hidden" name="check_out" value={checkOut ?? ''} />
           </div>
 
+          <div className="rounded-sm bg-charcoal/5 p-4">
+            {nights > 0 ? (
+              <p className="text-sm text-charcoal">
+                Total for {nights} night{nights === 1 ? '' : 's'}:{' '}
+                <span className="font-medium">₦{totalPrice.toLocaleString()}</span>
+              </p>
+            ) : (
+              <p className="text-sm text-charcoal/50">
+                Select your dates to see the total
+              </p>
+            )}
+          </div>
+
           <div>
             <label className="text-xs tracking-widest text-charcoal/60 uppercase">
               Full name
@@ -252,9 +273,7 @@ export default function BookingForm({
             disabled={isPending || step === 'verifying'}
             className="w-full rounded-sm bg-verdant py-4 text-sm tracking-widest text-ivory uppercase transition-colors hover:bg-verdant/90 disabled:opacity-50"
           >
-            {step === 'verifying'
-              ? 'Verifying card…'
-              : `Book now — ₦${room.price_per_night.toLocaleString()}/night`}
+            {step === 'verifying' ? 'Verifying card…' : 'Book now'}
           </button>
 
           {isSameDayBooking && (
