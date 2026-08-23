@@ -3,7 +3,7 @@ import { SITE_URL } from './siteConfig'
 import { formatLagosTime } from './dateUtils'
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY!
-const FROM_ADDRESS = 'Tavern Residence <onboarding@resend.dev>'
+const FROM_ADDRESS = 'Tavern Residence Booking <bookings@tavernresidence.com.ng>'
 
 const resend = new Resend(RESEND_API_KEY)
 

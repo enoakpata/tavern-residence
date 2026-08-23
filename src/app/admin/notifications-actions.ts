@@ -49,6 +49,25 @@ export async function markNotificationRead(id: string): Promise<{ success: boole
 }
 
 /**
+ * Marks exactly the notifications currently shown in the dropdown (the
+ * ids the client already has) as read — used when the dropdown is opened,
+ * so the whole visible list clears at once instead of requiring a click
+ * on each one.
+ */
+export async function markAllNotificationsRead(ids: string[]): Promise<{ success: boolean }> {
+  if (ids.length === 0) return { success: true }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('Notifications').update({ read: true }).in('id', ids)
+
+  if (error) {
+    console.error('Failed to mark all notifications read:', error)
+    return { success: false }
+  }
+  return { success: true }
+}
+
+/**
  * Actually deletes the notification row — distinct from marking it read.
  * Once cleared, it's gone from the list entirely rather than just
  * greyed out.

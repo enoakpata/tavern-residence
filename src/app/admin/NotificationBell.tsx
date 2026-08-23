@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   getNotifications,
   markNotificationRead,
+  markAllNotificationsRead,
   clearNotification,
   clearAllNotifications,
   type Notification,
@@ -74,6 +75,31 @@ export default function NotificationBell() {
     }
   }
 
+  async function markAllAsRead() {
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id)
+    if (unreadIds.length === 0) return
+
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    setUnreadCount(0)
+
+    const res = await markAllNotificationsRead(unreadIds)
+    if (!res.success) {
+      // Roll back by re-fetching, rather than trying to reconstruct which
+      // of these were actually unread before.
+      const result = await getNotifications()
+      setNotifications(result.notifications)
+      setUnreadCount(result.unreadCount)
+    }
+  }
+
+  function handleBellClick() {
+    setOpen((wasOpen) => {
+      const willOpen = !wasOpen
+      if (willOpen) markAllAsRead()
+      return willOpen
+    })
+  }
+
   async function handleDismiss(notification: Notification) {
     setNotifications((prev) => prev.filter((n) => n.id !== notification.id))
     if (!notification.read) {
@@ -107,7 +133,7 @@ export default function NotificationBell() {
     <div className="relative" ref={containerRef}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={handleBellClick}
         aria-label="Notifications"
         className="relative flex h-8 w-8 items-center justify-center rounded-full text-ivory/80 transition-colors hover:text-brass"
       >
