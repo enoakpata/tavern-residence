@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { signOut } from './actions'
 import NotificationBell from './NotificationBell'
 import InactivityTimeout from './InactivityTimeout'
+export const dynamic = 'force-dynamic'
 
 const NAV_LINKS = [
   { href: '/admin/check-in/check-out', label: 'Check-ins / Check-outs' },
