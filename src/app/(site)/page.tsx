@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
 import { getFeaturedRoomPhotos, getRoomCoverImage } from '@/lib/roomImages'
+import { GOOGLE_MAPS_URL } from '@/lib/siteConfig'
 
 const HOMEPAGE_DESCRIPTION =
   'Tavern Residence is a boutique hotel in Lekki Phase 1, Lagos, offering well-appointed rooms, modern facilities, and a welcoming atmosphere suitable for both business and leisure travelers. Guests can enjoy comfortable accommodations, attentive service, and convenient amenities designed to make their stay relaxing and enjoyable.'
@@ -221,9 +222,14 @@ export default async function Home() {
               <p className="text-xs tracking-widest text-brass uppercase">
                 Location
               </p>
-              <p className="mt-3 text-charcoal">
+              <a
+                href={GOOGLE_MAPS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 block text-charcoal hover:text-verdant"
+              >
                 No 20 Dele Adedeji, Lekki Phase 1, Lagos
-              </p>
+              </a>
               <p className="mt-1 text-sm text-charcoal/60">
                 Free on-site parking for all guests.
               </p>

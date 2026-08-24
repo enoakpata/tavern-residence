@@ -1,4 +1,6 @@
-import { AtSign, Mail, Phone } from 'lucide-react'
+import { Mail, Phone } from 'lucide-react'
+import { FaInstagram } from 'react-icons/fa6'
+import { GOOGLE_MAPS_URL } from '@/lib/siteConfig'
 
 export default function Footer() {
   return (
@@ -6,11 +8,16 @@ export default function Footer() {
       <div className="mx-auto grid max-w-6xl gap-12 md:grid-cols-3">
         <div>
           <p className="font-display text-2xl">Tavern Residence</p>
-          <p className="mt-4 text-sm leading-relaxed text-ivory/70">
+          <a
+            href={GOOGLE_MAPS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 block text-sm leading-relaxed text-ivory/70 hover:text-ivory"
+          >
             No 20 Dele Adedeji
             <br />
             Lekki Phase 1, Lagos
-          </p>
+          </a>
         </div>
 
         <div className="text-sm text-ivory/70">
@@ -42,7 +49,7 @@ export default function Footer() {
               rel="noopener noreferrer"
               className="flex items-center gap-2 hover:text-ivory"
             >
-              <AtSign size={16} className="text-brass" />
+              <FaInstagram size={16} className="text-brass" />
               @tavernresidencelekki
             </a>
           </p>

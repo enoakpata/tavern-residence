@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
-import { AtSign, Mail, Phone } from 'lucide-react'
+import { Mail, MapPin, Phone } from 'lucide-react'
+import { FaInstagram } from 'react-icons/fa6'
+import { GOOGLE_MAPS_URL } from '@/lib/siteConfig'
 
 export const metadata: Metadata = {
   title: 'Contact | Tavern Residence',
@@ -58,7 +60,7 @@ export default function ContactPage() {
             rel="noopener noreferrer"
             className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
           >
-            <AtSign size={18} className="text-verdant" />
+            <FaInstagram size={18} className="text-verdant" />
             @tavernresidencelekki
           </a>
         </div>
@@ -67,9 +69,15 @@ export default function ContactPage() {
           <p className="text-xs tracking-widest text-brass uppercase">
             Address
           </p>
-          <p className="mt-2 text-lg text-charcoal">
+          <a
+            href={GOOGLE_MAPS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
+          >
+            <MapPin size={18} className="text-verdant" />
             No 20 Dele Adedeji, Lekki Phase 1, Lagos
-          </p>
+          </a>
         </div>
       </div>
     </main>
