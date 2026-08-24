@@ -191,7 +191,7 @@ export default async function Home() {
           </h2>
           <div className="mt-10 aspect-video w-full overflow-hidden rounded-sm bg-charcoal/10">
             <video controls poster={videoPoster} className="h-full w-full object-cover">
-              <source src="https://t6fjm5ll9rzopbrh.private.blob.vercel-storage.com/around-the-residence.mp4?vercel-blob-delegation=eyJzdG9yZUlkIjoic3RvcmVfdDZGSm01bGw5UnpvcGJSaCIsIm93bmVySWQiOiJ0ZWFtX2ptQ00ydHNnRzZWZGdQdGs2Qk9aNTJ3SyIsInBhdGhuYW1lIjoiKiIsIm9wZXJhdGlvbnMiOlsiZ2V0IiwiaGVhZCJdLCJ2YWxpZFVudGlsIjoxNzg3MzU3MDk4ODk3LCJpYXQiOjE3ODczMTM4OTk3OTR9.yT0uaDJyi4Ran2-wQ6pK9Etdfgk4-1-1mo6z7fDHdQk&vercel-blob-signature=b0W6_oTktrfT50AMAeeCVrsswJNSO7sxgRFPnbJBv-k" type="video/mp4" />
+              <source src="https://t6fjm5ll9rzopbrh.private.blob.vercel-storage.com/around-the-residence.mp4?vercel-blob-delegation=eyJzdG9yZUlkIjoic3RvcmVfdDZGSm01bGw5UnpvcGJSaCIsIm93bmVySWQiOiJ0ZWFtX2ptQ00ydHNnRzZWZGdQdGs2Qk9aNTJ3SyIsInBhdGhuYW1lIjoiKiIsIm9wZXJhdGlvbnMiOlsiZ2V0IiwiaGVhZCJdLCJ2YWxpZFVudGlsIjoxNzg3NjE1NTIyMDI4LCJpYXQiOjE3ODc1NzIzMjIyOTN9.jW_az9w1zlfpqsy4s9xTbgsh2ZELY9VgSHJa8JOm0Kw&vercel-blob-signature=KsowNk6I3yL-IOMd7j6hNbnPpuxkRlKel96suopcEes" type="video/mp4" />
             </video>
           </div>
         </section>
