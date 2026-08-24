@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import ConfirmModal from '@/components/ConfirmModal'
 import { signOutFrom } from './actions'
@@ -18,7 +18,7 @@ const ACTIVITY_THROTTLE_MS = 1000
  * listeners keep running continuously rather than needing to reattach
  * per page.
  */
-export default function InactivityTimeout() {
+function InactivityTimeoutInner() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [showWarning, setShowWarning] = useState(false)
@@ -101,5 +101,17 @@ export default function InactivityTimeout() {
       onConfirm={resetTimers}
       onCancel={() => setShowWarning(false)}
     />
+  )
+}
+
+// useSearchParams() requires a Suspense boundary for production builds to
+// statically prerender pages that render this — renders nothing itself
+// (the ConfirmModal it wraps is already invisible until a warning is
+// due), so a null fallback is the correct, momentary placeholder.
+export default function InactivityTimeout() {
+  return (
+    <Suspense fallback={null}>
+      <InactivityTimeoutInner />
+    </Suspense>
   )
 }
