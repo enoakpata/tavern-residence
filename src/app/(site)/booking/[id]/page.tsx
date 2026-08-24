@@ -120,8 +120,7 @@ export default async function ManageBookingPage({
         </div>
       ) : (
         <p className="mt-8 text-sm text-charcoal/60">
-          This booking is {(STATUS_LABELS[booking.status] ?? booking.status).toLowerCase()} —
-          there&apos;s nothing to cancel.
+          This booking is {(STATUS_LABELS[booking.status] ?? booking.status).toLowerCase()}
         </p>
       )}
     </main>

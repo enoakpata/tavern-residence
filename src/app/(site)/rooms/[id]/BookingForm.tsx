@@ -15,6 +15,16 @@ function nightsBetween(checkIn: string, checkOut: string): number {
   return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
 }
 
+// Joins validation-error phrases into a natural sentence fragment, e.g.
+// "your full name, your phone number, and your email address".
+function joinWithAnd(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  if (items.length === 2) return `${items[0]} and ${items[1]}`
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
+}
+
+type RequiredTextField = 'guest_name' | 'guest_phone' | 'guest_email'
+
 // Paystack's inline widget attaches itself to window once its script loads —
 // this just tells TypeScript that global exists, since it's not an import.
 declare global {
@@ -57,6 +67,20 @@ export default function BookingForm({
   const [guestPhone, setGuestPhone] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
 
+  // Tracks which required text fields are currently missing, so the
+  // custom validation below (replacing the browser's native "please fill
+  // out this field" popups) can highlight them individually.
+  const [invalidFields, setInvalidFields] = useState<Set<RequiredTextField>>(new Set())
+
+  function clearInvalid(field: RequiredTextField) {
+    setInvalidFields((prev) => {
+      if (!prev.has(field)) return prev
+      const next = new Set(prev)
+      next.delete(field)
+      return next
+    })
+  }
+
   // Same-day bookings can never be more than 24 hours from check-in, so
   // they rely on the separate 1-hour-after-booking grace period instead —
   // this note only makes sense for them.
@@ -68,8 +92,32 @@ export default function BookingForm({
   function handleSubmit(formData: FormData) {
     setErrorMessage('')
 
+    // Custom validation in place of the browser's native "please fill out
+    // this field" popups (disabled via `noValidate` on the form below) —
+    // same required fields, just communicated in the site's own style.
+    const missing: string[] = []
+    const nextInvalidFields = new Set<RequiredTextField>()
+
+    if (!guestName.trim()) {
+      missing.push('your full name')
+      nextInvalidFields.add('guest_name')
+    }
+    if (!guestPhone.trim()) {
+      missing.push('your phone number')
+      nextInvalidFields.add('guest_phone')
+    }
+    if (!guestEmail.trim()) {
+      missing.push('your email address')
+      nextInvalidFields.add('guest_email')
+    }
     if (!checkIn || !checkOut) {
-      setErrorMessage('Please select your check-in and check-out dates.')
+      missing.push('your check-in and check-out dates')
+    }
+
+    setInvalidFields(nextInvalidFields)
+
+    if (missing.length > 0) {
+      setErrorMessage(`Please enter ${joinWithAnd(missing)}.`)
       setStep('error')
       return
     }
@@ -180,7 +228,7 @@ export default function BookingForm({
           )}
         </div>
       ) : (
-        <form action={handleSubmit} className="space-y-5">
+        <form action={handleSubmit} noValidate className="space-y-5">
           <input type="hidden" name="room_id" value={room.id} />
           <div>
             <label className="text-xs tracking-widest text-charcoal/60 uppercase">
@@ -223,8 +271,13 @@ export default function BookingForm({
               name="guest_name"
               required
               value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-              className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+              onChange={(e) => {
+                setGuestName(e.target.value)
+                clearInvalid('guest_name')
+              }}
+              className={`mt-2 w-full rounded-sm border px-4 py-3 text-sm focus:border-verdant focus:outline-none ${
+                invalidFields.has('guest_name') ? 'border-clay' : 'border-charcoal/20'
+              }`}
             />
           </div>
 
@@ -238,8 +291,13 @@ export default function BookingForm({
                 name="guest_phone"
                 required
                 value={guestPhone}
-                onChange={(e) => setGuestPhone(e.target.value)}
-                className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+                onChange={(e) => {
+                  setGuestPhone(e.target.value)
+                  clearInvalid('guest_phone')
+                }}
+                className={`mt-2 w-full rounded-sm border px-4 py-3 text-sm focus:border-verdant focus:outline-none ${
+                  invalidFields.has('guest_phone') ? 'border-clay' : 'border-charcoal/20'
+                }`}
               />
             </div>
             <div>
@@ -251,8 +309,13 @@ export default function BookingForm({
                 name="guest_email"
                 required
                 value={guestEmail}
-                onChange={(e) => setGuestEmail(e.target.value)}
-                className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+                onChange={(e) => {
+                  setGuestEmail(e.target.value)
+                  clearInvalid('guest_email')
+                }}
+                className={`mt-2 w-full rounded-sm border px-4 py-3 text-sm focus:border-verdant focus:outline-none ${
+                  invalidFields.has('guest_email') ? 'border-clay' : 'border-charcoal/20'
+                }`}
               />
             </div>
           </div>
@@ -302,7 +365,7 @@ export default function BookingForm({
               After this period, cancellations and no-shows incur a 50% charge.
             </li>
             <li>
-              Strictly non-smoking — a ₦200,000 fee applies if
+              <strong>Strictly non-smoking</strong> — a <strong>₦200,000</strong> fee applies if
               violated.
             </li>
           </ul>
