@@ -23,22 +23,21 @@ export default function HomeAvailabilityCheck() {
   }
 
   return (
-    <div className="max-w-sm">
-      <DateRangePicker
-        blockedRanges={[]}
-        onChange={(newCheckIn, newCheckOut) => {
-          setCheckIn(newCheckIn)
-          setCheckOut(newCheckOut)
-          if (newCheckIn && newCheckOut) setError('')
-        }}
-        size="large"
-        theme="dark"
-      />
+    <div className="max-w-sm md:max-w-[520px]">      
+    <DateRangePicker
+      blockedRanges={[]}
+      onChange={(newCheckIn, newCheckOut) => {
+        setCheckIn(newCheckIn)
+        setCheckOut(newCheckOut)
+        if (newCheckIn && newCheckOut) setError('')
+      }}
+      size="large"
+      theme="dark"
+    />
       <button
         type="button"
         onClick={handleCheckAvailability}
-        className="mt-4 w-full rounded-full bg-brass px-8 py-4 text-sm tracking-widest text-verdant uppercase transition-opacity hover:opacity-90"
-      >
+        className="mt-4 w-64 rounded-full bg-brass px-8 py-4 text-sm tracking-widest text-verdant uppercase transition-opacity hover:opacity-90"      >
         Check availability
       </button>
       {error && <p className="mt-3 text-sm text-clay">{error}</p>}

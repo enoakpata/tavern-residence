@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { getFeaturedRoomPhotos, getGalleryImages } from '@/lib/roomImages'
 import { GOOGLE_MAPS_URL } from '@/lib/siteConfig'
 import HomeAvailabilityCheck from './HomeAvailabilityCheck'
-import PhotoGallery from '@/components/PhotoGallery'
+import AmbientGallery from '@/components/AmbientGallery'
 
 // Without this, Next.js finds no dynamic API in use here and statically
 // prerenders the page once at build time — including the gallery folder
@@ -86,7 +86,7 @@ export default async function Home() {
             Around the residence
           </h2>
           <div className="mt-10">
-            <PhotoGallery images={galleryImages} alt="Tavern Residence" />
+            <AmbientGallery images={galleryImages} alt="Tavern Residence" />
           </div>
         </section>
 

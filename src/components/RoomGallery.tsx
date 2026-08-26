@@ -55,16 +55,31 @@ export default function RoomGallery({
     setIsDragging(false)
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (images.length < 2) return
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      goTo(active - 1)
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      goTo(active + 1)
+    }
+  }
+
   return (
     <div>
       <div
-        className={`group relative aspect-[4/3] w-full touch-pan-y select-none overflow-hidden rounded-sm bg-verdant/10 ${
+        role="group"
+        aria-label={`${roomName} photo gallery`}
+        tabIndex={images.length > 1 ? 0 : -1}
+        className={`group relative aspect-[4/3] w-full touch-pan-y select-none overflow-hidden rounded-sm bg-verdant/10 outline-none focus-visible:ring-2 focus-visible:ring-brass/60 ${
           images.length > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
         }`}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onPointerLeave={handlePointerCancel}
+        onKeyDown={handleKeyDown}
       >
         {/* All of a room's photos (typically 4-7) are rendered and
             preloaded up front, stacked via `fill` and toggled with

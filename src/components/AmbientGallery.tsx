@@ -5,12 +5,13 @@ import Image from 'next/image'
 
 const DRAG_THRESHOLD = 50
 
-// Same large-image-plus-thumbnails interaction as RoomGallery.tsx (drag/
-// swipe, arrow buttons, all photos preloaded up front) — kept as a
-// separate component rather than reused directly since RoomGallery's
-// alt text is built from roomName/roomNumber, which doesn't fit a
-// general, non-room-specific gallery like this one.
-export default function PhotoGallery({
+// A more editorial, immersive take on RoomGallery.tsx's interaction
+// pattern (same drag/swipe, arrow buttons, and all-images-preloaded
+// approach) for the homepage's mood-setting "Around the residence"
+// section — a wider, more generous image and a slim filmstrip instead of
+// RoomGallery's boxy thumbnail grid, since this can have dozens of
+// photos where a room only ever has a handful.
+export default function AmbientGallery({
   images,
   alt,
 }: {
@@ -23,7 +24,7 @@ export default function PhotoGallery({
 
   if (images.length === 0) {
     return (
-      <div className="aspect-[4/3] w-full overflow-hidden rounded-sm bg-verdant/10">
+      <div className="aspect-[4/3] w-full overflow-hidden rounded-sm bg-verdant/10 sm:aspect-[16/9]">
         <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-verdant/40 uppercase">
           Photo coming soon
         </div>
@@ -58,22 +59,37 @@ export default function PhotoGallery({
     setIsDragging(false)
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (images.length < 2) return
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      goTo(active - 1)
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      goTo(active + 1)
+    }
+  }
+
   return (
     <div>
       <div
-        className={`group relative aspect-[4/3] w-full touch-pan-y select-none overflow-hidden rounded-sm bg-verdant/10 ${
+        role="group"
+        aria-label={`${alt} photo gallery`}
+        tabIndex={images.length > 1 ? 0 : -1}
+        className={`group relative aspect-[4/3] w-full touch-pan-y select-none overflow-hidden rounded-sm bg-verdant/10 outline-none focus-visible:ring-2 focus-visible:ring-brass/60 sm:aspect-[16/9] ${
           images.length > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
         }`}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onPointerLeave={handlePointerCancel}
+        onKeyDown={handleKeyDown}
       >
         {/* All photos are rendered and preloaded up front, stacked via
-            `fill` and toggled with opacity, rather than swapping which
-            single <Image> is mounted — that way swiping/clicking to an
-            already-loaded photo is instant instead of triggering a fresh
-            fetch each time. */}
+            `fill` and crossfaded on a slower, softer opacity transition
+            than RoomGallery's snappier one — a more deliberate, ambient
+            feel for this editorial homepage treatment rather than an
+            instant swap. */}
         {images.map((src, i) => (
           <Image
             key={src}
@@ -82,8 +98,8 @@ export default function PhotoGallery({
             fill
             draggable={false}
             priority
-            sizes="(min-width: 1024px) 50vw, 100vw"
-            className={`object-cover transition-opacity duration-200 ${
+            sizes="100vw"
+            className={`object-cover transition-opacity duration-700 ease-in-out ${
               i === active ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
           />
@@ -115,24 +131,26 @@ export default function PhotoGallery({
         )}
       </div>
 
+      {/* Slim, low-profile filmstrip rather than a grid of squares —
+          scales far better than a fixed-column grid for a set that can
+          run into the dozens, and reads lighter/more editorial. */}
       {images.length > 1 && (
-        <div className="mt-4 grid grid-cols-4 gap-4 sm:grid-cols-6 md:grid-cols-8">
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
           {images.map((img, i) => (
             <button
               key={img}
               type="button"
-              onClick={() => setActive(i)}
-              className={`relative aspect-square w-full overflow-hidden rounded-sm transition-opacity ${
-                i === active
-                  ? 'opacity-100 ring-2 ring-verdant ring-offset-2'
-                  : 'opacity-70 hover:opacity-100'
+              onClick={() => goTo(i)}
+              aria-label={`Go to photo ${i + 1}`}
+              className={`relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-sm transition-opacity sm:h-16 sm:w-16 ${
+                i === active ? 'opacity-100 ring-1 ring-brass' : 'opacity-50 hover:opacity-80'
               }`}
             >
               <Image
                 src={img}
                 alt={`${alt}, photo ${i + 1} of ${images.length}`}
                 fill
-                sizes="(min-width: 1024px) 12vw, 25vw"
+                sizes="64px"
                 className="object-cover"
               />
             </button>
