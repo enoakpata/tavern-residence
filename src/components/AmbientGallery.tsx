@@ -32,8 +32,11 @@ export default function AmbientGallery({
     )
   }
 
+  // Wraps rather than clamps — navigating past the last photo loops back
+  // to the first, and vice versa. The extra `+ images.length` before the
+  // modulo handles `index` going negative (e.g. active 0, going "previous").
   const goTo = (index: number) => {
-    setActive(Math.min(Math.max(index, 0), images.length - 1))
+    setActive((index + images.length) % images.length)
   }
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -111,9 +114,8 @@ export default function AmbientGallery({
               type="button"
               onClick={() => goTo(active - 1)}
               onPointerDown={(e) => e.stopPropagation()}
-              disabled={active === 0}
               aria-label="Previous photo"
-              className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-charcoal/50 text-lg text-ivory opacity-100 transition-opacity hover:bg-charcoal/70 disabled:opacity-30 md:opacity-0 md:group-hover:opacity-100"
+              className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-charcoal/50 text-lg text-ivory opacity-100 transition-opacity hover:bg-charcoal/70 md:opacity-0 md:group-hover:opacity-100"
             >
               ‹
             </button>
@@ -121,9 +123,8 @@ export default function AmbientGallery({
               type="button"
               onClick={() => goTo(active + 1)}
               onPointerDown={(e) => e.stopPropagation()}
-              disabled={active === images.length - 1}
               aria-label="Next photo"
-              className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-charcoal/50 text-lg text-ivory opacity-100 transition-opacity hover:bg-charcoal/70 disabled:opacity-30 md:opacity-0 md:group-hover:opacity-100"
+              className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-charcoal/50 text-lg text-ivory opacity-100 transition-opacity hover:bg-charcoal/70 md:opacity-0 md:group-hover:opacity-100"
             >
               ›
             </button>
