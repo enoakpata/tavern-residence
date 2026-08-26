@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { signOut } from './actions'
 import NotificationBell from './NotificationBell'
 import InactivityTimeout from './InactivityTimeout'
@@ -16,6 +17,10 @@ const NAV_LINKS = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
+  // /admin/login sits inside this same shared layout (for the header/nav),
+  // but there's no active session there for the inactivity timer to
+  // protect — skip it specifically for that route.
+  const isLoginPage = usePathname() === '/admin/login'
 
   return (
     <div className="min-h-screen bg-ivory">
@@ -107,7 +112,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </nav>
         </div>
       </header>
-      <InactivityTimeout />
+      {!isLoginPage && <InactivityTimeout />}
       {children}
     </div>
   )

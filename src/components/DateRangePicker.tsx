@@ -21,14 +21,17 @@ export default function DateRangePicker({
   initialCheckIn,
   initialCheckOut,
   size = 'default',
+  theme = 'light',
 }: {
   blockedRanges: BlockedRange[]
   onChange: (checkIn: string | null, checkOut: string | null) => void
   initialCheckIn?: string | null
   initialCheckOut?: string | null
   size?: 'default' | 'large'
+  theme?: 'light' | 'dark'
 }) {
   const isLarge = size === 'large'
+  const isDark = theme === 'dark'
   const [open, setOpen] = useState(false)
   const [visibleMonth, setVisibleMonth] = useState(() =>
     initialCheckIn ? startOfMonth(parseISODate(initialCheckIn)) : startOfMonth(new Date())
@@ -110,11 +113,23 @@ export default function DateRangePicker({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex w-full items-center justify-between rounded-sm border border-charcoal/20 text-left focus:border-verdant focus:outline-none ${
-          isLarge ? 'px-6 py-5 text-base' : 'px-4 py-3 text-sm'
-        }`}
+        className={`flex w-full items-center justify-between rounded-sm border text-left focus:outline-none ${
+          isDark
+            ? 'border-ivory/40 focus:border-brass'
+            : 'border-charcoal/20 focus:border-verdant'
+        } ${isLarge ? 'px-6 py-5 text-base' : 'px-4 py-3 text-sm'}`}
       >
-        <span className={checkIn ? 'text-charcoal' : 'text-charcoal/40'}>
+        <span
+          className={
+            isDark
+              ? checkIn
+                ? 'text-ivory'
+                : 'text-ivory/50'
+              : checkIn
+                ? 'text-charcoal'
+                : 'text-charcoal/40'
+          }
+        >
           {displayLabel}
         </span>
         <svg
@@ -122,7 +137,7 @@ export default function DateRangePicker({
           height={isLarge ? 22 : 16}
           viewBox="0 0 24 24"
           fill="none"
-          className="text-verdant"
+          className={isDark ? 'text-brass' : 'text-verdant'}
         >
           <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" />
           <path d="M3 10h18" stroke="currentColor" strokeWidth="1.5" />

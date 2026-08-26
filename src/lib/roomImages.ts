@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 
 const ROOMS_IMAGES_DIR = path.join(process.cwd(), 'public', 'images')
+const GALLERY_IMAGES_DIR = path.join(process.cwd(), 'public', 'images', 'gallery')
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|gif)$/i
 
 function listRoomFiles(roomNumber: string): string[] {
@@ -54,4 +55,25 @@ export function getFeaturedRoomPhotos(maxPhotos = 9): string[] {
     if (photos.length >= maxPhotos) break
   }
   return photos
+}
+
+/**
+ * Every photo in public/images/gallery/ — the general (not room-specific)
+ * gallery shown on the homepage's "Around the residence" section. No
+ * cover-file convention here, unlike per-room galleries. Sorted with
+ * `numeric: true` rather than a plain string sort, since these files are
+ * named "1.jpg", "2.jpg", ... "10.jpg" — a plain sort would order "10"
+ * right after "1" and before "2". Works for any number of files, in any
+ * naming scheme, not just this one.
+ */
+export function getGalleryImages(): string[] {
+  let files: string[]
+  try {
+    files = fs.readdirSync(GALLERY_IMAGES_DIR).filter((file) => IMAGE_EXTENSIONS.test(file))
+  } catch {
+    return []
+  }
+  return files
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    .map((file) => `/images/gallery/${file}`)
 }
