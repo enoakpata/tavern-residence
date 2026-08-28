@@ -50,9 +50,9 @@ export async function markNotificationRead(id: string): Promise<{ success: boole
 
 /**
  * Marks exactly the notifications currently shown in the dropdown (the
- * ids the client already has) as read — used when the dropdown is opened,
- * so the whole visible list clears at once instead of requiring a click
- * on each one.
+ * ids the client already has) as read — used when the dropdown closes, so
+ * the whole visible list clears at once instead of requiring a click on
+ * each one.
  */
 export async function markAllNotificationsRead(ids: string[]): Promise<{ success: boolean }> {
   if (ids.length === 0) return { success: true }

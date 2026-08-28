@@ -1,5 +1,5 @@
 import { Resend } from 'resend'
-import { SITE_URL } from './siteConfig'
+import { SITE_URL, HOTEL_ADDRESS } from './siteConfig'
 import { formatLagosTime } from './dateUtils'
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY!
@@ -93,6 +93,49 @@ export function buildGuestConfirmationEmail({
 
   return {
     subject: 'Booking Request Received — Tavern Residence',
+    html,
+  }
+}
+
+export function buildCheckinReminderEmail({
+  guestName,
+  roomNumber,
+  roomName,
+  checkIn,
+  bookingId,
+}: {
+  guestName: string
+  roomNumber: string
+  roomName: string
+  checkIn: string
+  bookingId: string
+}) {
+  const manageUrl = `${SITE_URL}/booking/${bookingId}`
+
+  const html = `
+    <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
+      <p>Hi ${guestName},</p>
+
+      <p>Just a reminder that your stay at Tavern Residence begins tomorrow, ${formatDate(checkIn)}.</p>
+
+      <p>
+        <strong>Room:</strong> ${roomNumber} — ${roomName}<br />
+        <strong>Check-in from:</strong> 2:00 PM<br />
+        <strong>Address:</strong> ${HOTEL_ADDRESS}
+      </p>
+
+      <p>If anything about your booking has changed, you can manage it here: <a href="${manageUrl}">${manageUrl}</a></p>
+
+      <p>If you have any questions, reach us at 0701 583 2637 or tavernresidence@gmail.com.</p>
+
+      <p>We look forward to having you!</p>
+
+      <p>— Tavern Residence</p>
+    </div>
+  `
+
+  return {
+    subject: `See you tomorrow — Room ${roomNumber} at Tavern Residence`,
     html,
   }
 }

@@ -80,9 +80,18 @@ export async function cancelBooking(bookingId: string): Promise<CancelBookingRes
 
   const { free, feeAmount } = calculateCancellationOutcome(booking, booking.Rooms)
 
-  // Free cancellation — either more than 24 hours before check-in, or
-  // within the 1-hour grace period after the booking was created.
-  if (free) {
+  // payment_method === 'card' alone doesn't mean there's a real token to
+  // charge — e.g. a walk-in who paid via a physical POS card machine also
+  // has payment_method: 'card' recorded, with no Paystack token at all.
+  // Without an actual chargeable token, there's nothing to attempt a
+  // charge against, so treat it the same as a free cancellation rather
+  // than blocking the guest from self-service cancelling entirely.
+  const hasCardOnFile = Boolean(booking.payment_token)
+
+  // Free cancellation — either more than 24 hours before check-in, within
+  // the 1-hour grace period after the booking was created, or there's no
+  // card on file to charge a fee to at all.
+  if (free || !hasCardOnFile) {
     const { error } = await supabaseAdmin
       .from('Bookings')
       .update({ status: 'cancelled' })
@@ -101,10 +110,10 @@ export async function cancelBooking(bookingId: string): Promise<CancelBookingRes
     return { success: true, feeCharged: false, feeAmount: 0 }
   }
 
-  // Outside both free-cancellation windows — a 50% late-cancellation fee
-  // applies, charged to the card saved at booking time via the same
-  // helper the admin dashboard uses for no-show fees.
-  if (!booking.payment_token || !booking.guest_email) {
+  // Outside both free-cancellation windows, with a card on file — a 50%
+  // late-cancellation fee applies, charged to the card saved at booking
+  // time via the same helper the admin dashboard uses for no-show fees.
+  if (!booking.guest_email) {
     return {
       success: false,
       error: `We couldn't process the cancellation fee — please contact us directly to cancel: ${HOTEL_PHONE}`,

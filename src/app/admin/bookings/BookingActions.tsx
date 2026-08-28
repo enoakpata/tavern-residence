@@ -12,10 +12,14 @@ type BookingActionsProps = {
   createdAt: string
   guestName: string
   roomNumber: string
-  paymentMethod: string
   paymentStatus: string
   paymentToken: string | null
-  totalAmount: number
+  pricePerNight: number
+  // Called after any action succeeds — lets a parent that's showing its
+  // own snapshot of this booking (the detail modal, which fetches once
+  // when opened) know to refetch, since revalidatePath only refreshes the
+  // underlying page's Server Components, not this client-held snapshot.
+  onActionComplete?: () => void
 }
 
 const CANCELLABLE_STATUSES = ['pending', 'confirmed']
@@ -27,10 +31,10 @@ export default function BookingActions({
   createdAt,
   guestName,
   roomNumber,
-  paymentMethod,
   paymentStatus,
   paymentToken,
-  totalAmount,
+  pricePerNight,
+  onActionComplete,
 }: BookingActionsProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
@@ -38,6 +42,9 @@ export default function BookingActions({
     null | { feeApplies: boolean; feeAmount: number }
   >(null)
   const [pendingCheckout, setPendingCheckout] = useState(false)
+  const [cancelResult, setCancelResult] = useState<null | { success: boolean; message: string }>(
+    null
+  )
 
   function run(
     action: () => Promise<{ success: boolean; error?: string }>,
@@ -46,7 +53,11 @@ export default function BookingActions({
     setError('')
     startTransition(async () => {
       const res = await action()
-      if (!res.success) setError(`${errorPrefix}${res.error ?? 'Something went wrong.'}`)
+      if (!res.success) {
+        setError(`${errorPrefix}${res.error ?? 'Something went wrong.'}`)
+      } else {
+        onActionComplete?.()
+      }
     })
   }
 
@@ -54,30 +65,44 @@ export default function BookingActions({
   const canCheckOut = status === 'checked_in'
 
   function handleCancelClick() {
-    // No saved card to charge (e.g. paid by transfer) — always the simple
-    // free-cancellation confirm, regardless of timing.
-    if (paymentMethod !== 'card' || !paymentToken) {
+    // No actual chargeable token on file (e.g. paid by transfer, or a
+    // walk-in who paid by POS card with no Paystack token recorded) —
+    // always the simple free-cancellation confirm, regardless of timing.
+    // payment_method alone isn't the right signal here: a walk-in can have
+    // payment_method 'card' with no token at all.
+    if (!paymentToken) {
       setPendingCancel({ feeApplies: false, feeAmount: 0 })
       return
     }
-    // totalAmount is already pricePerNight × nights, so passing it as
-    // pricePerNight with nights: 1 yields the same fee without this
-    // component needing the two figures split out separately. A booking
-    // whose check-in date has already passed naturally falls into the fee
-    // branch here too (hoursUntilCheckIn goes negative), which is how a
-    // no-show gets its 50% fee without needing a separate button.
+    // A booking whose check-in date has already passed naturally falls
+    // into the fee branch here too (hoursUntilCheckIn goes negative),
+    // which is how a no-show gets its 50% fee without needing a separate
+    // button.
     const { free, feeAmount } = getCancellationOutcome({
       createdAt,
       checkIn,
-      pricePerNight: totalAmount,
-      nights: 1,
+      pricePerNight,
     })
     setPendingCancel({ feeApplies: !free, feeAmount })
   }
 
   function handleConfirmCancel() {
     setPendingCancel(null)
-    run(() => cancelBookingByStaff(bookingId))
+    setError('')
+    startTransition(async () => {
+      const res = await cancelBookingByStaff(bookingId)
+      if (res.success) {
+        setCancelResult({
+          success: true,
+          message: res.feeCharged
+            ? `Booking cancelled. A cancellation fee of ₦${res.feeAmount.toLocaleString()} was charged to the guest's card.`
+            : 'Booking cancelled — no fee charged.',
+        })
+        onActionComplete?.()
+      } else {
+        setCancelResult({ success: false, message: res.error })
+      }
+    })
   }
 
   function handleConfirmCheckout() {
@@ -87,7 +112,7 @@ export default function BookingActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {paymentMethod === 'transfer' && paymentStatus === 'awaiting_verification' && (
+      {paymentStatus === 'unpaid' && (
         <button
           disabled={isPending}
           onClick={() => run(() => markAsPaid(bookingId))}
@@ -139,6 +164,16 @@ export default function BookingActions({
         confirmLabel="Check out"
         onConfirm={handleConfirmCheckout}
         onCancel={() => setPendingCheckout(false)}
+      />
+
+      <ConfirmModal
+        open={cancelResult !== null}
+        title={cancelResult?.success ? 'Booking cancelled' : 'Cancellation failed'}
+        message={cancelResult?.message ?? ''}
+        confirmLabel="OK"
+        hideCancel
+        onConfirm={() => setCancelResult(null)}
+        onCancel={() => setCancelResult(null)}
       />
     </div>
   )

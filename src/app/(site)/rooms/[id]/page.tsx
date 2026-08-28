@@ -111,9 +111,16 @@ export default async function RoomDetailPage({
 
   // Pull existing bookings for this room so the calendar can grey out
   // dates that are already taken — mirrors the same statuses that count
-  // as "blocking" in the server-side availability check.
+  // as "blocking" in the server-side availability check. Reads from the
+  // booking_availability view rather than the Bookings table directly:
+  // Bookings carries guest PII (names, phone numbers, payment tokens) and
+  // its row-level security correctly blocks anonymous reads, which
+  // silently returned zero rows here and made every date look free. The
+  // view exposes only room_id/check_in/check_out/status and is the same
+  // one isRoomAvailable() already relies on for the guest-facing
+  // availability check.
   const { data: bookings } = await supabase
-    .from('Bookings')
+    .from('booking_availability')
     .select('check_in, check_out')
     .eq('room_id', id)
     .in('status', ['pending', 'confirmed', 'checked_in'])

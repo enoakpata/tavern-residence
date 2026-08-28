@@ -8,6 +8,7 @@ export default function ConfirmModal({
   message,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  hideCancel = false,
   onConfirm,
   onCancel,
 }: {
@@ -16,6 +17,10 @@ export default function ConfirmModal({
   message: ReactNode
   confirmLabel?: string
   cancelLabel?: string
+  // For informational (single-button, acknowledgement-only) use — e.g. a
+  // result notice after an action already completed, where there's
+  // nothing left to actually confirm or cancel.
+  hideCancel?: boolean
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -49,13 +54,15 @@ export default function ConfirmModal({
         <div className="mt-2 text-sm text-charcoal/70">{message}</div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-full border border-charcoal/20 px-4 py-2 text-sm text-charcoal/70 transition-colors hover:bg-charcoal/5"
-          >
-            {cancelLabel}
-          </button>
+          {!hideCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-full border border-charcoal/20 px-4 py-2 text-sm text-charcoal/70 transition-colors hover:bg-charcoal/5"
+            >
+              {cancelLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={onConfirm}

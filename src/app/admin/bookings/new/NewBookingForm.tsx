@@ -202,11 +202,10 @@ export default function NewBookingForm() {
         </label>
         <select
           name="payment_status"
-          defaultValue={paymentMethod === 'card' ? 'paid' : 'awaiting_verification'}
+          defaultValue={paymentMethod === 'card' ? 'paid' : 'unpaid'}
           className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
         >
           <option value="paid">Paid</option>
-          <option value="awaiting_verification">Awaiting verification (transfer)</option>
           <option value="unpaid">Unpaid</option>
         </select>
       </div>

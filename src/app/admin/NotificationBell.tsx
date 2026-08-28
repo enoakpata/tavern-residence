@@ -9,6 +9,7 @@ import {
   clearAllNotifications,
   type Notification,
 } from './notifications-actions'
+import { useBookingDetail } from './BookingDetailContext'
 
 const POLL_INTERVAL_MS = 30000
 
@@ -28,6 +29,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { open: openBookingDetail } = useBookingDetail()
 
   useEffect(() => {
     let cancelled = false
@@ -47,15 +49,30 @@ export default function NotificationBell() {
     }
   }, [])
 
+  // Re-registered whenever `open` or `notifications` changes so the
+  // closures below always mark the list that's actually on screen as read
+  // (rather than a stale snapshot from whenever the dropdown was opened),
+  // including anything the 30s poll added while it was open.
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
+      if (open && containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        closeDropdown()
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, notifications])
+
+  useEffect(() => {
+    if (!open) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeDropdown()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, notifications])
 
   async function handleNotificationClick(notification: Notification) {
     if (notification.read) return
@@ -92,12 +109,21 @@ export default function NotificationBell() {
     }
   }
 
+  // Marking as read happens when the panel closes, not when it opens —
+  // staff should be able to see something just arrived (still highlighted
+  // as unread) while glancing at the open dropdown, and only have it clear
+  // once they're actually done looking.
+  function closeDropdown() {
+    setOpen(false)
+    markAllAsRead()
+  }
+
   function handleBellClick() {
-    setOpen((wasOpen) => {
-      const willOpen = !wasOpen
-      if (willOpen) markAllAsRead()
-      return willOpen
-    })
+    if (open) {
+      closeDropdown()
+    } else {
+      setOpen(true)
+    }
   }
 
   async function handleDismiss(notification: Notification) {
@@ -113,6 +139,15 @@ export default function NotificationBell() {
       const result = await getNotifications()
       setNotifications(result.notifications)
       setUnreadCount(result.unreadCount)
+    }
+  }
+
+  function handleViewBooking(notification: Notification) {
+    if (notification.booking_id) {
+      openBookingDetail(notification.booking_id)
+    }
+    if (!notification.read) {
+      handleNotificationClick(notification)
     }
   }
 
@@ -182,13 +217,15 @@ export default function NotificationBell() {
                 {notifications.map((notification) => (
                   <li
                     key={notification.id}
-                    className="relative border-b border-charcoal/5 last:border-0"
+                    className={`relative border-b border-charcoal/5 px-4 py-3 pr-9 last:border-0 ${
+                      notification.read ? 'text-charcoal/50' : 'bg-brass/10 text-charcoal'
+                    }`}
                   >
                     <button
                       type="button"
                       onClick={() => handleNotificationClick(notification)}
-                      className={`block w-full px-4 py-3 pr-9 text-left text-sm transition-colors hover:bg-charcoal/5 ${
-                        notification.read ? 'text-charcoal/50' : 'bg-brass/10 font-medium text-charcoal'
+                      className={`block w-full text-left text-sm transition-colors ${
+                        notification.read ? '' : 'font-medium'
                       }`}
                     >
                       <p>{notification.message}</p>
@@ -196,6 +233,15 @@ export default function NotificationBell() {
                         {timeAgo(notification.created_at)}
                       </p>
                     </button>
+                    {notification.booking_id && (
+                      <button
+                        type="button"
+                        onClick={() => handleViewBooking(notification)}
+                        className="mt-1 text-xs text-verdant hover:underline"
+                      >
+                        View
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleDismiss(notification)}

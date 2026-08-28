@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { bookingsQuery } from '@/lib/adminBookings'
 import { isRoomAvailable, calculateCancellationOutcome } from '@/lib/bookings'
 import { chargeAuthorization } from '@/lib/paystack'
 import {
@@ -15,6 +16,22 @@ type ActionResult = { success: true } | { success: false; error: string }
 
 const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
 const HOTEL_NOTIFICATION_EMAIL = 'tavernresidence@gmail.com'
+
+/**
+ * Fetches one booking's full detail (every field, plus its room) for the
+ * "View" detail panel — shared by both the bookings table and the
+ * notification dropdown, which only ever has a booking_id on hand, not a
+ * full row already in memory. Uses the same bookingsQuery() the table and
+ * Today's Check-ins/Check-outs pages already share, so this view can never
+ * show a different shape of data than either of those.
+ */
+export async function getBookingDetail(bookingId: string) {
+  const supabase = await createClient()
+  const { data, error } = await bookingsQuery(supabase).eq('id', bookingId).single()
+
+  if (error || !data) return null
+  return data
+}
 
 /**
  * Manual booking entry — used for walk-ins and phone bookings. Unlike the
@@ -38,10 +55,7 @@ export async function createManualBooking(formData: FormData): Promise<ActionRes
   const checkOut = formData.get('check_out') as string
   const source = formData.get('source') as 'walk_in' | 'phone'
   const paymentMethod = formData.get('payment_method') as 'card' | 'transfer'
-  const paymentStatus = formData.get('payment_status') as
-    | 'unpaid'
-    | 'awaiting_verification'
-    | 'paid'
+  const paymentStatus = formData.get('payment_status') as 'unpaid' | 'paid'
 
   if (!roomId || !guestName || !guestPhone || !checkIn || !checkOut || !source) {
     return { success: false, error: 'Please fill in all required fields.' }
@@ -214,6 +228,39 @@ export async function chargeAndCheckIn(
 }
 
 /**
+ * Check-in path for when the client didn't think a card charge was
+ * needed — re-checks the booking's actual payment state here rather than
+ * trusting that judgment, since payment_method === 'card' alone doesn't
+ * mean there's a real chargeable token (a walk-in paid by POS also gets
+ * payment_method: 'card', with no Paystack token at all):
+ *  - already paid -> just flips status, no charge attempted
+ *  - unpaid with no token on file (e.g. an unconfirmed transfer) ->
+ *    blocked with a clear message, instead of silently checking in an
+ *    unpaid guest
+ */
+export async function checkInWithoutCharge(bookingId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { data: booking, error: fetchError } = await supabase
+    .from('Bookings')
+    .select('payment_status')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchError || !booking) {
+    return { success: false, error: 'Booking not found.' }
+  }
+
+  if (booking.payment_status === 'paid') {
+    return updateBookingStatus(bookingId, 'checked_in')
+  }
+
+  return {
+    success: false,
+    error: "This booking hasn't been marked as paid yet — confirm payment before checking in.",
+  }
+}
+
+/**
  * Charges the 50% fee for a no-show or late cancellation — same mechanism
  * as the full-stay charge, just a different amount and charge_type so your
  * records show why the guest was charged.
@@ -297,7 +344,11 @@ export async function cancelBookingByStaff(bookingId: string): Promise<CancelBoo
     return { success: false, error: 'This booking can no longer be cancelled.' }
   }
 
-  const hasCardOnFile = booking.payment_method === 'card' && booking.payment_token
+  // payment_method === 'card' alone doesn't mean there's a real token to
+  // charge — a walk-in who paid via a physical POS card machine also gets
+  // payment_method: 'card' recorded, with no Paystack token at all. The
+  // actual token's presence is the real signal for "chargeable".
+  const hasCardOnFile = Boolean(booking.payment_token)
   const { free, feeAmount } = calculateCancellationOutcome(booking, booking.Rooms)
 
   // Free cancellation: either within a free-cancellation window (more

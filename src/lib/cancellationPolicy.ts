@@ -23,18 +23,17 @@ function checkInMoment(checkInDate: string): Date {
  * within 1 hour of when the booking was created — a grace period so a
  * same-day booking, which can never be 24 hours from check-in, still gets
  * a short free-cancellation window right after booking. Outside both
- * windows, a 50% fee applies.
+ * windows, a flat fee of 50% of one night's rate applies — regardless of
+ * how many nights were booked.
  */
 export function getCancellationOutcome({
   createdAt,
   checkIn,
   pricePerNight,
-  nights,
 }: {
   createdAt: string
   checkIn: string
   pricePerNight: number
-  nights: number
 }): { free: boolean; feeAmount: number } {
   const hoursUntilCheckIn = (checkInMoment(checkIn).getTime() - Date.now()) / (1000 * 60 * 60)
   const hoursSinceBooked = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60)
@@ -47,5 +46,5 @@ export function getCancellationOutcome({
     return { free: true, feeAmount: 0 }
   }
 
-  return { free: false, feeAmount: Math.round(pricePerNight * nights * 0.5) }
+  return { free: false, feeAmount: Math.round(pricePerNight * 0.5) }
 }

@@ -8,3 +8,11 @@ export const STATUS_STYLES: Record<string, string> = {
   cancelled: 'bg-clay/15 text-clay',
   no_show: 'bg-clay/20 text-clay',
 }
+
+// Shared badge colors for a booking's payment status — used on the
+// bookings list table and the booking detail panel.
+export const PAYMENT_STYLES: Record<string, string> = {
+  unpaid: 'bg-charcoal/10 text-charcoal/60',
+  paid: 'bg-verdant/15 text-verdant',
+  refunded: 'bg-charcoal/10 text-charcoal/60',
+}

@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
+import { bookingsQuery } from '@/lib/adminBookings'
 import { todayInLagos } from '@/lib/dateUtils'
 import CheckInButton from './CheckInButton'
 import CheckOutButton from './CheckOutButton'
+import { CheckInResultProvider } from './CheckInResultContext'
 
 function nightsBetween(checkIn: string, checkOut: string) {
   const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
@@ -13,11 +15,11 @@ export default async function TodayPage() {
 
   // Guests expected to arrive today who haven't been checked in yet —
   // always shows the same thing regardless of any filters elsewhere in
-  // the admin section.
+  // the admin section. Shares bookingsQuery() with the "All Bookings"
+  // table (src/lib/adminBookings.ts) so the two views can never quietly
+  // drift into disagreeing about what a booking looks like.
   const today = todayInLagos()
-  const { data: todaysCheckIns } = await supabase
-    .from('Bookings')
-    .select('*, Rooms(room_number, name, room_type, price_per_night)')
+  const { data: todaysCheckIns } = await bookingsQuery(supabase)
     .eq('check_in', today)
     .eq('status', 'confirmed')
     .order('guest_name', { ascending: true })
@@ -26,14 +28,13 @@ export default async function TodayPage() {
   // auto-checkout cron job (see src/app/api/cron/auto-checkout) still
   // handles anything left un-checked-out by end of day; this is just the
   // manual same-day path for staff.
-  const { data: todaysCheckOuts } = await supabase
-    .from('Bookings')
-    .select('*, Rooms(room_number, name, room_type)')
+  const { data: todaysCheckOuts } = await bookingsQuery(supabase)
     .eq('check_out', today)
     .eq('status', 'checked_in')
     .order('guest_name', { ascending: true })
 
   return (
+    <CheckInResultProvider>
     <main className="mx-auto max-w-6xl px-6 pt-6 pb-12 md:px-12">
       <div className="flex items-end justify-between">
         <div>
@@ -71,7 +72,6 @@ export default async function TodayPage() {
                 <p className="text-sm text-charcoal/60">{b.guest_phone}</p>
                 <CheckInButton
                   bookingId={b.id}
-                  paymentMethod={b.payment_method}
                   paymentStatus={b.payment_status}
                   paymentToken={b.payment_token}
                   guestEmail={b.guest_email}
@@ -121,5 +121,6 @@ export default async function TodayPage() {
         )}
       </section>
     </main>
+    </CheckInResultProvider>
   )
 }

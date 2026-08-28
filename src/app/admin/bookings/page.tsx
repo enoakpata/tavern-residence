@@ -1,19 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
-import BookingActions from './BookingActions'
+import { bookingsQuery } from '@/lib/adminBookings'
+import ViewBookingButton from './ViewBookingButton'
 import BookingFilters from './BookingFilters'
-import { STATUS_STYLES } from '@/lib/statusStyles'
-
-const PAYMENT_STYLES: Record<string, string> = {
-  unpaid: 'bg-charcoal/10 text-charcoal/60',
-  awaiting_verification: 'bg-brass/20 text-brass',
-  paid: 'bg-verdant/15 text-verdant',
-  refunded: 'bg-charcoal/10 text-charcoal/60',
-}
-
-function nightsBetween(checkIn: string, checkOut: string) {
-  const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
-  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
-}
+import { STATUS_STYLES, PAYMENT_STYLES } from '@/lib/statusStyles'
 
 export default async function BookingsPage({
   searchParams,
@@ -42,13 +31,10 @@ export default async function BookingsPage({
       ? distinctYears
       : [currentYear + 1, currentYear, currentYear - 1]
 
-  // The join here relies on the room_id foreign key we set up between
-  // Bookings and Rooms — Supabase lets us pull related Room fields in the
-  // same query instead of fetching bookings and rooms separately.
-  let query = supabase
-    .from('Bookings')
-    .select('*, Rooms(room_number, name, room_type, price_per_night)')
-    .order('check_in', { ascending: true })
+  // Shared with Today's Check-ins/Check-outs (src/lib/adminBookings.ts) so
+  // this table and that page can never quietly drift into showing a
+  // different shape — or set — of bookings from each other.
+  let query = bookingsQuery(supabase).order('check_in', { ascending: true })
 
   if (search) {
     // Commas/parens are structural in PostgREST's .or() filter syntax, so
@@ -118,26 +104,22 @@ export default async function BookingsPage({
             Scroll horizontally to see more →
           </p>
           <div className="mt-2 max-h-[600px] overflow-auto rounded-sm border border-charcoal/10 bg-white sm:mt-8">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="sticky top-0 z-10 bg-white">
                 <tr className="border-b border-charcoal/10 text-xs tracking-widest text-charcoal/50 uppercase">
                   <th className="px-4 py-3">Guest</th>
                   <th className="px-4 py-3">Room</th>
                   <th className="px-4 py-3">Check-in</th>
                   <th className="px-4 py-3">Check-out</th>
-                  <th className="px-4 py-3">Source</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Payment</th>
-                  <th className="px-4 py-3">Actions</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
                 {bookings.map((b) => (
                   <tr key={b.id} className="border-b border-charcoal/5 last:border-0">
-                    <td className="px-4 py-3">
-                      <p className="text-charcoal">{b.guest_name}</p>
-                      <p className="text-xs text-charcoal/50">{b.guest_phone}</p>
-                    </td>
+                    <td className="px-4 py-3 text-charcoal">{b.guest_name}</td>
                     <td className="px-4 py-3 text-charcoal/80">
                       {b.Rooms
                         ? `${b.Rooms.room_number} · ${b.Rooms.room_type}`
@@ -145,9 +127,6 @@ export default async function BookingsPage({
                     </td>
                     <td className="px-4 py-3 text-charcoal/80">{b.check_in}</td>
                     <td className="px-4 py-3 text-charcoal/80">{b.check_out}</td>
-                    <td className="px-4 py-3 text-charcoal/60 capitalize">
-                      {b.source}
-                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={`whitespace-nowrap rounded-full px-3 py-1 text-xs capitalize ${STATUS_STYLES[b.status] ?? 'bg-charcoal/10 text-charcoal/60'}`}
@@ -162,24 +141,8 @@ export default async function BookingsPage({
                         {b.payment_status.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <BookingActions
-                        bookingId={b.id}
-                        status={b.status}
-                        checkIn={b.check_in}
-                        createdAt={b.created_at}
-                        guestName={b.guest_name}
-                        roomNumber={b.Rooms?.room_number ?? ''}
-                        paymentMethod={b.payment_method}
-                        paymentStatus={b.payment_status}
-                        paymentToken={b.payment_token}
-                        totalAmount={
-                          b.Rooms
-                            ? b.Rooms.price_per_night *
-                              nightsBetween(b.check_in, b.check_out)
-                            : 0
-                        }
-                      />
+                    <td className="px-4 py-3 text-right">
+                      <ViewBookingButton bookingId={b.id} />
                     </td>
                   </tr>
                 ))}

@@ -61,6 +61,9 @@ export default function Header() {
           <Link href="/contact" className="hover:text-brass transition-colors">
             Contact
           </Link>
+          <Link href="/manage-booking" className="hover:text-brass transition-colors">
+            My Booking
+          </Link>
           <Link
             href="/rooms"
             className="rounded-full border border-ivory/40 px-4 py-2 hover:border-brass hover:text-brass transition-colors"
@@ -127,6 +130,13 @@ export default function Header() {
             className="border-t border-ivory/10 py-4 hover:text-brass transition-colors"
           >
             Contact
+          </Link>
+          <Link
+            href="/manage-booking"
+            onClick={() => setOpen(false)}
+            className="border-t border-ivory/10 py-4 hover:text-brass transition-colors"
+          >
+            My Booking
           </Link>
           <Link
             href="/rooms"

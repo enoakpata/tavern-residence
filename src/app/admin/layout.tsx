@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { signOut } from './actions'
 import NotificationBell from './NotificationBell'
 import InactivityTimeout from './InactivityTimeout'
+import { BookingDetailProvider } from './BookingDetailContext'
 export const dynamic = 'force-dynamic'
 
 const NAV_LINKS = [
@@ -23,6 +24,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isLoginPage = usePathname() === '/admin/login'
 
   return (
+    <BookingDetailProvider>
     <div className="min-h-screen bg-ivory">
       <header className="sticky top-0 z-50 border-b-4 border-brass bg-charcoal px-6 py-4 text-ivory md:px-12">
         <div className="flex items-center justify-between">
@@ -115,5 +117,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {!isLoginPage && <InactivityTimeout />}
       {children}
     </div>
+    </BookingDetailProvider>
   )
 }

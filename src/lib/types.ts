@@ -31,10 +31,11 @@ export type Booking = {
     | 'no_show'
   source: 'online' | 'walk_in' | 'phone'
   payment_method: 'card' | 'transfer'
-  payment_status: 'unpaid' | 'awaiting_verification' | 'paid' | 'refunded'
+  payment_status: 'unpaid' | 'paid' | 'refunded'
   payment_token: string | null
   charge_type: 'full_stay' | 'no_show_fee' | 'late_cancellation_fee' | null
   amount_charged: number | null
   created_by: string | null
   created_at: string
+  reminder_sent: boolean
 }

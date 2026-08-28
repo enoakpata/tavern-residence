@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { Mail, MapPin, Phone } from 'lucide-react'
 import { FaInstagram } from 'react-icons/fa6'
 import { GOOGLE_MAPS_URL } from '@/lib/siteConfig'
@@ -80,6 +81,14 @@ export default function ContactPage() {
           </a>
         </div>
       </div>
+
+      <p className="mt-12 border-t border-charcoal/10 pt-6 text-sm text-charcoal/60">
+        Can&apos;t find your confirmation email?{' '}
+        <Link href="/manage-booking" className="text-verdant hover:underline">
+          Look up your booking
+        </Link>
+        .
+      </p>
     </main>
   )
 }

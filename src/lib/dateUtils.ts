@@ -29,6 +29,18 @@ export function todayInLagos(): string {
 }
 
 /**
+ * Tomorrow's date in Lagos — same rationale as todayInLagos(). WAT has no
+ * daylight saving, so a flat 24-hour offset from the current instant
+ * always lands on the correct next calendar day once formatted back into
+ * Lagos time.
+ */
+export function tomorrowInLagos(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(
+    new Date(Date.now() + 24 * 60 * 60 * 1000)
+  )
+}
+
+/**
  * A time-of-day in Lagos, Nigeria (WAT, UTC+1, no daylight saving) as a
  * 12-hour clock string like "3:45 PM" — for anywhere a specific
  * cutoff/deadline moment needs to read in the hotel's local time

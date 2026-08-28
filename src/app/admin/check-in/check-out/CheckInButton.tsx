@@ -1,42 +1,49 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { chargeAndCheckIn, updateBookingStatus } from '../../bookings/actions'
+import { chargeAndCheckIn, checkInWithoutCharge } from '../../bookings/actions'
 import ConfirmModal from '@/components/ConfirmModal'
+import { useCheckInResult } from './CheckInResultContext'
 
 export default function CheckInButton({
   bookingId,
-  paymentMethod,
   paymentStatus,
   paymentToken,
   guestEmail,
   totalAmount,
 }: {
   bookingId: string
-  paymentMethod: string
   paymentStatus: string
   paymentToken: string | null
   guestEmail: string | null
   totalAmount: number
 }) {
   const [isPending, startTransition] = useTransition()
-  const [error, setError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const { showResult } = useCheckInResult()
 
-  const needsCharge =
-    paymentMethod === 'card' && paymentToken && paymentStatus !== 'paid' && guestEmail
+  // payment_method isn't the right signal here — a walk-in who paid via a
+  // physical POS card machine also gets payment_method: 'card' recorded,
+  // with no Paystack token at all. The actual token's presence is what
+  // determines whether there's something chargeable on file.
+  const needsCharge = paymentStatus !== 'paid' && Boolean(paymentToken) && Boolean(guestEmail)
 
   function handleClick() {
-    setError('')
     if (needsCharge) {
       setConfirmOpen(true)
       return
     }
-    // No card to charge (e.g. paid by transfer, or already paid) —
-    // nothing to gate check-in on, so just flip the status directly.
+    // Re-checked server-side rather than assumed here: already paid ->
+    // just flips status; unpaid with nothing chargeable on file (e.g. an
+    // unconfirmed transfer) -> blocked with a clear message instead of
+    // silently checking in an unpaid guest.
     startTransition(async () => {
-      const res = await updateBookingStatus(bookingId, 'checked_in')
-      if (!res.success) setError(res.error ?? 'Something went wrong.')
+      const res = await checkInWithoutCharge(bookingId)
+      showResult(
+        res.success
+          ? { success: true, message: 'Guest checked in.' }
+          : { success: false, message: res.error ?? 'Something went wrong.' }
+      )
     })
   }
 
@@ -44,7 +51,11 @@ export default function CheckInButton({
     setConfirmOpen(false)
     startTransition(async () => {
       const res = await chargeAndCheckIn(bookingId, paymentToken!, totalAmount, guestEmail!)
-      if (!res.success) setError(`Card declined: ${res.error ?? 'Charge failed.'}`)
+      showResult(
+        res.success
+          ? { success: true, message: `₦${totalAmount.toLocaleString()} charged. Guest checked in.` }
+          : { success: false, message: `Card declined: ${res.error ?? 'Charge failed.'}` }
+      )
     })
   }
 
@@ -58,7 +69,6 @@ export default function CheckInButton({
       >
         {isPending ? 'Checking in…' : 'Check in'}
       </button>
-      {error && <p className="mt-2 text-xs text-clay">{error}</p>}
 
       <ConfirmModal
         open={confirmOpen}

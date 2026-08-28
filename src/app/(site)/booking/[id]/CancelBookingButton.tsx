@@ -10,12 +10,14 @@ export default function CancelBookingButton({
   bookingId,
   checkIn,
   createdAt,
-  totalAmount,
+  pricePerNight,
+  paymentToken,
 }: {
   bookingId: string
   checkIn: string
   createdAt: string
-  totalAmount: number
+  pricePerNight: number
+  paymentToken: string | null
 }) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
@@ -24,17 +26,16 @@ export default function CancelBookingButton({
     null
   )
 
-  // totalAmount is already pricePerNight × nights, so passing it as
-  // pricePerNight with nights: 1 yields the same fee (pricePerNight ×
-  // nights is only ever used as one combined product) without this
-  // component needing the two figures split out separately.
   const { free, feeAmount } = getCancellationOutcome({
     createdAt,
     checkIn,
-    pricePerNight: totalAmount,
-    nights: 1,
+    pricePerNight,
   })
-  const feeApplies = !free
+  // No actual chargeable token on file (e.g. paid by transfer, or a
+  // walk-in who paid by POS card with no Paystack token recorded) — the
+  // server cancels this for free in that case, so the preview shouldn't
+  // tell the guest a card is about to be charged.
+  const feeApplies = !free && Boolean(paymentToken)
 
   const message = feeApplies
     ? `Cancelling now is within 24 hours of check-in. A cancellation fee of ₦${feeAmount.toLocaleString()} will be charged to your card. Continue?`
