@@ -1,14 +1,16 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { markAsPaid, cancelBookingByStaff, updateBookingStatus } from './actions'
+import { markAsPaid, cancelBookingByStaff, updateBookingStatus, editBookingDates } from './actions'
 import ConfirmModal from '@/components/ConfirmModal'
 import { getCancellationOutcome } from '@/lib/cancellationPolicy'
+import { parseISODate, toISODate } from '@/lib/dateUtils'
 
 type BookingActionsProps = {
   bookingId: string
   status: string
   checkIn: string
+  checkOut: string
   createdAt: string
   guestName: string
   roomNumber: string
@@ -23,11 +25,29 @@ type BookingActionsProps = {
 }
 
 const CANCELLABLE_STATUSES = ['pending', 'confirmed']
+const EDITABLE_DATE_STATUSES = ['confirmed', 'checked_in']
+
+// The earliest sensible check-out for a given check-in — the day after,
+// since a checkout on the same day as check-in isn't a real stay.
+function dayAfter(date: string): string {
+  const d = parseISODate(date)
+  d.setDate(d.getDate() + 1)
+  return toISODate(d)
+}
+
+function formatDate(iso: string): string {
+  return parseISODate(iso).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
 
 export default function BookingActions({
   bookingId,
   status,
   checkIn,
+  checkOut,
   createdAt,
   guestName,
   roomNumber,
@@ -45,6 +65,13 @@ export default function BookingActions({
   const [cancelResult, setCancelResult] = useState<null | { success: boolean; message: string }>(
     null
   )
+  const [pendingEditDates, setPendingEditDates] = useState(false)
+  const [editCheckIn, setEditCheckIn] = useState('')
+  const [editCheckOut, setEditCheckOut] = useState('')
+  const [editDatesError, setEditDatesError] = useState('')
+  const [editDatesResult, setEditDatesResult] = useState<
+    null | { success: boolean; message: string }
+  >(null)
 
   function run(
     action: () => Promise<{ success: boolean; error?: string }>,
@@ -63,6 +90,11 @@ export default function BookingActions({
 
   const canCancel = CANCELLABLE_STATUSES.includes(status)
   const canCheckOut = status === 'checked_in'
+  const canEditDates = EDITABLE_DATE_STATUSES.includes(status)
+  // Check-in already happened for a checked-in guest, so only check-out
+  // stays editable at that point — a confirmed booking (not yet arrived)
+  // can still have both moved.
+  const canEditCheckIn = status === 'confirmed'
 
   function handleCancelClick() {
     // No actual chargeable token on file (e.g. paid by transfer, or a
@@ -110,6 +142,37 @@ export default function BookingActions({
     run(() => updateBookingStatus(bookingId, 'checked_out'))
   }
 
+  function handleEditDatesClick() {
+    setEditCheckIn(checkIn)
+    setEditCheckOut(checkOut)
+    setEditDatesError('')
+    setPendingEditDates(true)
+  }
+
+  function handleConfirmEditDates() {
+    if (!editCheckIn || !editCheckOut) {
+      setEditDatesError('Please choose both dates.')
+      return
+    }
+    if (editCheckOut <= editCheckIn) {
+      setEditDatesError('Check-out must be after check-in.')
+      return
+    }
+    setPendingEditDates(false)
+    startTransition(async () => {
+      const res = await editBookingDates(bookingId, editCheckIn, editCheckOut)
+      if (res.success) {
+        setEditDatesResult({
+          success: true,
+          message: `Dates updated: ${formatDate(editCheckIn)} – ${formatDate(editCheckOut)}.`,
+        })
+        onActionComplete?.()
+      } else {
+        setEditDatesResult({ success: false, message: res.error })
+      }
+    })
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {paymentStatus === 'unpaid' && (
@@ -129,6 +192,16 @@ export default function BookingActions({
           className="rounded-full bg-verdant px-3 py-1 text-xs text-ivory hover:bg-verdant/90 disabled:opacity-50"
         >
           Check out
+        </button>
+      )}
+
+      {canEditDates && (
+        <button
+          disabled={isPending}
+          onClick={handleEditDatesClick}
+          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
+        >
+          Edit dates
         </button>
       )}
 
@@ -174,6 +247,66 @@ export default function BookingActions({
         hideCancel
         onConfirm={() => setCancelResult(null)}
         onCancel={() => setCancelResult(null)}
+      />
+
+      <ConfirmModal
+        open={pendingEditDates}
+        title="Edit dates"
+        message={
+          <div>
+            <p>
+              Update {guestName}&apos;s stay dates for Room {roomNumber}. This doesn&apos;t
+              charge anything — collect any payment difference outside the system.
+            </p>
+            {canEditCheckIn ? (
+              <>
+                <label className="mt-4 block text-xs tracking-widest text-charcoal/60 uppercase">
+                  Check-in date
+                </label>
+                <input
+                  type="date"
+                  value={editCheckIn}
+                  onChange={(e) => {
+                    setEditCheckIn(e.target.value)
+                    setEditDatesError('')
+                  }}
+                  className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm text-charcoal focus:border-verdant focus:outline-none"
+                />
+              </>
+            ) : (
+              <p className="mt-4 text-xs text-charcoal/50">
+                Check-in: {formatDate(checkIn)} — already checked in, so this can&apos;t change.
+              </p>
+            )}
+            <label className="mt-4 block text-xs tracking-widest text-charcoal/60 uppercase">
+              Check-out date
+            </label>
+            <input
+              type="date"
+              min={dayAfter(canEditCheckIn ? editCheckIn || checkIn : checkIn)}
+              value={editCheckOut}
+              onChange={(e) => {
+                setEditCheckOut(e.target.value)
+                setEditDatesError('')
+              }}
+              className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm text-charcoal focus:border-verdant focus:outline-none"
+            />
+            {editDatesError && <p className="mt-2 text-xs text-clay">{editDatesError}</p>}
+          </div>
+        }
+        confirmLabel="Save dates"
+        onConfirm={handleConfirmEditDates}
+        onCancel={() => setPendingEditDates(false)}
+      />
+
+      <ConfirmModal
+        open={editDatesResult !== null}
+        title={editDatesResult?.success ? 'Dates updated' : 'Edit dates failed'}
+        message={editDatesResult?.message ?? ''}
+        confirmLabel="OK"
+        hideCancel
+        onConfirm={() => setEditDatesResult(null)}
+        onCancel={() => setEditDatesResult(null)}
       />
     </div>
   )

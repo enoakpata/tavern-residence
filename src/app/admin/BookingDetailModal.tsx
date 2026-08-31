@@ -192,6 +192,7 @@ export default function BookingDetailModal({
                   bookingId={booking.id}
                   status={booking.status}
                   checkIn={booking.check_in}
+                  checkOut={booking.check_out}
                   createdAt={booking.created_at}
                   guestName={booking.guest_name}
                   roomNumber={room?.room_number ?? ''}

@@ -193,7 +193,20 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-sm border border-charcoal/10 bg-white shadow-xl">
+        // On mobile the bell sits well inboard of the true right edge (header
+        // padding + the hamburger button + their gap), so anchoring the panel
+        // to the bell itself via `right-0` let it grow leftward past x=0 and
+        // clip its own text off-screen — its right edge was never near the
+        // viewport's right edge to begin with. Below `sm`, position it against
+        // the *viewport* instead (fixed + inset-x-4) so its width and edges
+        // are always viewport-safe regardless of where the bell sits; from
+        // `sm` up there's enough room for the original bell-anchored
+        // placement. `top-28` clears the header at both its one-line height
+        // (~72px) and the two-line height it wraps to on the narrowest
+        // common phone widths (~92px, "Tavern Residence" wrapping) — a fixed
+        // pixel guess either way, since the header can't be measured from
+        // here, but generous enough to cover both states with room to spare.
+        <div className="fixed inset-x-4 top-28 z-50 overflow-hidden rounded-sm border border-charcoal/10 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-[min(20rem,calc(100vw-2rem))]">
           {notifications.length > 0 && (
             <div className="flex items-center justify-between border-b border-charcoal/10 px-4 py-2">
               <p className="text-xs tracking-widest text-charcoal/50 uppercase">

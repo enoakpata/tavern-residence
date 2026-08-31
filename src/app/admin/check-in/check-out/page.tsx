@@ -3,7 +3,7 @@ import { bookingsQuery } from '@/lib/adminBookings'
 import { todayInLagos } from '@/lib/dateUtils'
 import CheckInButton from './CheckInButton'
 import CheckOutButton from './CheckOutButton'
-import { CheckInResultProvider } from './CheckInResultContext'
+import { ActionResultProvider } from './ActionResultContext'
 
 function nightsBetween(checkIn: string, checkOut: string) {
   const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
@@ -34,7 +34,7 @@ export default async function TodayPage() {
     .order('guest_name', { ascending: true })
 
   return (
-    <CheckInResultProvider>
+    <ActionResultProvider>
     <main className="mx-auto max-w-6xl px-6 pt-6 pb-12 md:px-12">
       <div className="flex items-end justify-between">
         <div>
@@ -121,6 +121,6 @@ export default async function TodayPage() {
         )}
       </section>
     </main>
-    </CheckInResultProvider>
+    </ActionResultProvider>
   )
 }

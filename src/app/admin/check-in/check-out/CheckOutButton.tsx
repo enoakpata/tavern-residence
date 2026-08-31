@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { updateBookingStatus } from '../../bookings/actions'
 import ConfirmModal from '@/components/ConfirmModal'
+import { useActionResult } from './ActionResultContext'
 
 export default function CheckOutButton({
   bookingId,
@@ -14,14 +15,18 @@ export default function CheckOutButton({
   roomNumber: string
 }) {
   const [isPending, startTransition] = useTransition()
-  const [error, setError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const { showResult } = useActionResult()
 
   function handleConfirm() {
     setConfirmOpen(false)
     startTransition(async () => {
       const res = await updateBookingStatus(bookingId, 'checked_out')
-      if (!res.success) setError(res.error ?? 'Something went wrong.')
+      showResult(
+        res.success
+          ? { success: true, title: 'Checked out', message: 'Guest checked out.' }
+          : { success: false, title: 'Check-out failed', message: res.error ?? 'Something went wrong.' }
+      )
     })
   }
 
@@ -35,7 +40,6 @@ export default function CheckOutButton({
       >
         {isPending ? 'Checking out…' : 'Check out'}
       </button>
-      {error && <p className="mt-2 text-xs text-clay">{error}</p>}
 
       <ConfirmModal
         open={confirmOpen}

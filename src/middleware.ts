@@ -1,6 +1,15 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// If Supabase is slow or unreachable, we'd otherwise hang until Vercel's
+// own platform-level middleware timeout kills the invocation — which
+// shows a raw, unstyled Vercel error page we have no way to intercept or
+// restyle from inside the app. Racing against a short internal timeout
+// lets us fail on our own terms first, well before that platform timeout
+// (which takes noticeably longer than this to trigger), converting a hard
+// crash into an ordinary redirect to the login page instead.
+const AUTH_CHECK_TIMEOUT_MS = 5000
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
 
@@ -23,9 +32,19 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Racing the auth check against a short internal timeout so a slow or
+  // unreachable Supabase call fails on our own terms — via the ordinary
+  // "not logged in" redirect below — well before Vercel's own
+  // platform-level middleware timeout could kill the invocation and show
+  // its raw, unstyled error page instead (which happens at the
+  // infrastructure level, before our code has any chance to respond).
+  let timeoutId: ReturnType<typeof setTimeout>
+  const timeout = new Promise<null>((resolve) => {
+    timeoutId = setTimeout(() => resolve(null), AUTH_CHECK_TIMEOUT_MS)
+  })
+  const authCheck = supabase.auth.getUser().then((result) => result.data.user)
+  const user = await Promise.race([authCheck, timeout])
+  clearTimeout(timeoutId!)
 
   const isAdminRoute = request.nextUrl.pathname.startsWith('/admin')
   const isLoginPage = request.nextUrl.pathname === '/admin/login'

@@ -14,6 +14,9 @@ import {
 } from '@/lib/dateUtils'
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+// Same drag-gesture threshold used by the photo galleries
+// (RoomGallery.tsx / AmbientGallery.tsx) for consistent swipe feel.
+const DRAG_THRESHOLD = 50
 
 export default function DateRangePicker({
   blockedRanges,
@@ -43,6 +46,13 @@ export default function DateRangePicker({
     initialCheckOut ? parseISODate(initialCheckOut) : null
   )
   const containerRef = useRef<HTMLDivElement>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartX = useRef(0)
+  // A drag that crosses the threshold pages the month — this flag tells
+  // the very next day-button click (the one the browser still fires on
+  // pointerup) to no-op instead of selecting whatever date the drag
+  // happened to end on.
+  const suppressClickRef = useRef(false)
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -57,7 +67,35 @@ export default function DateRangePicker({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  function handleCalendarPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    dragStartX.current = e.clientX
+    setIsDragging(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  function handleCalendarPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (!isDragging) return
+    setIsDragging(false)
+    const deltaX = e.clientX - dragStartX.current
+    if (deltaX > DRAG_THRESHOLD) {
+      suppressClickRef.current = true
+      setVisibleMonth((m) => addMonths(m, -1))
+    } else if (deltaX < -DRAG_THRESHOLD) {
+      suppressClickRef.current = true
+      setVisibleMonth((m) => addMonths(m, 1))
+    }
+  }
+
+  function handleCalendarPointerCancel() {
+    setIsDragging(false)
+  }
+
   function handleDayClick(day: Date) {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return
+    }
     if (isBeforeToday(day) || isDateBlocked(day, blockedRanges)) return
 
     // First click (or restarting after a full range was already picked):
@@ -176,46 +214,54 @@ export default function DateRangePicker({
           </div>
 
           <div
-            className={`mt-3 grid grid-cols-7 gap-y-1 text-center tracking-wide text-charcoal/40 uppercase ${
-              isLarge ? 'text-xs' : 'text-[11px]'
-            }`}
+            className={`select-none touch-pan-y ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+            onPointerDown={handleCalendarPointerDown}
+            onPointerUp={handleCalendarPointerUp}
+            onPointerCancel={handleCalendarPointerCancel}
+            onPointerLeave={handleCalendarPointerCancel}
           >
-            {WEEKDAY_LABELS.map((d, i) => (
-              <span key={i}>{d}</span>
-            ))}
-          </div>
+            <div
+              className={`mt-3 grid grid-cols-7 gap-y-1 text-center tracking-wide text-charcoal/40 uppercase ${
+                isLarge ? 'text-xs' : 'text-[11px]'
+              }`}
+            >
+              {WEEKDAY_LABELS.map((d, i) => (
+                <span key={i}>{d}</span>
+              ))}
+            </div>
 
-          <div className={`mt-1 grid grid-cols-7 ${isLarge ? 'gap-y-2' : 'gap-y-1'}`}>
-            {grid.map(({ date, inMonth }, i) => {
-              const disabled =
-                !inMonth || isBeforeToday(date) || isDateBlocked(date, blockedRanges)
-              const isCheckIn = checkIn && isSameDay(date, checkIn)
-              const isCheckOut = checkOut && isSameDay(date, checkOut)
-              const inRange =
-                checkIn && checkOut && isWithinRange(date, checkIn, checkOut)
+            <div className={`mt-1 grid grid-cols-7 ${isLarge ? 'gap-y-2' : 'gap-y-1'}`}>
+              {grid.map(({ date, inMonth }, i) => {
+                const disabled =
+                  !inMonth || isBeforeToday(date) || isDateBlocked(date, blockedRanges)
+                const isCheckIn = checkIn && isSameDay(date, checkIn)
+                const isCheckOut = checkOut && isSameDay(date, checkOut)
+                const inRange =
+                  checkIn && checkOut && isWithinRange(date, checkIn, checkOut)
 
-              return (
-                <button
-                  type="button"
-                  key={i}
-                  disabled={disabled}
-                  onClick={() => handleDayClick(date)}
-                  className={[
-                    'aspect-square transition-colors',
-                    isLarge ? 'text-sm md:text-base' : 'text-xs',
-                    disabled
-                      ? 'cursor-not-allowed text-charcoal/15 line-through'
-                      : 'text-charcoal hover:bg-verdant/10',
-                    isCheckIn || isCheckOut
-                      ? 'bg-verdant text-ivory hover:bg-verdant'
-                      : '',
-                    inRange && !isCheckIn && !isCheckOut ? 'bg-brass/20' : '',
-                  ].join(' ')}
-                >
-                  {date.getDate()}
-                </button>
-              )
-            })}
+                return (
+                  <button
+                    type="button"
+                    key={i}
+                    disabled={disabled}
+                    onClick={() => handleDayClick(date)}
+                    className={[
+                      'aspect-square transition-colors',
+                      isLarge ? 'text-sm md:text-base' : 'text-xs',
+                      disabled
+                        ? 'cursor-not-allowed text-charcoal/15 line-through'
+                        : 'text-charcoal hover:bg-verdant/10',
+                      isCheckIn || isCheckOut
+                        ? 'bg-verdant text-ivory hover:bg-verdant'
+                        : '',
+                      inRange && !isCheckIn && !isCheckOut ? 'bg-brass/20' : '',
+                    ].join(' ')}
+                  >
+                    {date.getDate()}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div

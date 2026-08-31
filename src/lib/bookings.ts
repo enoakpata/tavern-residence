@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { supabaseAdmin } from './supabaseAdmin'
 import { getCancellationOutcome } from './cancellationPolicy'
 
 /**
@@ -8,12 +9,40 @@ import { getCancellationOutcome } from './cancellationPolicy'
  *
  * Overlap logic: two date ranges [checkIn, checkOut) overlap when
  * existing.check_in < newCheckOut AND existing.check_out > newCheckIn
+ *
+ * `excludeBookingId` — for checking availability when editing a booking's
+ * own dates, so it doesn't conflict with the very row it's about to
+ * replace. This has to bypass the public booking_availability view: that
+ * view deliberately exposes no `id` column (booking IDs are the only
+ * "auth" on a guest's /booking/[id] management link, so a publicly
+ * queryable view is not a safe place to expose them), so excluding by id
+ * means querying the real Bookings table with the service-role client
+ * instead. Only ever pass this from admin-only server code.
  */
 export async function isRoomAvailable(
   roomId: string,
   checkIn: string,
-  checkOut: string
+  checkOut: string,
+  excludeBookingId?: string
 ) {
+  if (excludeBookingId) {
+    const { data, error } = await supabaseAdmin
+      .from('Bookings')
+      .select('id')
+      .eq('room_id', roomId)
+      .in('status', ['pending', 'confirmed', 'checked_in'])
+      .lt('check_in', checkOut)
+      .gt('check_out', checkIn)
+      .neq('id', excludeBookingId)
+
+    if (error) {
+      console.error('Availability check failed:', error)
+      return false
+    }
+
+    return data.length === 0
+  }
+
   const { data, error } = await supabase
   .from('booking_availability')
   .select('room_id')

@@ -314,6 +314,72 @@ export async function updateBookingStatus(
   return { success: true }
 }
 
+/**
+ * Edits an existing booking's stay dates. A 'confirmed' booking (guest
+ * hasn't arrived yet) can have both dates changed; a 'checked_in' one can
+ * only have its check-out moved, since check-in already happened and no
+ * longer reflects a future action — enforced here too, not just hidden
+ * from the form, in case the client sends a stale check-in.
+ *
+ * Doesn't touch payment in any way: staff collect any payment difference
+ * entirely outside the system (cash, POS, transfer), the same way a
+ * walk-in pays today. The only guard is availability, checked against
+ * every OTHER booking for the room — this booking's own current dates are
+ * excluded via isRoomAvailable's excludeBookingId, so it never conflicts
+ * with itself.
+ */
+export async function editBookingDates(
+  bookingId: string,
+  newCheckIn: string,
+  newCheckOut: string
+): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { data: booking, error: fetchError } = await supabase
+    .from('Bookings')
+    .select('room_id, check_in, check_out, status')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchError || !booking) {
+    return { success: false, error: 'Booking not found.' }
+  }
+
+  if (!['confirmed', 'checked_in'].includes(booking.status)) {
+    return {
+      success: false,
+      error: 'Only a confirmed or currently checked-in booking can have its dates edited.',
+    }
+  }
+
+  if (booking.status === 'checked_in' && newCheckIn !== booking.check_in) {
+    return { success: false, error: "Check-in can't be changed once a guest has checked in." }
+  }
+
+  if (newCheckOut <= newCheckIn) {
+    return { success: false, error: 'Check-out must be after check-in.' }
+  }
+
+  const available = await isRoomAvailable(booking.room_id, newCheckIn, newCheckOut, bookingId)
+  if (!available) {
+    return {
+      success: false,
+      error: 'This room is already booked for part of that range. Choose different dates.',
+    }
+  }
+
+  const { error } = await supabase
+    .from('Bookings')
+    .update({ check_in: newCheckIn, check_out: newCheckOut })
+    .eq('id', bookingId)
+
+  if (error) return { success: false, error: 'Something went wrong. Please try again.' }
+
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
+  revalidatePath('/admin/calendar')
+  return { success: true }
+}
+
 export type CancelBookingResult =
   | { success: true; feeCharged: boolean; feeAmount: number }
   | { success: false; error: string }

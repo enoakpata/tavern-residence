@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { chargeAndCheckIn, checkInWithoutCharge } from '../../bookings/actions'
 import ConfirmModal from '@/components/ConfirmModal'
-import { useCheckInResult } from './CheckInResultContext'
+import { useActionResult } from './ActionResultContext'
 
 export default function CheckInButton({
   bookingId,
@@ -20,7 +20,7 @@ export default function CheckInButton({
 }) {
   const [isPending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const { showResult } = useCheckInResult()
+  const { showResult } = useActionResult()
 
   // payment_method isn't the right signal here — a walk-in who paid via a
   // physical POS card machine also gets payment_method: 'card' recorded,
@@ -41,8 +41,8 @@ export default function CheckInButton({
       const res = await checkInWithoutCharge(bookingId)
       showResult(
         res.success
-          ? { success: true, message: 'Guest checked in.' }
-          : { success: false, message: res.error ?? 'Something went wrong.' }
+          ? { success: true, title: 'Checked in', message: 'Guest checked in.' }
+          : { success: false, title: 'Check-in failed', message: res.error ?? 'Something went wrong.' }
       )
     })
   }
@@ -53,8 +53,12 @@ export default function CheckInButton({
       const res = await chargeAndCheckIn(bookingId, paymentToken!, totalAmount, guestEmail!)
       showResult(
         res.success
-          ? { success: true, message: `₦${totalAmount.toLocaleString()} charged. Guest checked in.` }
-          : { success: false, message: `Card declined: ${res.error ?? 'Charge failed.'}` }
+          ? {
+              success: true,
+              title: 'Checked in',
+              message: `₦${totalAmount.toLocaleString()} charged. Guest checked in.`,
+            }
+          : { success: false, title: 'Check-in failed', message: `Card declined: ${res.error ?? 'Charge failed.'}` }
       )
     })
   }

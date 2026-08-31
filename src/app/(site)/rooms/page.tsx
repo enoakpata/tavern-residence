@@ -47,8 +47,7 @@ export default async function RoomsPage({
   const roomList = (rooms ?? []) as Room[]
   roomList.sort((a, b) => Number(a.room_number) - Number(b.room_number))
 
-  // Only checked when both dates are present and valid — with no dates
-  // selected, every room stays fully clickable exactly as before.
+  // Only checked when both dates are present and valid.
   const availabilityEntries = hasDates
     ? await Promise.all(
         roomList.map(
@@ -78,11 +77,17 @@ export default async function RoomsPage({
         <div className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {roomList.map((room) => {
             const cover = getRoomCoverImage(room.room_number)
-            // Availability is only known once dates are picked — before
-            // that, cards stay non-interactive rather than defaulting to
-            // "available" and clickable.
+            // Only meaningful once dates are picked — with none selected,
+            // this is left false but isClickable below doesn't depend on it
+            // in that case, so it has no effect.
             const isAvailable = hasDates && availabilityMap.get(room.id) !== false
-            const isClickable = hasDates && isAvailable
+            // Clickable unless we know it's unavailable — with no dates
+            // picked yet we don't know either way, so it stays clickable
+            // (the room's own page has a calendar to check real
+            // availability); with dates picked and a real conflict found,
+            // it's blocked rather than sending the guest into a booking
+            // flow for a room that can't take those dates.
+            const isClickable = !hasDates || isAvailable
             const cardContent = (
               <>
                 <div className="relative aspect-[4/3] w-full overflow-hidden bg-verdant/10">
@@ -105,6 +110,11 @@ export default async function RoomsPage({
                         Unavailable for these dates
                       </span>
                     </div>
+                  )}
+                  {!hasDates && (
+                    <span className="absolute left-3 top-3 rounded-full bg-brass px-3 py-1 text-xs font-medium tracking-wide text-charcoal shadow">
+                      Select dates to check availability
+                    </span>
                   )}
                 </div>
 
@@ -131,11 +141,6 @@ export default async function RoomsPage({
                         View room →
                       </span>
                     )}
-                    {!hasDates && (
-                      <span className="text-xs text-charcoal/40">
-                        Select dates to view
-                      </span>
-                    )}
                   </div>
                 </div>
               </>
@@ -145,9 +150,7 @@ export default async function RoomsPage({
               return (
                 <div
                   key={room.id}
-                  className={`flex flex-col overflow-hidden rounded-sm border border-charcoal/10 bg-white ${
-                    hasDates ? 'opacity-60' : ''
-                  }`}
+                  className="flex flex-col overflow-hidden rounded-sm border border-charcoal/10 bg-white opacity-60"
                 >
                   {cardContent}
                 </div>
