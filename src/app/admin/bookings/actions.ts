@@ -380,6 +380,40 @@ export async function editBookingDates(
   return { success: true }
 }
 
+/**
+ * Fetches the date ranges that currently block a booking's room — the
+ * same "pending"/"confirmed"/"checked_in" statuses isRoomAvailable()
+ * treats as blocking — so the "Edit dates" calendar can grey out
+ * already-booked dates up front, the same way the guest-facing room page
+ * already does. Excludes the booking being edited itself, the same
+ * exclusion isRoomAvailable() applies via its excludeBookingId parameter,
+ * so a booking's own current stay never shows as blocked on its own edit
+ * calendar.
+ */
+export async function getRoomBlockedRangesForEdit(
+  bookingId: string
+): Promise<{ checkIn: string; checkOut: string }[]> {
+  const supabase = await createClient()
+  const { data: booking, error: fetchError } = await supabase
+    .from('Bookings')
+    .select('room_id')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchError || !booking) return []
+
+  const { data, error } = await supabase
+    .from('Bookings')
+    .select('check_in, check_out')
+    .eq('room_id', booking.room_id)
+    .in('status', ['pending', 'confirmed', 'checked_in'])
+    .neq('id', bookingId)
+
+  if (error || !data) return []
+
+  return data.map((b) => ({ checkIn: b.check_in as string, checkOut: b.check_out as string }))
+}
+
 export type CancelBookingResult =
   | { success: true; feeCharged: boolean; feeAmount: number }
   | { success: false; error: string }

@@ -1,10 +1,17 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { markAsPaid, cancelBookingByStaff, updateBookingStatus, editBookingDates } from './actions'
+import {
+  markAsPaid,
+  cancelBookingByStaff,
+  updateBookingStatus,
+  editBookingDates,
+  getRoomBlockedRangesForEdit,
+} from './actions'
 import ConfirmModal from '@/components/ConfirmModal'
+import DateRangePicker from '@/components/DateRangePicker'
 import { getCancellationOutcome } from '@/lib/cancellationPolicy'
-import { parseISODate, toISODate } from '@/lib/dateUtils'
+import { parseISODate, toISODate, type BlockedRange } from '@/lib/dateUtils'
 
 type BookingActionsProps = {
   bookingId: string
@@ -72,6 +79,7 @@ export default function BookingActions({
   const [editDatesResult, setEditDatesResult] = useState<
     null | { success: boolean; message: string }
   >(null)
+  const [editDatesBlockedRanges, setEditDatesBlockedRanges] = useState<BlockedRange[]>([])
 
   function run(
     action: () => Promise<{ success: boolean; error?: string }>,
@@ -146,7 +154,12 @@ export default function BookingActions({
     setEditCheckIn(checkIn)
     setEditCheckOut(checkOut)
     setEditDatesError('')
+    setEditDatesBlockedRanges([])
     setPendingEditDates(true)
+    startTransition(async () => {
+      const ranges = await getRoomBlockedRangesForEdit(bookingId)
+      setEditDatesBlockedRanges(ranges)
+    })
   }
 
   function handleConfirmEditDates() {
@@ -223,7 +236,7 @@ export default function BookingActions({
         message={
           pendingCancel?.feeApplies
             ? `Cancelling now is within 24 hours of check-in. A cancellation fee of ₦${pendingCancel.feeAmount.toLocaleString()} will be charged to this guest's saved card. Continue?`
-            : 'Cancel this booking? This is a free cancellation.'
+            : 'Are you sure you want to cancel this booking?'
         }
         confirmLabel={pendingCancel?.feeApplies ? 'Charge fee & cancel' : 'Cancel booking'}
         onConfirm={handleConfirmCancel}
@@ -261,36 +274,43 @@ export default function BookingActions({
             {canEditCheckIn ? (
               <>
                 <label className="mt-4 block text-xs tracking-widest text-charcoal/60 uppercase">
-                  Check-in date
+                  Dates
                 </label>
-                <input
-                  type="date"
-                  value={editCheckIn}
-                  onChange={(e) => {
-                    setEditCheckIn(e.target.value)
-                    setEditDatesError('')
-                  }}
-                  className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm text-charcoal focus:border-verdant focus:outline-none"
-                />
+                <div className="mt-2">
+                  <DateRangePicker
+                    blockedRanges={editDatesBlockedRanges}
+                    initialCheckIn={editCheckIn}
+                    initialCheckOut={editCheckOut}
+                    onChange={(newCheckIn, newCheckOut) => {
+                      setEditCheckIn(newCheckIn ?? '')
+                      setEditCheckOut(newCheckOut ?? '')
+                      setEditDatesError('')
+                    }}
+                  />
+                </div>
               </>
             ) : (
-              <p className="mt-4 text-xs text-charcoal/50">
-                Check-in: {formatDate(checkIn)} — already checked in, so this can&apos;t change.
-              </p>
+              <>
+                <p className="mt-4 text-xs text-charcoal/50">
+                  Check-in: {formatDate(checkIn)} — already checked in, so this can&apos;t change.
+                </p>
+                <label className="mt-4 block text-xs tracking-widest text-charcoal/60 uppercase">
+                  Check-out date
+                </label>
+                <div className="mt-2">
+                  <DateRangePicker
+                    mode="single"
+                    blockedRanges={editDatesBlockedRanges}
+                    minDate={dayAfter(checkIn)}
+                    initialCheckIn={editCheckOut}
+                    onChange={(newCheckOut) => {
+                      setEditCheckOut(newCheckOut ?? '')
+                      setEditDatesError('')
+                    }}
+                  />
+                </div>
+              </>
             )}
-            <label className="mt-4 block text-xs tracking-widest text-charcoal/60 uppercase">
-              Check-out date
-            </label>
-            <input
-              type="date"
-              min={dayAfter(canEditCheckIn ? editCheckIn || checkIn : checkIn)}
-              value={editCheckOut}
-              onChange={(e) => {
-                setEditCheckOut(e.target.value)
-                setEditDatesError('')
-              }}
-              className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm text-charcoal focus:border-verdant focus:outline-none"
-            />
             {editDatesError && <p className="mt-2 text-xs text-clay">{editDatesError}</p>}
           </div>
         }

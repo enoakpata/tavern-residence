@@ -75,6 +75,11 @@ export default function BookingForm({
     checkOut: string
   } | null>(null)
 
+  // Set when Paystack's popup closes without a completed payment (declined
+  // card or the guest just closing it) — drives an acknowledgement modal so
+  // the guest isn't left on a blank form with no explanation.
+  const [paymentNotCompleted, setPaymentNotCompleted] = useState(false)
+
   // Controlled so React's automatic form reset (which fires once the
   // form's `action` function returns — here, as soon as the policy modal
   // opens, well before payment succeeds or fails) can't wipe out what the
@@ -193,6 +198,10 @@ export default function BookingForm({
     setUnavailableDates(null)
   }
 
+  function handlePaymentNotCompletedDismiss() {
+    setPaymentNotCompleted(false)
+  }
+
   function handlePolicyConfirm() {
     const formData = pendingFormData
     setPendingFormData(null)
@@ -255,8 +264,11 @@ export default function BookingForm({
           })
         },
         onClose: () => {
-          // Guest closed the popup without completing payment
+          // Guest closed the popup without completing payment (declined
+          // card or they just closed it) — form state (name/phone/email/
+          // dates) is untouched since nothing here resets it.
           setStep('form')
+          setPaymentNotCompleted(true)
         },
       })
 
@@ -457,6 +469,16 @@ export default function BookingForm({
         cancelLabel="Choose different dates"
         onConfirm={handleSeeOtherRooms}
         onCancel={handleUnavailableDismiss}
+      />
+
+      <ConfirmModal
+        open={paymentNotCompleted}
+        title="Payment not completed"
+        message="Payment wasn't completed. If your card was declined, try a different card, or contact us for help — 0701 583 2637."
+        confirmLabel="OK"
+        hideCancel
+        onConfirm={handlePaymentNotCompletedDismiss}
+        onCancel={handlePaymentNotCompletedDismiss}
       />
     </>
   )

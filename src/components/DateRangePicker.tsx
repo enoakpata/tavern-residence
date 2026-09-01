@@ -25,6 +25,8 @@ export default function DateRangePicker({
   initialCheckOut,
   size = 'default',
   theme = 'light',
+  mode = 'range',
+  minDate = null,
 }: {
   blockedRanges: BlockedRange[]
   onChange: (checkIn: string | null, checkOut: string | null) => void
@@ -32,6 +34,15 @@ export default function DateRangePicker({
   initialCheckOut?: string | null
   size?: 'default' | 'large'
   theme?: 'light' | 'dark'
+  // 'single' collects just one date in one click — the selected day is
+  // reported as the first (checkIn) onChange argument, with the second
+  // always null. Used for editing just a check-out date, where forcing
+  // the normal two-click range flow would make no sense.
+  mode?: 'range' | 'single'
+  // Earliest selectable date (ISO), for callers needing a bound beyond
+  // "not before today" — e.g. a new check-out must fall after a fixed,
+  // already-passed check-in.
+  minDate?: string | null
 }) {
   const isLarge = size === 'large'
   const isDark = theme === 'dark'
@@ -48,11 +59,6 @@ export default function DateRangePicker({
   const containerRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const dragStartX = useRef(0)
-  // A drag that crosses the threshold pages the month — this flag tells
-  // the very next day-button click (the one the browser still fires on
-  // pointerup) to no-op instead of selecting whatever date the drag
-  // happened to end on.
-  const suppressClickRef = useRef(false)
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -79,10 +85,8 @@ export default function DateRangePicker({
     setIsDragging(false)
     const deltaX = e.clientX - dragStartX.current
     if (deltaX > DRAG_THRESHOLD) {
-      suppressClickRef.current = true
       setVisibleMonth((m) => addMonths(m, -1))
     } else if (deltaX < -DRAG_THRESHOLD) {
-      suppressClickRef.current = true
       setVisibleMonth((m) => addMonths(m, 1))
     }
   }
@@ -92,11 +96,15 @@ export default function DateRangePicker({
   }
 
   function handleDayClick(day: Date) {
-    if (suppressClickRef.current) {
-      suppressClickRef.current = false
+    if (isBeforeToday(day) || isBeforeMinDate(day) || isDateBlocked(day, blockedRanges)) return
+
+    if (mode === 'single') {
+      setCheckIn(day)
+      setCheckOut(null)
+      onChange(toISODate(day), null)
+      setOpen(false)
       return
     }
-    if (isBeforeToday(day) || isDateBlocked(day, blockedRanges)) return
 
     // First click (or restarting after a full range was already picked):
     // set check-in, clear check-out
@@ -133,6 +141,10 @@ export default function DateRangePicker({
     return toISODate(day) < toISODate(today)
   }
 
+  function isBeforeMinDate(day: Date) {
+    return minDate ? toISODate(day) < minDate : false
+  }
+
   const grid = buildMonthGrid(visibleMonth)
   const monthLabel = visibleMonth.toLocaleDateString('en-US', {
     month: 'long',
@@ -140,11 +152,15 @@ export default function DateRangePicker({
   })
 
   const displayLabel =
-    checkIn && checkOut
-      ? `${formatShort(checkIn)} — ${formatShort(checkOut)}`
-      : checkIn
-        ? `${formatShort(checkIn)} — Select check-out`
-        : 'Select dates'
+    mode === 'single'
+      ? checkIn
+        ? formatShort(checkIn)
+        : 'Select date'
+      : checkIn && checkOut
+        ? `${formatShort(checkIn)} — ${formatShort(checkOut)}`
+        : checkIn
+          ? `${formatShort(checkIn)} — Select check-out`
+          : 'Select dates'
 
   return (
     <div className="relative" ref={containerRef}>
@@ -191,10 +207,19 @@ export default function DateRangePicker({
               : 'w-[min(320px,calc(100vw-2rem))] p-4'
           }`}
         >
-          <div className="flex items-center justify-between">
+          <div
+            className={`flex select-none touch-pan-y items-center justify-between ${
+              isDragging ? 'cursor-grabbing' : 'cursor-grab'
+            }`}
+            onPointerDown={handleCalendarPointerDown}
+            onPointerUp={handleCalendarPointerUp}
+            onPointerCancel={handleCalendarPointerCancel}
+            onPointerLeave={handleCalendarPointerCancel}
+          >
             <button
               type="button"
               onClick={() => setVisibleMonth((m) => addMonths(m, -1))}
+              onPointerDown={(e) => e.stopPropagation()}
               className={`rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant ${isLarge ? 'text-lg' : ''}`}
               aria-label="Previous month"
             >
@@ -206,6 +231,7 @@ export default function DateRangePicker({
             <button
               type="button"
               onClick={() => setVisibleMonth((m) => addMonths(m, 1))}
+              onPointerDown={(e) => e.stopPropagation()}
               className={`rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant ${isLarge ? 'text-lg' : ''}`}
               aria-label="Next month"
             >
@@ -214,54 +240,49 @@ export default function DateRangePicker({
           </div>
 
           <div
-            className={`select-none touch-pan-y ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-            onPointerDown={handleCalendarPointerDown}
-            onPointerUp={handleCalendarPointerUp}
-            onPointerCancel={handleCalendarPointerCancel}
-            onPointerLeave={handleCalendarPointerCancel}
+            className={`mt-3 grid grid-cols-7 gap-y-1 text-center tracking-wide text-charcoal/40 uppercase ${
+              isLarge ? 'text-xs' : 'text-[11px]'
+            }`}
           >
-            <div
-              className={`mt-3 grid grid-cols-7 gap-y-1 text-center tracking-wide text-charcoal/40 uppercase ${
-                isLarge ? 'text-xs' : 'text-[11px]'
-              }`}
-            >
-              {WEEKDAY_LABELS.map((d, i) => (
-                <span key={i}>{d}</span>
-              ))}
-            </div>
+            {WEEKDAY_LABELS.map((d, i) => (
+              <span key={i}>{d}</span>
+            ))}
+          </div>
 
-            <div className={`mt-1 grid grid-cols-7 ${isLarge ? 'gap-y-2' : 'gap-y-1'}`}>
-              {grid.map(({ date, inMonth }, i) => {
-                const disabled =
-                  !inMonth || isBeforeToday(date) || isDateBlocked(date, blockedRanges)
-                const isCheckIn = checkIn && isSameDay(date, checkIn)
-                const isCheckOut = checkOut && isSameDay(date, checkOut)
-                const inRange =
-                  checkIn && checkOut && isWithinRange(date, checkIn, checkOut)
+          <div className={`mt-1 grid grid-cols-7 ${isLarge ? 'gap-y-2' : 'gap-y-1'}`}>
+            {grid.map(({ date, inMonth }, i) => {
+              const disabled =
+                !inMonth ||
+                isBeforeToday(date) ||
+                isBeforeMinDate(date) ||
+                isDateBlocked(date, blockedRanges)
+              const isCheckIn = checkIn && isSameDay(date, checkIn)
+              const isCheckOut = checkOut && isSameDay(date, checkOut)
+              const inRange =
+                checkIn && checkOut && isWithinRange(date, checkIn, checkOut)
 
-                return (
-                  <button
-                    type="button"
-                    key={i}
-                    disabled={disabled}
-                    onClick={() => handleDayClick(date)}
-                    className={[
-                      'aspect-square transition-colors',
-                      isLarge ? 'text-sm md:text-base' : 'text-xs',
-                      disabled
-                        ? 'cursor-not-allowed text-charcoal/15 line-through'
-                        : 'text-charcoal hover:bg-verdant/10',
-                      isCheckIn || isCheckOut
-                        ? 'bg-verdant text-ivory hover:bg-verdant'
-                        : '',
-                      inRange && !isCheckIn && !isCheckOut ? 'bg-brass/20' : '',
-                    ].join(' ')}
-                  >
-                    {date.getDate()}
-                  </button>
-                )
-              })}
-            </div>
+              return (
+                <button
+                  type="button"
+                  key={i}
+                  disabled={disabled}
+                  onClick={() => handleDayClick(date)}
+                  className={[
+                    'aspect-square transition-colors',
+                    isLarge ? 'text-sm md:text-base' : 'text-xs',
+                    disabled
+                      ? 'cursor-not-allowed text-charcoal/15 line-through'
+                      : 'text-charcoal hover:bg-verdant/10',
+                    isCheckIn || isCheckOut
+                      ? 'bg-verdant text-ivory hover:bg-verdant'
+                      : '',
+                    inRange && !isCheckIn && !isCheckOut ? 'bg-brass/20' : '',
+                  ].join(' ')}
+                >
+                  {date.getDate()}
+                </button>
+              )
+            })}
           </div>
 
           <div
