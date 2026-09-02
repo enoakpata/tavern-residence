@@ -11,13 +11,13 @@ import AmbientGallery from '@/components/AmbientGallery'
 export const dynamic = 'force-dynamic'
 
 const HOMEPAGE_DESCRIPTION =
-  'Tavern Residence is a boutique hotel in Lekki Phase 1, Lagos, offering well-appointed rooms, modern facilities, and a welcoming atmosphere suitable for both business and leisure travelers. Guests can enjoy comfortable accommodations, attentive service, and convenient amenities designed to make their stay relaxing and enjoyable.'
+  'Tavern Residence is a hotel in Lekki Phase 1, Lagos, offering well-appointed rooms, modern facilities, and a welcoming atmosphere suitable for both business and leisure travelers. Guests can enjoy comfortable accommodations, attentive service, and convenient amenities designed to make their stay relaxing and enjoyable.'
 
 export const metadata: Metadata = {
-  title: 'Tavern Residence — Boutique Hotel in Lekki Phase 1, Lagos',
+  title: 'Tavern Residence — Hotel in Lekki Phase 1, Lagos',
   description: HOMEPAGE_DESCRIPTION,
   openGraph: {
-    title: 'Tavern Residence — Boutique Hotel in Lekki Phase 1, Lagos',
+    title: 'Tavern Residence — Hotel in Lekki Phase 1, Lagos',
     description: HOMEPAGE_DESCRIPTION,
     images: getFeaturedRoomPhotos(1),
   },
