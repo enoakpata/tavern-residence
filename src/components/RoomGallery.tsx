@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import Image from 'next/image'
+import { HOTEL_NAME } from '@/lib/siteConfig'
 
 const DRAG_THRESHOLD = 50
 
@@ -93,7 +94,7 @@ export default function RoomGallery({
           <Image
             key={src}
             src={src}
-            alt={`${roomName} — Room ${roomNumber} at Tavern Residence, photo ${i + 1} of ${images.length}`}
+            alt={`${roomName} — Room ${roomNumber} at ${HOTEL_NAME}, photo ${i + 1} of ${images.length}`}
             fill
             draggable={false}
             priority
@@ -143,7 +144,7 @@ export default function RoomGallery({
             >
               <Image
                 src={img}
-                alt={`${roomName} — Room ${roomNumber} at Tavern Residence, photo ${i + 1} of ${images.length}`}
+                alt={`${roomName} — Room ${roomNumber} at ${HOTEL_NAME}, photo ${i + 1} of ${images.length}`}
                 fill
                 sizes="(min-width: 1024px) 12vw, 25vw"
                 className="object-cover"

@@ -6,6 +6,8 @@
 // of truth is what guarantees those previews can never drift out of sync
 // with what the server actually decides.
 
+import { CANCELLATION_FEE_FRACTION } from './siteConfig'
+
 const FREE_CANCELLATION_HOURS_BEFORE_CHECKIN = 24
 const FREE_CANCELLATION_GRACE_PERIOD_HOURS = 1
 
@@ -23,8 +25,8 @@ function checkInMoment(checkInDate: string): Date {
  * within 1 hour of when the booking was created — a grace period so a
  * same-day booking, which can never be 24 hours from check-in, still gets
  * a short free-cancellation window right after booking. Outside both
- * windows, a flat fee of 50% of one night's rate applies — regardless of
- * how many nights were booked.
+ * windows, a flat fee of CANCELLATION_FEE_FRACTION (50%) of one night's
+ * rate applies — regardless of how many nights were booked.
  */
 export function getCancellationOutcome({
   createdAt,
@@ -46,5 +48,5 @@ export function getCancellationOutcome({
     return { free: true, feeAmount: 0 }
   }
 
-  return { free: false, feeAmount: Math.round(pricePerNight * 0.5) }
+  return { free: false, feeAmount: Math.round(pricePerNight * CANCELLATION_FEE_FRACTION) }
 }

@@ -12,3 +12,22 @@ export const GOOGLE_MAPS_URL =
 // The plain-text address, for anywhere it needs to be read rather than
 // linked (e.g. inside an email body).
 export const HOTEL_ADDRESS = 'No 20 Dele Adedeji, Lekki Phase 1, Lagos'
+
+export const HOTEL_NAME = 'Tavern Residence'
+
+export const HOTEL_TAGLINE =
+  'Tavern Residence is a hotel in Lekki Phase 1, Lagos, offering well-appointed rooms, modern facilities, and a welcoming atmosphere suitable for both business and leisure travelers.'
+
+export const HOTEL_PHONE_DISPLAY = '0701 583 2637'
+export const HOTEL_PHONE_TEL = '+2347015832637' // used in tel: and wa.me links, no spaces/dashes
+
+export const HOTEL_EMAIL = 'tavernresidence@gmail.com'
+
+export const HOTEL_INSTAGRAM_HANDLE = 'tavernresidencelekki'
+export const HOTEL_INSTAGRAM_URL = 'https://www.instagram.com/tavernresidencelekki'
+
+export const HOTEL_ADDRESS_LOCALITY = 'Lekki Phase 1'
+export const HOTEL_ADDRESS_REGION = 'Lagos'
+
+// Cancellation fee as a fraction of one night's rate (0.5 = 50%)
+export const CANCELLATION_FEE_FRACTION = 0.5

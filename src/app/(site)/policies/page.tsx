@@ -1,9 +1,19 @@
 import type { Metadata } from 'next'
+import {
+  HOTEL_NAME,
+  HOTEL_PHONE_DISPLAY,
+  HOTEL_PHONE_TEL,
+  HOTEL_EMAIL,
+  HOTEL_ADDRESS_LOCALITY,
+  HOTEL_ADDRESS_REGION,
+  CANCELLATION_FEE_FRACTION,
+} from '@/lib/siteConfig'
+
+const CANCELLATION_FEE_PERCENT = CANCELLATION_FEE_FRACTION * 100
 
 export const metadata: Metadata = {
-  title: 'Policies | Tavern Residence',
-  description:
-    'Check-in from 2:00 PM, check-out by 12:00 PM. Free cancellation up to 24 hours before check-in; a strictly non-smoking property in Lekki Phase 1, Lagos.',
+  title: `Policies | ${HOTEL_NAME}`,
+  description: `Check-in from 2:00 PM, check-out by 12:00 PM. Free cancellation up to 24 hours before check-in; a strictly non-smoking property in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION}.`,
 }
 
 export default function PoliciesPage() {
@@ -16,7 +26,7 @@ export default function PoliciesPage() {
         Policies
       </h1>
       <p className="mt-4 text-charcoal/70">
-        A few things worth knowing before your stay at Tavern Residence.
+        A few things worth knowing before your stay at {HOTEL_NAME}.
       </p>
 
       <div className="mt-14 space-y-12">
@@ -43,10 +53,13 @@ export default function PoliciesPage() {
               Free cancellation up to 24 hours before check-in — no charge.
             </p>
             <p>
-              Cancellations made within 24 hours of check-in are charged 50%
-              of one night&apos;s rate.
+              Cancellations made within 24 hours of check-in are charged{' '}
+              {CANCELLATION_FEE_PERCENT}% of one night&apos;s rate.
             </p>
-            <p>No-shows are also charged 50% of one night&apos;s rate.</p>
+            <p>
+              No-shows are also charged {CANCELLATION_FEE_PERCENT}% of one
+              night&apos;s rate.
+            </p>
             <p>
               If you book for same-day check-in, you have 1 hour from the
               time of booking to cancel for free, even if check-in is less
@@ -59,7 +72,7 @@ export default function PoliciesPage() {
         <section className="border-t border-charcoal/10 pt-12">
           <h2 className="font-display text-2xl text-charcoal">Smoking</h2>
           <div className="mt-4 space-y-2 text-charcoal/70">
-            <p>Tavern Residence is a strictly non-smoking property.</p>
+            <p>{HOTEL_NAME} is a strictly non-smoking property.</p>
             <p>
               Guests found smoking in any room will be charged a cleaning
               fee of ₦200,000.
@@ -96,17 +109,17 @@ export default function PoliciesPage() {
         <p>
           Questions about any of the above? Reach us at{' '}
           <a
-            href="tel:+2347015832637"
+            href={`tel:${HOTEL_PHONE_TEL}`}
             className="text-verdant hover:underline"
           >
-            0701 583 2637
+            {HOTEL_PHONE_DISPLAY}
           </a>{' '}
           or{' '}
           <a
-            href="mailto:tavernresidence@gmail.com"
+            href={`mailto:${HOTEL_EMAIL}`}
             className="text-verdant hover:underline"
           >
-            tavernresidence@gmail.com
+            {HOTEL_EMAIL}
           </a>
           .
         </p>

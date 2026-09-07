@@ -8,6 +8,7 @@ import DateRangePicker from '@/components/DateRangePicker'
 import ConfirmModal from '@/components/ConfirmModal'
 import type { Room } from '@/lib/types'
 import { formatLagosTime, todayInLagos, type BlockedRange } from '@/lib/dateUtils'
+import { HOTEL_PHONE_DISPLAY, CANCELLATION_FEE_FRACTION } from '@/lib/siteConfig'
 
 const FREE_CANCELLATION_GRACE_PERIOD_MS = 60 * 60 * 1000
 
@@ -423,13 +424,13 @@ export default function BookingForm({
             {isSameDayBooking && (
               <p className="text-xs text-charcoal/50">
                 Since check-in is today, you&apos;ll have 1 hour after booking
-                to cancel for free. After that, cancelling incurs a 50% fee.
+                to cancel for free. After that, cancelling incurs a {CANCELLATION_FEE_FRACTION * 100}% fee.
               </p>
             )}
 
             <p className="text-xs text-charcoal/50">
               Free cancellation up to 24 hours before check-in. Cancellations
-              within 24 hours or no-shows are charged 50% of the booking value.
+              within 24 hours or no-shows are charged {CANCELLATION_FEE_FRACTION * 100}% of the booking value.
             </p>
           </form>
         )}
@@ -444,7 +445,7 @@ export default function BookingForm({
             <li>Free cancellation up to 24 hours before check-in.</li>
             <li>
               Same-day bookings: You can cancel free of charge within 1 hour of booking.
-              After this period, cancellations and no-shows incur a 50% charge.
+              After this period, cancellations and no-shows incur a {CANCELLATION_FEE_FRACTION * 100}% charge.
             </li>
             <li>
               No pets allowed
@@ -474,7 +475,7 @@ export default function BookingForm({
       <ConfirmModal
         open={paymentNotCompleted}
         title="Payment not completed"
-        message="Payment wasn't completed. If your card was declined, try a different card, or contact us for help — 0701 583 2637."
+        message={`Payment wasn't completed. If your card was declined, try a different card, or contact us for help — ${HOTEL_PHONE_DISPLAY}.`}
         confirmLabel="OK"
         hideCancel
         onConfirm={handlePaymentNotCompletedDismiss}

@@ -11,8 +11,7 @@ import {
   buildGuestConfirmationEmail,
   buildHotelNotificationEmail,
 } from '@/lib/email'
-
-const HOTEL_NOTIFICATION_EMAIL = 'tavernresidence@gmail.com'
+import { HOTEL_EMAIL } from '@/lib/siteConfig'
 
 export async function checkAvailability(
   roomId: string,
@@ -151,7 +150,7 @@ const hotelEmailContent = buildHotelNotificationEmail({
 
 const notificationResults = await Promise.allSettled([
   sendEmail({ to: guestEmail, ...guestEmailContent }),
-  sendEmail({ to: HOTEL_NOTIFICATION_EMAIL, ...hotelEmailContent }),
+  sendEmail({ to: HOTEL_EMAIL, ...hotelEmailContent }),
   supabaseAdmin.from('Notifications').insert({
     type: 'new_booking',
     message: `New booking: ${guestName} — Room ${roomNumber}`,

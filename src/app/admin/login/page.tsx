@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { HOTEL_NAME } from '@/lib/siteConfig'
 
 const DEFAULT_REDIRECT = '/admin/bookings'
 
@@ -51,7 +52,7 @@ function LoginForm() {
           Staff access
         </p>
         <h1 className="mt-2 font-display text-2xl text-charcoal">
-          Tavern Residence Admin
+          {HOTEL_NAME} Admin
         </h1>
 
         <div className="mt-6 space-y-4">

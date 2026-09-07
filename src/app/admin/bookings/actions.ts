@@ -11,11 +11,11 @@ import {
   buildCancellationNotificationEmail,
 } from '@/lib/email'
 import type { Room } from '@/lib/types'
+import { HOTEL_EMAIL } from '@/lib/siteConfig'
 
 type ActionResult = { success: true } | { success: false; error: string }
 
 const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
-const HOTEL_NOTIFICATION_EMAIL = 'tavernresidence@gmail.com'
 
 /**
  * Fetches one booking's full detail (every field, plus its room) for the
@@ -520,7 +520,7 @@ async function notifyCancellationByEmail(
 ) {
   try {
     await sendEmail({
-      to: HOTEL_NOTIFICATION_EMAIL,
+      to: HOTEL_EMAIL,
       ...buildCancellationNotificationEmail({
         guestName: booking.guest_name,
         roomNumber: booking.Rooms?.room_number ?? '',

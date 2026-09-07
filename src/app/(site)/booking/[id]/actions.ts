@@ -5,10 +5,9 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { calculateCancellationOutcome } from '@/lib/bookings'
 import { chargeAuthorization } from '@/lib/paystack'
 import { sendEmail, buildCancellationNotificationEmail } from '@/lib/email'
+import { HOTEL_PHONE_DISPLAY, HOTEL_EMAIL } from '@/lib/siteConfig'
 
 const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
-const HOTEL_PHONE = '0701 583 2637'
-const HOTEL_NOTIFICATION_EMAIL = 'tavernresidence@gmail.com'
 
 export type CancelBookingResult =
   | { success: true; feeCharged: boolean; feeAmount: number }
@@ -39,7 +38,7 @@ async function notifyCancellation(
 
   const results = await Promise.allSettled([
     sendEmail({
-      to: HOTEL_NOTIFICATION_EMAIL,
+      to: HOTEL_EMAIL,
       ...buildCancellationNotificationEmail({
         guestName: booking.guest_name,
         roomNumber,
@@ -116,7 +115,7 @@ export async function cancelBooking(bookingId: string): Promise<CancelBookingRes
   if (!booking.guest_email) {
     return {
       success: false,
-      error: `We couldn't process the cancellation fee — please contact us directly to cancel: ${HOTEL_PHONE}`,
+      error: `We couldn't process the cancellation fee — please contact us directly to cancel: ${HOTEL_PHONE_DISPLAY}`,
     }
   }
 
@@ -124,7 +123,7 @@ export async function cancelBooking(bookingId: string): Promise<CancelBookingRes
   if (!charge.success) {
     return {
       success: false,
-      error: `We couldn't process the cancellation fee (${charge.error}). Please contact us directly to cancel: ${HOTEL_PHONE}`,
+      error: `We couldn't process the cancellation fee (${charge.error}). Please contact us directly to cancel: ${HOTEL_PHONE_DISPLAY}`,
     }
   }
 

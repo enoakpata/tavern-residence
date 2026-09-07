@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
+import { HOTEL_NAME } from '@/lib/siteConfig'
 import BookingForm from './BookingForm'
 import RoomGallery from '@/components/RoomGallery'
 
@@ -65,11 +66,11 @@ export async function generateMetadata({
   const { data: room } = await supabase.from('Rooms').select('*').eq('id', id).single()
 
   if (!room) {
-    return { title: 'Room not found | Tavern Residence' }
+    return { title: `Room not found | ${HOTEL_NAME}` }
   }
 
   const r = room as Room
-  const title = `${r.name} | Tavern Residence`
+  const title = `${r.name} | ${HOTEL_NAME}`
   const description = truncateForMeta(r.description, META_DESCRIPTION_LENGTH)
   const coverImage = getRoomImages(r.room_number)[0]
 

@@ -1,7 +1,15 @@
 import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
 import { getFeaturedRoomPhotos, getGalleryImages } from '@/lib/roomImages'
-import { GOOGLE_MAPS_URL } from '@/lib/siteConfig'
+import {
+  GOOGLE_MAPS_URL,
+  HOTEL_NAME,
+  HOTEL_TAGLINE,
+  HOTEL_ADDRESS,
+  HOTEL_ADDRESS_LOCALITY,
+  HOTEL_ADDRESS_REGION,
+  HOTEL_PHONE_TEL,
+} from '@/lib/siteConfig'
 import HomeAvailabilityCheck from './HomeAvailabilityCheck'
 import AmbientGallery from '@/components/AmbientGallery'
 
@@ -10,15 +18,14 @@ import AmbientGallery from '@/components/AmbientGallery'
 // read below, so newly added photos wouldn't appear until a redeploy.
 export const dynamic = 'force-dynamic'
 
-const HOMEPAGE_DESCRIPTION =
-  'Tavern Residence is a hotel in Lekki Phase 1, Lagos, offering well-appointed rooms, modern facilities, and a welcoming atmosphere suitable for both business and leisure travelers. Guests can enjoy comfortable accommodations, attentive service, and convenient amenities designed to make their stay relaxing and enjoyable.'
+const HOMEPAGE_TITLE = `${HOTEL_NAME} — Hotel in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION}`
 
 export const metadata: Metadata = {
-  title: 'Tavern Residence — Hotel in Lekki Phase 1, Lagos',
-  description: HOMEPAGE_DESCRIPTION,
+  title: HOMEPAGE_TITLE,
+  description: HOTEL_TAGLINE,
   openGraph: {
-    title: 'Tavern Residence — Hotel in Lekki Phase 1, Lagos',
-    description: HOMEPAGE_DESCRIPTION,
+    title: HOMEPAGE_TITLE,
+    description: HOTEL_TAGLINE,
     images: getFeaturedRoomPhotos(1),
   },
 }
@@ -32,15 +39,15 @@ export default async function Home() {
   const hotelJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Hotel',
-    name: 'Tavern Residence',
+    name: HOTEL_NAME,
     address: {
       '@type': 'PostalAddress',
       streetAddress: 'No 20 Dele Adedeji',
-      addressLocality: 'Lekki Phase 1',
-      addressRegion: 'Lagos',
+      addressLocality: HOTEL_ADDRESS_LOCALITY,
+      addressRegion: HOTEL_ADDRESS_REGION,
       addressCountry: 'NG',
     },
-    telephone: '+2347015832637',
+    telephone: HOTEL_PHONE_TEL,
     ...(prices.length > 0 && {
       priceRange: `₦${Math.min(...prices).toLocaleString()} - ₦${Math.max(...prices).toLocaleString()}`,
     }),
@@ -57,7 +64,7 @@ export default async function Home() {
         <section className="relative flex min-h-[85vh] flex-col justify-end bg-verdant px-6 pb-16 text-ivory md:px-12 md:pb-24">
           <div className="max-w-2xl">
             <p className="text-xs tracking-widest text-brass uppercase">
-              Lekki Phase 1, Lagos
+              {HOTEL_ADDRESS_LOCALITY}, {HOTEL_ADDRESS_REGION}
             </p>
             <h1 className="mt-4 font-display text-5xl leading-tight md:text-7xl">
               A quiet residence, minutes from everything.
@@ -86,7 +93,7 @@ export default async function Home() {
             Around the residence
           </h2>
           <div className="mt-10">
-            <AmbientGallery images={galleryImages} alt="Tavern Residence" />
+            <AmbientGallery images={galleryImages} alt={HOTEL_NAME} />
           </div>
         </section>
 
@@ -122,7 +129,7 @@ export default async function Home() {
                 rel="noopener noreferrer"
                 className="mt-3 block text-charcoal hover:text-verdant"
               >
-                No 20 Dele Adedeji, Lekki Phase 1, Lagos
+                {HOTEL_ADDRESS}
               </a>
               <p className="mt-1 text-sm text-charcoal/60">
                 Free on-site parking for all guests.

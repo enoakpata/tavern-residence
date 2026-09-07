@@ -2,12 +2,20 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Mail, MapPin, Phone } from 'lucide-react'
 import { FaInstagram } from 'react-icons/fa6'
-import { GOOGLE_MAPS_URL } from '@/lib/siteConfig'
+import {
+  GOOGLE_MAPS_URL,
+  HOTEL_NAME,
+  HOTEL_ADDRESS,
+  HOTEL_PHONE_DISPLAY,
+  HOTEL_PHONE_TEL,
+  HOTEL_EMAIL,
+  HOTEL_INSTAGRAM_HANDLE,
+  HOTEL_INSTAGRAM_URL,
+} from '@/lib/siteConfig'
 
 export const metadata: Metadata = {
-  title: 'Contact | Tavern Residence',
-  description:
-    'Reach Tavern Residence at No 20 Dele Adedeji, Lekki Phase 1, Lagos — call or WhatsApp 0701 583 2637, or email tavernresidence@gmail.com.',
+  title: `Contact | ${HOTEL_NAME}`,
+  description: `Reach ${HOTEL_NAME} at ${HOTEL_ADDRESS} — call or WhatsApp ${HOTEL_PHONE_DISPLAY}, or email ${HOTEL_EMAIL}.`,
 }
 
 export default function ContactPage() {
@@ -30,11 +38,11 @@ export default function ContactPage() {
             Phone / WhatsApp
           </p>
           <a
-            href="tel:+2347015832637"
+            href={`tel:${HOTEL_PHONE_TEL}`}
             className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
           >
             <Phone size={18} className="text-verdant" />
-            0701 583 2637
+            {HOTEL_PHONE_DISPLAY}
           </a>
         </div>
 
@@ -43,11 +51,11 @@ export default function ContactPage() {
             Email
           </p>
           <a
-            href="mailto:tavernresidence@gmail.com"
+            href={`mailto:${HOTEL_EMAIL}`}
             className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
           >
             <Mail size={18} className="text-verdant" />
-            tavernresidence@gmail.com
+            {HOTEL_EMAIL}
           </a>
         </div>
 
@@ -56,13 +64,13 @@ export default function ContactPage() {
             Instagram
           </p>
           <a
-            href="https://www.instagram.com/tavernresidencelekki"
+            href={HOTEL_INSTAGRAM_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
           >
             <FaInstagram size={18} className="text-verdant" />
-            @tavernresidencelekki
+            @{HOTEL_INSTAGRAM_HANDLE}
           </a>
         </div>
 
@@ -77,7 +85,7 @@ export default function ContactPage() {
             className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
           >
             <MapPin size={18} className="text-verdant" />
-            No 20 Dele Adedeji, Lekki Phase 1, Lagos
+            {HOTEL_ADDRESS}
           </a>
         </div>
       </div>

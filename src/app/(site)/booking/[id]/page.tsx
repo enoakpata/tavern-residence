@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { HOTEL_NAME, HOTEL_PHONE_DISPLAY } from '@/lib/siteConfig'
 import CancelBookingButton from './CancelBookingButton'
 
 // Unindexed — possession of the unguessable booking ID is the only
 // "authorization" this page checks, so it shouldn't be crawlable.
 export const metadata: Metadata = {
-  title: 'Manage Your Booking | Tavern Residence',
+  title: `Manage Your Booking | ${HOTEL_NAME}`,
   robots: { index: false, follow: false },
 }
 
@@ -58,7 +59,7 @@ export default async function ManageBookingPage({
         </h1>
         <p className="mt-4 text-charcoal/70">
           We couldn&apos;t find a booking matching this link. Double-check the
-          link from your confirmation email, or reach us at 0701 583 2637 if
+          link from your confirmation email, or reach us at {HOTEL_PHONE_DISPLAY} if
           you need help.
         </p>
       </main>

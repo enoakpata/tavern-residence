@@ -5,12 +5,12 @@ import { supabase } from '@/lib/supabase'
 import { isRoomAvailable } from '@/lib/bookings'
 import type { Room } from '@/lib/types'
 import { getRoomCoverImage } from '@/lib/roomImages'
+import { HOTEL_NAME, HOTEL_ADDRESS_LOCALITY, HOTEL_ADDRESS_REGION } from '@/lib/siteConfig'
 import RoomsFilterBar from './RoomsFilterBar'
 
 export const metadata: Metadata = {
-  title: 'Rooms & Suites | Tavern Residence',
-  description:
-    'Browse Studio, 1-Bedroom, and Standard rooms at Tavern Residence in Lekki Phase 1, Lagos — from ₦90,000 to ₦200,000 per night, each with a king bed and kitchenette.',
+  title: `Rooms & Suites | ${HOTEL_NAME}`,
+  description: `Browse Studio, 1-Bedroom, and Standard rooms at ${HOTEL_NAME} in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION} — from ₦90,000 to ₦200,000 per night, each with a king bed and kitchenette.`,
 }
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -94,7 +94,7 @@ export default async function RoomsPage({
                   {cover ? (
                     <Image
                       src={cover}
-                      alt={`${room.name} — Room ${room.room_number} at Tavern Residence`}
+                      alt={`${room.name} — Room ${room.room_number} at ${HOTEL_NAME}`}
                       fill
                       sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       className={`object-cover transition-transform duration-500 ${isClickable ? 'group-hover:scale-105' : ''}`}

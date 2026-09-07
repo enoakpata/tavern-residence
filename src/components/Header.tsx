@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { HOTEL_NAME } from '@/lib/siteConfig'
 
 export default function Header() {
   const [open, setOpen] = useState(false)
@@ -50,7 +51,7 @@ export default function Header() {
           onClick={() => setOpen(false)}
           className="font-display text-xl tracking-wide text-ivory md:text-2xl"
         >
-          Tavern Residence
+          {HOTEL_NAME}
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm tracking-wide text-ivory/90 md:flex md:gap-10">

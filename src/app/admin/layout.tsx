@@ -7,6 +7,7 @@ import { signOut } from './actions'
 import NotificationBell from './NotificationBell'
 import InactivityTimeout from './InactivityTimeout'
 import { BookingDetailProvider } from './BookingDetailContext'
+import { HOTEL_NAME } from '@/lib/siteConfig'
 export const dynamic = 'force-dynamic'
 
 const NAV_LINKS = [
@@ -34,7 +35,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               onClick={() => setOpen(false)}
               className="font-display text-lg"
             >
-              Tavern Residence
+              {HOTEL_NAME}
             </Link>
             <span className="rounded-full border border-brass/50 px-2 py-0.5 text-[10px] font-semibold tracking-[0.2em] text-brass uppercase">
               Admin

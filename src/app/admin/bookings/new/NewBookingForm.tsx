@@ -7,6 +7,11 @@ import DateRangePicker from '@/components/DateRangePicker'
 import RoomSelect from '@/components/RoomSelect'
 import type { Room } from '@/lib/types'
 
+function nightsBetween(checkIn: string, checkOut: string): number {
+  const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
+  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
+}
+
 export default function NewBookingForm() {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -50,6 +55,9 @@ export default function NewBookingForm() {
   }, [checkIn, checkOut])
 
   const visibleRooms = hasDates ? rooms : []
+  const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0
+  const selectedRoom = rooms.find((room) => room.id === roomId)
+  const total = nights * (selectedRoom?.price_per_night ?? 0)
 
   function handleSubmit(formData: FormData) {
     setError('')
@@ -131,6 +139,17 @@ export default function NewBookingForm() {
         </div>
         <input type="hidden" name="room_id" value={roomId} />
       </div>
+
+      {hasDates && roomId && nights > 0 && (
+        <div>
+          <p className="text-xs tracking-widest text-charcoal/60 uppercase">
+            Total
+          </p>
+          <p className="mt-2 text-base font-medium text-charcoal">
+            ₦{total.toLocaleString()} for {nights} night{nights === 1 ? '' : 's'}
+          </p>
+        </div>
+      )}
 
       <div>
         <label className="text-xs tracking-widest text-charcoal/60 uppercase">
