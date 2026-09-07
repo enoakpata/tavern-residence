@@ -6,6 +6,7 @@ import { isRoomAvailable } from '@/lib/bookings'
 import type { Room } from '@/lib/types'
 import { getRoomCoverImage } from '@/lib/roomImages'
 import { HOTEL_NAME, HOTEL_ADDRESS_LOCALITY, HOTEL_ADDRESS_REGION } from '@/lib/siteConfig'
+import { todayInLagos } from '@/lib/dateUtils'
 import RoomsFilterBar from './RoomsFilterBar'
 
 export const metadata: Metadata = {
@@ -23,10 +24,15 @@ export default async function RoomsPage({
   const params = await searchParams
   const rawCheckIn = typeof params.checkin === 'string' ? params.checkin : ''
   const rawCheckOut = typeof params.checkout === 'string' ? params.checkout : ''
+  // A bookmarked or shared link (or just an old tab left open) can carry
+  // dates that have since passed — checked against the hotel's own Lagos
+  // "today", not the visitor's device clock, same as elsewhere this is
+  // validated. A stale check-in is treated the same as no dates at all.
   const hasDates =
     ISO_DATE_PATTERN.test(rawCheckIn) &&
     ISO_DATE_PATTERN.test(rawCheckOut) &&
-    rawCheckOut > rawCheckIn
+    rawCheckOut > rawCheckIn &&
+    rawCheckIn >= todayInLagos()
 
   const { data: rooms, error } = await supabase
     .from('Rooms')

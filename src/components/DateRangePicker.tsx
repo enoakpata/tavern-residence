@@ -10,6 +10,7 @@ import {
   parseISODate,
   startOfMonth,
   toISODate,
+  todayInLagos,
   type BlockedRange,
 } from '@/lib/dateUtils'
 
@@ -46,15 +47,29 @@ export default function DateRangePicker({
 }) {
   const isLarge = size === 'large'
   const isDark = theme === 'dark'
+
+  // A range restored from a URL/prop on mount is only trusted if neither
+  // end has already passed — a bookmarked or shared link (or just an old
+  // tab left open) can easily carry a check-in/check-out that's since
+  // slipped into the past. Compared as plain ISO strings against "today"
+  // in the hotel's own timezone (not the visitor's device clock), same as
+  // todayInLagos()'s other call sites — if either half is stale, the
+  // whole pair is dropped rather than restoring a half-broken selection.
+  const initialRangeIsStale =
+    (initialCheckIn != null && initialCheckIn < todayInLagos()) ||
+    (initialCheckOut != null && initialCheckOut < todayInLagos())
+  const seedCheckIn = !initialRangeIsStale ? initialCheckIn : null
+  const seedCheckOut = !initialRangeIsStale ? initialCheckOut : null
+
   const [open, setOpen] = useState(false)
   const [visibleMonth, setVisibleMonth] = useState(() =>
-    initialCheckIn ? startOfMonth(parseISODate(initialCheckIn)) : startOfMonth(new Date())
+    seedCheckIn ? startOfMonth(parseISODate(seedCheckIn)) : startOfMonth(new Date())
   )
   const [checkIn, setCheckIn] = useState<Date | null>(() =>
-    initialCheckIn ? parseISODate(initialCheckIn) : null
+    seedCheckIn ? parseISODate(seedCheckIn) : null
   )
   const [checkOut, setCheckOut] = useState<Date | null>(() =>
-    initialCheckOut ? parseISODate(initialCheckOut) : null
+    seedCheckOut ? parseISODate(seedCheckOut) : null
   )
   const containerRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)

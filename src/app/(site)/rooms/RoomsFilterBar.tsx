@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import DateRangePicker from '@/components/DateRangePicker'
+import { todayInLagos } from '@/lib/dateUtils'
 
 export default function RoomsFilterBar() {
   const router = useRouter()
@@ -21,7 +22,17 @@ export default function RoomsFilterBar() {
     router.push(`${pathname}?${next.toString()}`)
   }
 
-  const hasDates = Boolean(searchParams.get('checkin') && searchParams.get('checkout'))
+  // A bookmarked/shared link or an old tab left open can carry a checkin
+  // that's since passed — checked against the hotel's own Lagos "today",
+  // not the visitor's device clock. A stale value is treated the same as
+  // no dates at all, both for the picker's own initial selection below and
+  // for this "any dates selected" flag.
+  const rawCheckIn = searchParams.get('checkin')
+  const rawCheckOut = searchParams.get('checkout')
+  const datesAreStale = Boolean(rawCheckIn && rawCheckIn < todayInLagos())
+  const validCheckIn = datesAreStale ? null : rawCheckIn
+  const validCheckOut = datesAreStale ? null : rawCheckOut
+  const hasDates = Boolean(validCheckIn && validCheckOut)
 
   return (
     <div className="mt-8 max-w-sm">
@@ -36,8 +47,8 @@ export default function RoomsFilterBar() {
       <div className="mt-2">
         <DateRangePicker
           blockedRanges={[]}
-          initialCheckIn={searchParams.get('checkin')}
-          initialCheckOut={searchParams.get('checkout')}
+          initialCheckIn={validCheckIn}
+          initialCheckOut={validCheckOut}
           onChange={handleChange}
           size="large"
         />

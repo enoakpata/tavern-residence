@@ -5,6 +5,7 @@ import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
 import { HOTEL_NAME } from '@/lib/siteConfig'
+import { todayInLagos } from '@/lib/dateUtils'
 import BookingForm from './BookingForm'
 import RoomGallery from '@/components/RoomGallery'
 
@@ -19,8 +20,11 @@ function truncateForMeta(text: string, maxLength: number): string {
 /**
  * Dates carried over from the rooms listing page's date picker, via
  * ?checkin=&checkout= — only trusted if both are present, well-formed,
- * and checkout is after checkin; otherwise the calendar just starts empty
- * like it always has.
+ * checkout is after checkin, AND check-in hasn't already passed (in the
+ * hotel's own Lagos timezone, not the visitor's device clock) — a
+ * bookmarked or shared link, or just an old tab left open, can easily
+ * carry dates that have since slipped into the past. Otherwise the
+ * calendar just starts empty like it always has.
  */
 function parseInitialDates(searchParams: { [key: string]: string | string[] | undefined }): {
   checkIn: string | null
@@ -29,7 +33,10 @@ function parseInitialDates(searchParams: { [key: string]: string | string[] | un
   const checkIn = typeof searchParams.checkin === 'string' ? searchParams.checkin : ''
   const checkOut = typeof searchParams.checkout === 'string' ? searchParams.checkout : ''
   const valid =
-    ISO_DATE_PATTERN.test(checkIn) && ISO_DATE_PATTERN.test(checkOut) && checkOut > checkIn
+    ISO_DATE_PATTERN.test(checkIn) &&
+    ISO_DATE_PATTERN.test(checkOut) &&
+    checkOut > checkIn &&
+    checkIn >= todayInLagos()
 
   return valid ? { checkIn, checkOut } : { checkIn: null, checkOut: null }
 }
