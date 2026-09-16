@@ -16,7 +16,7 @@ export const HOTEL_ADDRESS = 'No 20 Dele Adedeji, Lekki Phase 1, Lagos'
 export const HOTEL_NAME = 'Tavern Residence'
 
 export const HOTEL_TAGLINE =
-  'Tavern Residence is a hotel in Lekki Phase 1, Lagos, offering well-appointed rooms, modern facilities, and a welcoming atmosphere suitable for both business and leisure travelers.'
+  'Tavern Residence is an apartment hotel in Lekki Phase 1, Lagos, offering well-appointed rooms, modern facilities, and a welcoming atmosphere suitable for both business and leisure travelers.'
 
 export const HOTEL_PHONE_DISPLAY = '0701 583 2637'
 export const HOTEL_PHONE_TEL = '+2347015832637' // used in tel: and wa.me links, no spaces/dashes

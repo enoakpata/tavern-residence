@@ -18,7 +18,7 @@ import AmbientGallery from '@/components/AmbientGallery'
 // read below, so newly added photos wouldn't appear until a redeploy.
 export const dynamic = 'force-dynamic'
 
-const HOMEPAGE_TITLE = `${HOTEL_NAME} — Hotel in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION}`
+const HOMEPAGE_TITLE = `${HOTEL_NAME} — Apartment Hotel in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION}`
 
 export const metadata: Metadata = {
   title: HOMEPAGE_TITLE,
@@ -70,12 +70,12 @@ export default async function Home() {
               A quiet residence, minutes from everything.
             </h1>
             <p className="mt-6 max-w-lg text-ivory/80">
-              Our hotel offers well-appointed rooms, modern facilities, and a
+              Our apartment hotel offers well-appointed rooms, modern facilities, and a
               welcoming atmosphere suitable for both business and leisure
               travelers. Guests can enjoy comfortable accommodations, attentive
               service, and convenient amenities designed to make their stay
               relaxing and enjoyable. Whether you are visiting for a short
-              trip, a business meeting, or a family vacation, our hotel
+              trip, a business meeting, or a family vacation, our apartment hotel
               provides a comfortable and convenient home away from home.
             </p>
             <div className="mt-8">
