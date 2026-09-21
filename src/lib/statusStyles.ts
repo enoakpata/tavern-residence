@@ -2,7 +2,6 @@
 // table and the calendar's day badges, so both stay visually consistent.
 export const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-brass/20 text-brass',
-  pending_payment: 'bg-brass/20 text-brass',
   confirmed: 'bg-verdant/15 text-verdant',
   checked_in: 'bg-verdant text-ivory',
   checked_out: 'bg-charcoal/10 text-charcoal/60',
@@ -17,7 +16,6 @@ export const STATUS_STYLES: Record<string, string> = {
 // panel can never show different wording for the same status.
 export const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending confirmation',
-  pending_payment: 'Awaiting payment',
   confirmed: 'Confirmed',
   checked_in: 'Checked in',
   checked_out: 'Checked out',

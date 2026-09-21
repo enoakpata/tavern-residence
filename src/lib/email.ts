@@ -6,8 +6,6 @@ import {
   HOTEL_PHONE_DISPLAY,
   HOTEL_EMAIL,
   CANCELLATION_FEE_FRACTION,
-  PAYMENT_METHODS,
-  PENDING_PAYMENT_HOLD_HOURS,
 } from './siteConfig'
 import { formatLagosTime } from './dateUtils'
 
@@ -103,72 +101,6 @@ export function buildGuestConfirmationEmail({
 
   return {
     subject: `Booking Request Received — ${HOTEL_NAME}`,
-    html,
-  }
-}
-
-/**
- * Sent instead of buildGuestConfirmationEmail() when the guest chose bank
- * transfer at checkout (see BookingForm.tsx) — the booking exists as
- * 'pending_payment' at this point, not 'confirmed', so this deliberately
- * doesn't read like a finished confirmation: it gives the bank details and
- * reference code needed to pay, and is explicit that the room is held, not
- * guaranteed, until staff confirm the transfer landed (which then triggers
- * buildGuestConfirmationEmail() separately, via confirmBankTransferPayment
- * in admin/bookings/actions.ts).
- */
-export function buildBankTransferHoldEmail({
-  guestName,
-  roomNumber,
-  roomName,
-  checkIn,
-  checkOut,
-  referenceCode,
-  totalAmount,
-}: {
-  guestName: string
-  roomNumber: string
-  roomName: string
-  checkIn: string
-  checkOut: string
-  referenceCode: string
-  totalAmount: number
-}) {
-  const { bankName, accountNumber, accountName } = PAYMENT_METHODS.bank_transfer
-
-  const html = `
-    <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
-      <p>Hi ${guestName},</p>
-
-      <p>Thanks for requesting to book with ${HOTEL_NAME}. Your request for Room ${roomNumber} — ${roomName} — has been received and your dates are held.</p>
-
-      <p>
-        <strong>Check-in:</strong> ${formatDate(checkIn)}<br />
-        <strong>Check-out:</strong> ${formatDate(checkOut)}<br />
-        <strong>Amount due:</strong> ₦${totalAmount.toLocaleString()}
-      </p>
-
-      <p>
-        <strong>Please pay by bank transfer to:</strong><br />
-        Bank: ${bankName}<br />
-        Account name: ${accountName}<br />
-        Account number: ${accountNumber}
-      </p>
-
-      <p><strong>Use this as your transfer narration/reference: ${referenceCode}</strong></p>
-
-      <p>Important: your room is held but not yet guaranteed until we confirm your payment has arrived. Please complete the transfer within ${PENDING_PAYMENT_HOLD_HOURS} hours — after that, the hold is released automatically and these dates may become available to other guests.</p>
-
-      <p>Once we've confirmed your payment, we'll send you a separate booking confirmation.</p>
-
-      <p>If you have any questions, reach us at ${HOTEL_PHONE_DISPLAY} or ${HOTEL_EMAIL}.</p>
-
-      <p>— ${HOTEL_NAME}</p>
-    </div>
-  `
-
-  return {
-    subject: `Complete your payment — ${HOTEL_NAME} booking held`,
     html,
   }
 }

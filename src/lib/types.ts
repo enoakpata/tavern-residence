@@ -24,7 +24,6 @@ export type Booking = {
   check_out: string
   status:
     | 'pending'
-    | 'pending_payment'
     | 'confirmed'
     | 'checked_in'
     | 'checked_out'

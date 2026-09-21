@@ -5,18 +5,16 @@ import { getCancellationOutcome } from './cancellationPolicy'
 /**
  * Statuses that mean a booking still occupies its room's dates — used
  * everywhere an availability/blocked-dates query decides which existing
- * rows count against a room. Kept as one shared list so a new status (like
- * pending_payment, added for the bank-transfer hold) only has to be added
- * in one place, rather than risking one of several duplicated arrays being
- * missed and a room being double-booked.
+ * rows count against a room. Kept as one shared list so a new status only
+ * has to be added in one place, rather than risking one of several
+ * duplicated arrays being missed and a room being double-booked.
  */
-export const ACTIVE_BOOKING_STATUSES = ['pending', 'pending_payment', 'confirmed', 'checked_in']
+export const ACTIVE_BOOKING_STATUSES = ['pending', 'confirmed', 'checked_in']
 
 /**
  * Returns true if the room is free for the given date range.
- * A booking blocks the room if it's "pending", "pending_payment",
- * "confirmed", or already "checked_in" — cancelled/no_show/checked_out
- * bookings don't block.
+ * A booking blocks the room if it's "pending", "confirmed", or already
+ * "checked_in" — cancelled/no_show/checked_out bookings don't block.
  *
  * Overlap logic: two date ranges [checkIn, checkOut) overlap when
  * existing.check_in < newCheckOut AND existing.check_out > newCheckIn
