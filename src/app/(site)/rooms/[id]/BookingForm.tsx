@@ -3,12 +3,17 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
-import { checkAvailability, createBooking } from './actions'
+import { checkAvailability, createBooking, createBankTransferBooking } from './actions'
 import DateRangePicker from '@/components/DateRangePicker'
 import ConfirmModal from '@/components/ConfirmModal'
 import type { Room } from '@/lib/types'
 import { formatLagosTime, todayInLagos, type BlockedRange } from '@/lib/dateUtils'
-import { HOTEL_PHONE_DISPLAY, CANCELLATION_FEE_FRACTION } from '@/lib/siteConfig'
+import {
+  HOTEL_PHONE_DISPLAY,
+  CANCELLATION_FEE_FRACTION,
+  PAYMENT_METHODS,
+  PENDING_PAYMENT_HOLD_HOURS,
+} from '@/lib/siteConfig'
 
 const FREE_CANCELLATION_GRACE_PERIOD_MS = 60 * 60 * 1000
 
@@ -33,6 +38,12 @@ type RequiredTextField = 'guest_name' | 'guest_phone' | 'guest_email'
 // failure (and only that one) triggers the "see other rooms" modal below,
 // rather than every possible booking failure.
 const ROOM_NO_LONGER_AVAILABLE_ERROR = 'This room is no longer available for those dates.'
+
+// The payment-method choice is only worth showing at all if there's
+// actually a choice to make — with bank transfer disabled in config,
+// card stays the only option and the form behaves exactly as before.
+const SHOW_PAYMENT_METHOD_SELECTOR =
+  PAYMENT_METHODS.card.enabled && PAYMENT_METHODS.bank_transfer.enabled
 
 // Paystack's inline widget attaches itself to window once its script loads —
 // this just tells TypeScript that global exists, since it's not an import.
@@ -66,6 +77,11 @@ export default function BookingForm({
   const [checkIn, setCheckIn] = useState<string | null>(initialCheckIn)
   const [checkOut, setCheckOut] = useState<string | null>(initialCheckOut)
   const [pendingFormData, setPendingFormData] = useState<FormData | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'bank_transfer'>('card')
+  // Set once a bank-transfer booking succeeds — distinguishes the success
+  // view's "here's how to pay" content from the card flow's "you're
+  // verified" content, and carries the reference code to display/email.
+  const [bankTransferReference, setBankTransferReference] = useState('')
 
   // Set instead of the generic inline error whenever the room turns out to
   // have been booked by someone else in the gap between this guest's own
@@ -227,6 +243,28 @@ export default function BookingForm({
         return
       }
 
+      // Bank transfer skips Paystack entirely — no card, no ₦100
+      // verification charge. The booking goes straight in as
+      // 'pending_payment', and the success view below shows the bank
+      // details + reference code instead of a "you're verified" message.
+      if (paymentMethod === 'bank_transfer') {
+        setStep('verifying')
+        const res = await createBankTransferBooking(formData)
+        if (res.success) {
+          setBookingId(res.bookingId)
+          setBookingCreatedAt(res.createdAt)
+          setBankTransferReference(res.referenceCode)
+          setStep('success')
+        } else if (res.error === ROOM_NO_LONGER_AVAILABLE_ERROR) {
+          setStep('form')
+          setUnavailableDates({ checkIn: submittedCheckIn, checkOut: submittedCheckOut })
+        } else {
+          setErrorMessage(res.error)
+          setStep('error')
+        }
+        return
+      }
+
       // Step 2: open Paystack's popup to collect card details and run the
       // ₦100 verification charge. Paystack handles the card entry UI
       // itself — we never see or touch raw card numbers.
@@ -289,24 +327,67 @@ export default function BookingForm({
       >
         {displaySuccess ? (
           <div className="rounded-sm border border-verdant/20 bg-verdant/5 p-6">
-            <p className="font-display text-xl text-verdant">Request received</p>
-            <p className="mt-2 text-sm text-charcoal/70">
-              Your card has been verified and your booking request is in. We&apos;ll
-              confirm with you shortly by email. Your booking
-              reference is{' '}
-              <span className="font-medium text-charcoal">
-                {bookingId.slice(0, 8)}
-              </span>
-              .
-            </p>
-            {isSameDayBooking && bookingCreatedAt && (
-              <p className="mt-2 text-sm text-charcoal/70">
-                You can cancel for free until{' '}
-                {formatLagosTime(
-                  new Date(new Date(bookingCreatedAt).getTime() + FREE_CANCELLATION_GRACE_PERIOD_MS)
+            {bankTransferReference ? (
+              <>
+                <p className="font-display text-xl text-verdant">
+                  Booking held — awaiting payment
+                </p>
+                <p className="mt-2 text-sm text-charcoal/70">
+                  Your request is in and your dates are held. Complete payment
+                  by bank transfer within {PENDING_PAYMENT_HOLD_HOURS} hours to
+                  secure your room — after that the hold is released
+                  automatically. We&apos;ve also emailed these details to you.
+                </p>
+                <div className="mt-4 space-y-1 rounded-sm bg-white p-4 text-sm text-charcoal">
+                  <p>
+                    <span className="text-charcoal/50">Bank:</span>{' '}
+                    {PAYMENT_METHODS.bank_transfer.bankName}
+                  </p>
+                  <p>
+                    <span className="text-charcoal/50">Account name:</span>{' '}
+                    {PAYMENT_METHODS.bank_transfer.accountName}
+                  </p>
+                  <p>
+                    <span className="text-charcoal/50">Account number:</span>{' '}
+                    {PAYMENT_METHODS.bank_transfer.accountNumber}
+                  </p>
+                  <p>
+                    <span className="text-charcoal/50">Amount:</span> ₦
+                    {totalPrice.toLocaleString()}
+                  </p>
+                  <p>
+                    <span className="text-charcoal/50">Reference:</span>{' '}
+                    <span className="font-medium">{bankTransferReference}</span>
+                  </p>
+                </div>
+                <p className="mt-3 text-xs text-charcoal/60">
+                  Please use <strong>{bankTransferReference}</strong> as your
+                  transfer narration/reference so we can match your payment to
+                  your booking.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-display text-xl text-verdant">Request received</p>
+                <p className="mt-2 text-sm text-charcoal/70">
+                  Your card has been verified and your booking request is in. We&apos;ll
+                  confirm with you shortly by email. Your booking
+                  reference is{' '}
+                  <span className="font-medium text-charcoal">
+                    {bookingId.slice(0, 8)}
+                  </span>
+                  .
+                </p>
+                {isSameDayBooking && bookingCreatedAt && (
+                  <p className="mt-2 text-sm text-charcoal/70">
+                    You can cancel for free until{' '}
+                    {formatLagosTime(
+                      new Date(new Date(bookingCreatedAt).getTime() + FREE_CANCELLATION_GRACE_PERIOD_MS)
+                    )}
+                    .
+                  </p>
                 )}
-                .
-              </p>
+              </>
             )}
           </div>
         ) : (
@@ -343,6 +424,34 @@ export default function BookingForm({
                 </p>
               )}
             </div>
+
+            {SHOW_PAYMENT_METHOD_SELECTOR && (
+              <div>
+                <label className="text-xs tracking-widest text-charcoal/60 uppercase">
+                  Payment method
+                </label>
+                <div className="mt-2 flex gap-4">
+                  <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm has-checked:border-verdant has-checked:bg-verdant/5">
+                    <input
+                      type="radio"
+                      name="ui_payment_method"
+                      checked={paymentMethod === 'card'}
+                      onChange={() => setPaymentMethod('card')}
+                    />
+                    Card
+                  </label>
+                  <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm has-checked:border-verdant has-checked:bg-verdant/5">
+                    <input
+                      type="radio"
+                      name="ui_payment_method"
+                      checked={paymentMethod === 'bank_transfer'}
+                      onChange={() => setPaymentMethod('bank_transfer')}
+                    />
+                    Bank transfer
+                  </label>
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="text-xs tracking-widest text-charcoal/60 uppercase">
@@ -402,12 +511,22 @@ export default function BookingForm({
               </div>
             </div>
 
-            <div className="rounded-sm bg-charcoal/5 p-4 text-xs text-charcoal/60">
-              A refundable ₦100 card verification charge will be made and
-              immediately refunded to confirm your card. Your card will only be
-              charged for your stay closer to check-in, or if our cancellation
-              policy applies.
-            </div>
+            {paymentMethod === 'card' && (
+              <div className="rounded-sm bg-charcoal/5 p-4 text-xs text-charcoal/60">
+                A refundable ₦100 card verification charge will be made and
+                immediately refunded to confirm your card. Your card will only be
+                charged for your stay closer to check-in, or if our cancellation
+                policy applies.
+              </div>
+            )}
+
+            {paymentMethod === 'bank_transfer' && (
+              <div className="rounded-sm bg-charcoal/5 p-4 text-xs text-charcoal/60">
+                No card is charged now. You&apos;ll get bank transfer details and a
+                reference code after this step — your room is held for{' '}
+                {PENDING_PAYMENT_HOLD_HOURS} hours while payment is pending.
+              </div>
+            )}
 
             {step === 'error' && errorMessage && (
               <p className="text-sm text-clay">{errorMessage}</p>
@@ -418,7 +537,11 @@ export default function BookingForm({
               disabled={isPending || step === 'verifying'}
               className="w-full rounded-sm bg-verdant py-4 text-sm tracking-widest text-ivory uppercase transition-colors hover:bg-verdant/90 disabled:opacity-50"
             >
-              {step === 'verifying' ? 'Verifying card…' : 'Book now'}
+              {step === 'verifying'
+                ? paymentMethod === 'card'
+                  ? 'Verifying card…'
+                  : 'Holding your room…'
+                : 'Book now'}
             </button>
 
             {isSameDayBooking && (

@@ -3,15 +3,7 @@
 import { useState, useTransition, type FormEvent } from 'react'
 import Link from 'next/link'
 import { findBookings, type BookingSearchResult } from './actions'
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending confirmation',
-  confirmed: 'Confirmed',
-  checked_in: 'Checked in',
-  checked_out: 'Checked out',
-  cancelled: 'Cancelled',
-  no_show: 'No-show',
-}
+import { STATUS_LABELS } from '@/lib/statusStyles'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', {

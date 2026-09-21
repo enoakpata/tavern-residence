@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Calendar } from 'lucide-react'
 import {
   addMonths,
   buildMonthGrid,
@@ -28,6 +29,7 @@ export default function DateRangePicker({
   theme = 'light',
   mode = 'range',
   minDate = null,
+  bare = false,
 }: {
   blockedRanges: BlockedRange[]
   onChange: (checkIn: string | null, checkOut: string | null) => void
@@ -35,6 +37,11 @@ export default function DateRangePicker({
   initialCheckOut?: string | null
   size?: 'default' | 'large'
   theme?: 'light' | 'dark'
+  // Drops the trigger button's own border/padding, for callers embedding
+  // this inside a container that already supplies its own visual frame
+  // (e.g. the homepage booking widget's hairline-divided card) — every
+  // other behavior is unchanged.
+  bare?: boolean
   // 'single' collects just one date in one click — the selected day is
   // reported as the first (checkIn) onChange argument, with the second
   // always null. Used for editing just a check-out date, where forcing
@@ -182,12 +189,18 @@ export default function DateRangePicker({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex w-full items-center justify-between rounded-sm border text-left focus:outline-none ${
-          isDark
-            ? 'border-ivory/40 focus:border-brass'
-            : 'border-charcoal/20 focus:border-verdant'
-        } ${isLarge ? 'px-6 py-5 text-base' : 'px-4 py-3 text-sm'}`}
+        className={`flex w-full items-center gap-2 text-left focus:outline-none ${
+          bare
+            ? ''
+            : `rounded-sm border ${
+                isDark ? 'border-ivory/40 focus:border-brass' : 'border-charcoal/20 focus:border-verdant'
+              } ${isLarge ? 'px-6 py-5 text-base' : 'px-4 py-3 text-sm'}`
+        }`}
       >
+        <Calendar
+          size={isLarge ? 16 : 14}
+          className={`shrink-0 ${isDark ? 'text-brass' : 'text-verdant'}`}
+        />
         <span
           className={
             isDark
@@ -201,25 +214,14 @@ export default function DateRangePicker({
         >
           {displayLabel}
         </span>
-        <svg
-          width={isLarge ? 22 : 16}
-          height={isLarge ? 22 : 16}
-          viewBox="0 0 24 24"
-          fill="none"
-          className={isDark ? 'text-brass' : 'text-verdant'}
-        >
-          <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M3 10h18" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
       </button>
 
       {open && (
         <div
           className={`absolute z-20 mt-2 rounded-sm border border-charcoal/10 bg-white shadow-xl ${
             isLarge
-              ? 'w-[min(420px,calc(100vw-2rem))] p-6'
-              : 'w-[min(320px,calc(100vw-2rem))] p-4'
+              ? 'w-[min(300px,calc(100vw-2rem))] p-4'
+              : 'w-[min(260px,calc(100vw-2rem))] p-3'
           }`}
         >
           <div
@@ -235,19 +237,19 @@ export default function DateRangePicker({
               type="button"
               onClick={() => setVisibleMonth((m) => addMonths(m, -1))}
               onPointerDown={(e) => e.stopPropagation()}
-              className={`rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant ${isLarge ? 'text-lg' : ''}`}
+              className={`rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant ${isLarge ? 'text-sm' : 'text-xs'}`}
               aria-label="Previous month"
             >
               ←
             </button>
-            <p className={`font-display text-charcoal ${isLarge ? 'text-base' : 'text-sm'}`}>
+            <p className={`font-display text-charcoal ${isLarge ? 'text-sm' : 'text-xs'}`}>
               {monthLabel}
             </p>
             <button
               type="button"
               onClick={() => setVisibleMonth((m) => addMonths(m, 1))}
               onPointerDown={(e) => e.stopPropagation()}
-              className={`rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant ${isLarge ? 'text-lg' : ''}`}
+              className={`rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant ${isLarge ? 'text-sm' : 'text-xs'}`}
               aria-label="Next month"
             >
               →
@@ -255,8 +257,8 @@ export default function DateRangePicker({
           </div>
 
           <div
-            className={`mt-3 grid grid-cols-7 gap-y-1 text-center tracking-wide text-charcoal/40 uppercase ${
-              isLarge ? 'text-xs' : 'text-[11px]'
+            className={`mt-2 grid grid-cols-7 justify-items-center gap-y-1 text-center tracking-wide text-charcoal/40 uppercase ${
+              isLarge ? 'text-[11px]' : 'text-[10px]'
             }`}
           >
             {WEEKDAY_LABELS.map((d, i) => (
@@ -264,7 +266,9 @@ export default function DateRangePicker({
             ))}
           </div>
 
-          <div className={`mt-1 grid grid-cols-7 ${isLarge ? 'gap-y-2' : 'gap-y-1'}`}>
+          <div
+            className={`mt-2 grid grid-cols-7 justify-items-center ${isLarge ? 'gap-y-1' : 'gap-y-0.5'}`}
+          >
             {grid.map(({ date, inMonth }, i) => {
               const disabled =
                 !inMonth ||
@@ -273,8 +277,10 @@ export default function DateRangePicker({
                 isDateBlocked(date, blockedRanges)
               const isCheckIn = checkIn && isSameDay(date, checkIn)
               const isCheckOut = checkOut && isSameDay(date, checkOut)
+              const isSelected = isCheckIn || isCheckOut
               const inRange =
                 checkIn && checkOut && isWithinRange(date, checkIn, checkOut)
+              const isToday = isSameDay(date, today)
 
               return (
                 <button
@@ -283,15 +289,18 @@ export default function DateRangePicker({
                   disabled={disabled}
                   onClick={() => handleDayClick(date)}
                   className={[
-                    'aspect-square transition-colors',
-                    isLarge ? 'text-sm md:text-base' : 'text-xs',
+                    'aspect-square w-full transition-colors',
+                    isLarge ? 'text-xs md:text-sm' : 'text-[11px]',
                     disabled
-                      ? 'cursor-not-allowed text-charcoal/15 line-through'
+                      ? 'cursor-not-allowed text-charcoal/25'
                       : 'text-charcoal hover:bg-verdant/10',
-                    isCheckIn || isCheckOut
-                      ? 'bg-verdant text-ivory hover:bg-verdant'
-                      : '',
-                    inRange && !isCheckIn && !isCheckOut ? 'bg-brass/20' : '',
+                    isSelected ? 'bg-verdant text-ivory hover:bg-verdant' : '',
+                    inRange && !isSelected ? 'bg-brass/20' : '',
+                    // A subtle ring marks today when it isn't otherwise
+                    // selected — the selected fill above always wins, and
+                    // the ring never breaks the in-range band's square
+                    // cells from touching seamlessly along a run of days.
+                    isToday && !isSelected ? 'ring-1 ring-inset ring-verdant/50' : '',
                   ].join(' ')}
                 >
                   {date.getDate()}
@@ -301,15 +310,15 @@ export default function DateRangePicker({
           </div>
 
           <div
-            className={`mt-3 flex items-center gap-3 border-t border-charcoal/10 pt-3 text-charcoal/50 ${
-              isLarge ? 'text-xs' : 'text-[11px]'
+            className={`mt-2 flex items-center gap-3 border-t border-charcoal/10 pt-2 text-charcoal/50 ${
+              isLarge ? 'text-[11px]' : 'text-[10px]'
             }`}
           >
             <span className="flex items-center gap-1">
               <span className="inline-block h-2 w-2 bg-verdant" /> Selected
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 text-charcoal/15">✕</span> Booked
+              <span className="inline-block h-2 w-2 rounded-full bg-charcoal/25" /> Booked
             </span>
           </div>
         </div>

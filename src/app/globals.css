@@ -1,11 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --verdant: #15241f;
-  --ivory: #f5f1e6;
-  --brass: #c29650;
+  /* Deep forest green — primary accent (buttons, nav pill, icon strokes) */
+  --verdant: #2b3a2e;
+  /* Cream — main background for all non-hero sections */
+  --ivory: #f7f2e5;
+  /* Deep gold — a RARE accent only (thin icon strokes, subtle hover
+   * highlights). Never a background or button fill — see the usage notes
+   * on components that touch it. */
+  --brass: #c9a227;
   --charcoal: #26241f;
   --clay: #a85d3d;
+  /* Warm neutral gray — secondary/muted text (room descriptions, subtext).
+   * A distinct token rather than charcoal-at-opacity, since this palette
+   * calls it out as its own value rather than a tint of ink. */
+  --stone: #6b6156;
 }
 
 @theme inline {
@@ -14,12 +23,117 @@
   --color-brass: var(--brass);
   --color-charcoal: var(--charcoal);
   --color-clay: var(--clay);
+  --color-stone: var(--stone);
   --font-display: var(--font-fraunces);
   --font-sans: var(--font-inter);
+
+  /*
+   * Design tokens — quiet-luxury pass. Defined once here so headline
+   * sizing, card/button radius, and reveal-motion timing stay consistent
+   * site-wide rather than being picked ad hoc per component.
+   */
+
+  /* Soft, restrained corners — a deliberate step up from Tailwind's razor
+   * 2px default for rounded-sm, applied automatically everywhere that
+   * class is already used (cards, inputs, panels) with zero component
+   * changes. Buttons/pills use rounded-full separately and are untouched
+   * by this. */
+  --radius-sm: 8px;
+
+  /* Fraunces display scale — named sizes (with paired line-heights) so the
+   * hero headline and every section heading share the same handful of
+   * confident, editorial sizes instead of one-off text-5xl/6xl/7xl
+   * combinations per section. Each is a single fixed size; components
+   * step between them at the md: breakpoint the same way the rest of this
+   * codebase already handles responsive type (e.g. `text-display-md
+   * md:text-display-xl`), rather than the token itself trying to be
+   * responsive — Tailwind's @theme values aren't media-query-aware.
+   */
+  --text-display-xl: 5rem;
+  --text-display-xl--line-height: 1.08;
+  --text-display-lg: 3.5rem;
+  --text-display-lg--line-height: 1.12;
+  --text-display-md: 2.25rem;
+  --text-display-md--line-height: 1.2;
+  --text-display-sm: 1.875rem;
+  --text-display-sm--line-height: 1.2;
+
+  /* One shared duration for hover/reveal motion — calm and deliberate,
+   * never bouncy. */
+  --duration-base: 300ms;
 }
 
 body {
   background: var(--ivory);
   color: var(--charcoal);
   font-family: var(--font-sans);
+}
+
+/* Custom scrollbar — thin, rounded brass thumb on a cream track, applied
+ * globally (the page itself and any internally-scrolling panel, e.g. the
+ * date-picker's own overflow areas). Firefox uses the standard
+ * scrollbar-width/-color properties; Chrome/Safari/Edge use the
+ * -webkit-scrollbar pseudo-elements. Neither browser engine draws the
+ * old-style up/down arrow buttons by default any more, so there's
+ * nothing to explicitly suppress for "no arrows" beyond not styling
+ * -webkit-scrollbar-button (left unstyled here, on purpose).
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--brass) var(--ivory);
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: var(--ivory);
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--brass);
+  border-radius: 9999px;
+  border: 2px solid var(--ivory);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--verdant);
+}
+
+/* Scroll-reveal primitive used by Reveal.tsx — a plain CSS transition
+ * rather than an animation library, toggled by adding/removing
+ * `is-visible` once a section's IntersectionObserver fires. Calm
+ * fade + slight rise, never bouncy. */
+.reveal {
+  opacity: 0;
+  transform: translateY(1.25rem);
+  transition:
+    opacity var(--duration-base) ease-out,
+    transform var(--duration-base) ease-out;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Shared vertical rhythm between homepage sections (Hero -> Booking ->
+ * Our Rooms -> ...) — one place to tune the gap between sections, rather
+ * than each section picking its own py-* value. Tighter than the
+ * previous py-20/py-28 (80px/112px) — still generous, reads as a
+ * continuous flow instead of isolated blocks with dead space between
+ * them. */
+.section-py {
+  padding-top: 3.5rem;
+  padding-bottom: 3.5rem;
+}
+@media (min-width: 768px) {
+  .section-py {
+    padding-top: 5rem;
+    padding-bottom: 5rem;
+  }
 }

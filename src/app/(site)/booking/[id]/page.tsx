@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { HOTEL_NAME, HOTEL_PHONE_DISPLAY } from '@/lib/siteConfig'
+import { STATUS_LABELS } from '@/lib/statusStyles'
 import CancelBookingButton from './CancelBookingButton'
 
 // Unindexed — possession of the unguessable booking ID is the only
@@ -8,15 +9,6 @@ import CancelBookingButton from './CancelBookingButton'
 export const metadata: Metadata = {
   title: `Manage Your Booking | ${HOTEL_NAME}`,
   robots: { index: false, follow: false },
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending confirmation',
-  confirmed: 'Confirmed',
-  checked_in: 'Checked in',
-  checked_out: 'Checked out',
-  cancelled: 'Cancelled',
-  no_show: 'No-show',
 }
 
 const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']

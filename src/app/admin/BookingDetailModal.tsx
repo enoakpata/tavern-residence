@@ -3,18 +3,9 @@
 import { useEffect, useState } from 'react'
 import { getBookingDetail } from './bookings/actions'
 import BookingActions from './bookings/BookingActions'
-import { STATUS_STYLES, PAYMENT_STYLES } from '@/lib/statusStyles'
+import { STATUS_STYLES, STATUS_LABELS, PAYMENT_STYLES } from '@/lib/statusStyles'
 
 type BookingDetail = Awaited<ReturnType<typeof getBookingDetail>>
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending confirmation',
-  confirmed: 'Confirmed',
-  checked_in: 'Checked in',
-  checked_out: 'Checked out',
-  cancelled: 'Cancelled',
-  no_show: 'No-show',
-}
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {

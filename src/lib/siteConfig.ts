@@ -31,3 +31,27 @@ export const HOTEL_ADDRESS_REGION = 'Lagos'
 
 // Cancellation fee as a fraction of one night's rate (0.5 = 50%)
 export const CANCELLATION_FEE_FRACTION = 0.5
+
+// Which payment methods are offered at checkout. `card` runs through the
+// existing Paystack inline-popup flow. `bank_transfer` is a manual
+// fallback: enabling it shows a payment-method choice on the booking form,
+// and picking it holds the room as 'pending_payment' (see
+// PENDING_PAYMENT_HOLD_HOURS below) instead of charging a card up front —
+// the guest is shown these bank details plus a reference code to use as
+// their transfer narration. Fill in the placeholder bank details below
+// with the hotel's real account before enabling this in production.
+export const PAYMENT_METHODS = {
+  card: { enabled: true },
+  bank_transfer: {
+    enabled: true,
+    bankName: 'PLACEHOLDER BANK NAME',
+    accountNumber: '0000000000',
+    accountName: 'PLACEHOLDER ACCOUNT NAME',
+  },
+}
+
+// How long a 'pending_payment' booking holds its room before the cron job
+// (src/app/api/cron/auto-cancel-pending-payment) auto-cancels it and frees
+// the dates back up. Shared by the cron and the guest-facing hold email so
+// the two can never quote different windows.
+export const PENDING_PAYMENT_HOLD_HOURS = 12

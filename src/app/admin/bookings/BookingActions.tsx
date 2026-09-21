@@ -7,6 +7,7 @@ import {
   updateBookingStatus,
   editBookingDates,
   getRoomBlockedRangesForEdit,
+  confirmBankTransferPayment,
 } from './actions'
 import ConfirmModal from '@/components/ConfirmModal'
 import DateRangePicker from '@/components/DateRangePicker'
@@ -31,7 +32,7 @@ type BookingActionsProps = {
   onActionComplete?: () => void
 }
 
-const CANCELLABLE_STATUSES = ['pending', 'confirmed']
+const CANCELLABLE_STATUSES = ['pending', 'pending_payment', 'confirmed']
 const EDITABLE_DATE_STATUSES = ['confirmed', 'checked_in']
 
 // The earliest sensible check-out for a given check-in — the day after,
@@ -80,6 +81,7 @@ export default function BookingActions({
     null | { success: boolean; message: string }
   >(null)
   const [editDatesBlockedRanges, setEditDatesBlockedRanges] = useState<BlockedRange[]>([])
+  const [pendingConfirmPayment, setPendingConfirmPayment] = useState(false)
 
   function run(
     action: () => Promise<{ success: boolean; error?: string }>,
@@ -99,6 +101,7 @@ export default function BookingActions({
   const canCancel = CANCELLABLE_STATUSES.includes(status)
   const canCheckOut = status === 'checked_in'
   const canEditDates = EDITABLE_DATE_STATUSES.includes(status)
+  const canConfirmPayment = status === 'pending_payment'
   // Check-in already happened for a checked-in guest, so only check-out
   // stays editable at that point — a confirmed booking (not yet arrived)
   // can still have both moved.
@@ -150,6 +153,11 @@ export default function BookingActions({
     run(() => updateBookingStatus(bookingId, 'checked_out'))
   }
 
+  function handleConfirmPaymentConfirm() {
+    setPendingConfirmPayment(false)
+    run(() => confirmBankTransferPayment(bookingId))
+  }
+
   function handleEditDatesClick() {
     setEditCheckIn(checkIn)
     setEditCheckOut(checkOut)
@@ -188,13 +196,23 @@ export default function BookingActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {paymentStatus === 'unpaid' && (
+      {paymentStatus === 'unpaid' && !canConfirmPayment && (
         <button
           disabled={isPending}
           onClick={() => run(() => markAsPaid(bookingId))}
           className="rounded-full bg-verdant/10 px-3 py-1 text-xs text-verdant hover:bg-verdant/20 disabled:opacity-50"
         >
           Mark as paid
+        </button>
+      )}
+
+      {canConfirmPayment && (
+        <button
+          disabled={isPending}
+          onClick={() => setPendingConfirmPayment(true)}
+          className="rounded-full bg-verdant px-3 py-1 text-xs text-ivory hover:bg-verdant/90 disabled:opacity-50"
+        >
+          Confirm payment
         </button>
       )}
 
@@ -250,6 +268,15 @@ export default function BookingActions({
         confirmLabel="Check out"
         onConfirm={handleConfirmCheckout}
         onCancel={() => setPendingCheckout(false)}
+      />
+
+      <ConfirmModal
+        open={pendingConfirmPayment}
+        title="Confirm payment"
+        message={`Confirm that the bank transfer has been received for ${guestName} — Room ${roomNumber}? This will confirm the booking and email the guest.`}
+        confirmLabel="Confirm payment"
+        onConfirm={handleConfirmPaymentConfirm}
+        onCancel={() => setPendingConfirmPayment(false)}
       />
 
       <ConfirmModal

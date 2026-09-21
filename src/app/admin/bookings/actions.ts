@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { bookingsQuery } from '@/lib/adminBookings'
-import { isRoomAvailable, calculateCancellationOutcome } from '@/lib/bookings'
+import { isRoomAvailable, calculateCancellationOutcome, ACTIVE_BOOKING_STATUSES } from '@/lib/bookings'
 import { chargeAuthorization } from '@/lib/paystack'
 import {
   sendEmail,
@@ -12,6 +12,7 @@ import {
 } from '@/lib/email'
 import type { Room } from '@/lib/types'
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
+import { todayInLagos } from '@/lib/dateUtils'
 
 type ActionResult = { success: true } | { success: false; error: string }
 
@@ -406,12 +407,70 @@ export async function getRoomBlockedRangesForEdit(
     .from('Bookings')
     .select('check_in, check_out')
     .eq('room_id', booking.room_id)
-    .in('status', ['pending', 'confirmed', 'checked_in'])
+    .in('status', ACTIVE_BOOKING_STATUSES)
     .neq('id', bookingId)
 
   if (error || !data) return []
 
   return data.map((b) => ({ checkIn: b.check_in as string, checkOut: b.check_out as string }))
+}
+
+/**
+ * Confirms a bank-transfer payment for a booking still in
+ * 'pending_payment' (see BookingForm.tsx's bank-transfer checkout branch)
+ * — moves it to 'confirmed'/paid and sends the same guest confirmation
+ * email the online card flow sends via createBooking(), so a bank-transfer
+ * booking's guest experience converges with a card booking's the moment
+ * staff have actually verified the money arrived. Never touches payment
+ * automatically before that point — this is the only thing that does.
+ */
+export async function confirmBankTransferPayment(bookingId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { data: booking, error: fetchError } = await supabase
+    .from('Bookings')
+    .select('*, Rooms(room_number, name)')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchError || !booking) {
+    return { success: false, error: 'Booking not found.' }
+  }
+
+  if (booking.status !== 'pending_payment') {
+    return { success: false, error: 'This booking is not awaiting payment confirmation.' }
+  }
+
+  const { error } = await supabase
+    .from('Bookings')
+    .update({ status: 'confirmed', payment_status: 'paid' })
+    .eq('id', bookingId)
+
+  if (error) return { success: false, error: 'Something went wrong. Please try again.' }
+
+  if (booking.guest_email) {
+    const emailContent = buildGuestConfirmationEmail({
+      guestName: booking.guest_name,
+      roomNumber: booking.Rooms?.room_number ?? '',
+      roomName: booking.Rooms?.name ?? 'your room',
+      checkIn: booking.check_in,
+      checkOut: booking.check_out,
+      bookingId: booking.id,
+      createdAt: booking.created_at,
+      isSameDayBooking: booking.check_in === todayInLagos(),
+    })
+    try {
+      await sendEmail({ to: booking.guest_email, ...emailContent })
+    } catch (err) {
+      // The status change above already succeeded — a failed email here
+      // shouldn't be reported back as if the confirmation itself failed.
+      console.error('Payment confirmation email failed:', err)
+    }
+  }
+
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
+  revalidatePath('/admin/calendar')
+  return { success: true }
 }
 
 export type CancelBookingResult =

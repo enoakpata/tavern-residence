@@ -10,8 +10,9 @@ import {
   sendEmail,
   buildGuestConfirmationEmail,
   buildHotelNotificationEmail,
+  buildBankTransferHoldEmail,
 } from '@/lib/email'
-import { HOTEL_EMAIL } from '@/lib/siteConfig'
+import { HOTEL_EMAIL, HOTEL_NAME } from '@/lib/siteConfig'
 
 export async function checkAvailability(
   roomId: string,
@@ -171,4 +172,134 @@ revalidatePath('/admin/check-in/check-out')
 revalidatePath('/admin/calendar')
 
 return { success: true, bookingId, createdAt }
+}
+
+export type BankTransferBookingResult =
+  | { success: true; bookingId: string; createdAt: string; referenceCode: string }
+  | { success: false; error: string }
+
+/**
+ * Creates a booking for the manual bank-transfer checkout path (see
+ * BookingForm.tsx's payment-method selector) — no Paystack, no card
+ * charge. The booking is held as 'pending_payment' rather than
+ * 'confirmed': it still blocks the room's dates (ACTIVE_BOOKING_STATUSES
+ * includes 'pending_payment'), but the stay isn't guaranteed until staff
+ * confirm the transfer arrived, via confirmBankTransferPayment() in
+ * admin/bookings/actions.ts. Left unconfirmed for
+ * PENDING_PAYMENT_HOLD_HOURS, the cron job in
+ * api/cron/auto-cancel-pending-payment auto-cancels it and frees the room.
+ */
+export async function createBankTransferBooking(
+  formData: FormData
+): Promise<BankTransferBookingResult> {
+  const roomId = formData.get('room_id') as string
+  const guestName = formData.get('guest_name') as string
+  const guestPhone = formData.get('guest_phone') as string
+  const guestEmail = formData.get('guest_email') as string
+  const checkIn = formData.get('check_in') as string
+  const checkOut = formData.get('check_out') as string
+
+  if (!roomId || !guestName || !guestPhone || !guestEmail || !checkIn || !checkOut) {
+    return { success: false, error: 'Please fill in all required fields.' }
+  }
+
+  if (checkOut <= checkIn) {
+    return { success: false, error: 'Check-out must be after check-in.' }
+  }
+
+  // Re-check availability on the server, right before we insert anything —
+  // same reasoning as createBooking() above, just without a card charge to
+  // worry about undoing.
+  const available = await isRoomAvailable(roomId, checkIn, checkOut)
+  if (!available) {
+    return {
+      success: false,
+      error: 'This room is no longer available for those dates.',
+    }
+  }
+
+  const bookingId = crypto.randomUUID()
+  const createdAt = new Date().toISOString()
+
+  // Short, tied to the booking ID, hotel-agnostic (initials of whatever
+  // HOTEL_NAME is configured as) so this stays meaningful if the template
+  // is reused for a different property — e.g. "TR-A1B2C3D4" here.
+  const referencePrefix = HOTEL_NAME.split(' ')
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase()
+  const referenceCode = `${referencePrefix}-${bookingId.slice(0, 8).toUpperCase()}`
+
+  const { data: roomData } = await supabase
+    .from('Rooms')
+    .select('name, room_number, price_per_night')
+    .eq('id', roomId)
+    .single()
+  const roomName = roomData?.name ?? 'your room'
+  const roomNumber = roomData?.room_number ?? ''
+  const nights = Math.max(
+    1,
+    Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24))
+  )
+  const totalAmount = nights * (roomData?.price_per_night ?? 0)
+
+  const { error } = await supabase.from('Bookings').insert({
+    id: bookingId,
+    room_id: roomId,
+    guest_name: guestName,
+    guest_phone: guestPhone,
+    guest_email: guestEmail,
+    check_in: checkIn,
+    check_out: checkOut,
+    status: 'pending_payment',
+    source: 'online',
+    payment_method: 'transfer',
+    payment_status: 'unpaid',
+    payment_token: null,
+    created_at: createdAt,
+  })
+
+  if (error) {
+    console.error('Bank-transfer booking insert failed:', error)
+    return { success: false, error: 'Something went wrong. Please try again.' }
+  }
+
+  const guestEmailContent = buildBankTransferHoldEmail({
+    guestName,
+    roomNumber,
+    roomName,
+    checkIn,
+    checkOut,
+    referenceCode,
+    totalAmount,
+  })
+  const hotelEmailContent = buildHotelNotificationEmail({
+    guestName,
+    guestPhone,
+    roomNumber,
+    roomName,
+    checkIn,
+    checkOut,
+  })
+
+  const notificationResults = await Promise.allSettled([
+    sendEmail({ to: guestEmail, ...guestEmailContent }),
+    sendEmail({ to: HOTEL_EMAIL, ...hotelEmailContent }),
+    supabaseAdmin.from('Notifications').insert({
+      type: 'new_booking',
+      message: `New booking (awaiting transfer): ${guestName} — Room ${roomNumber}`,
+      booking_id: bookingId,
+    }),
+  ])
+  for (const result of notificationResults) {
+    if (result.status === 'rejected') {
+      console.error('Bank-transfer hold email/notification failed:', result.reason)
+    }
+  }
+
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
+  revalidatePath('/admin/calendar')
+
+  return { success: true, bookingId, createdAt, referenceCode }
 }

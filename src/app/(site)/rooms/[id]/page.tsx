@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
 import { HOTEL_NAME } from '@/lib/siteConfig'
 import { todayInLagos } from '@/lib/dateUtils'
+import { ACTIVE_BOOKING_STATUSES } from '@/lib/bookings'
 import BookingForm from './BookingForm'
 import RoomGallery from '@/components/RoomGallery'
 
@@ -131,7 +132,7 @@ export default async function RoomDetailPage({
     .from('booking_availability')
     .select('check_in, check_out')
     .eq('room_id', id)
-    .in('status', ['pending', 'confirmed', 'checked_in'])
+    .in('status', ACTIVE_BOOKING_STATUSES)
 
   const blockedRanges = (bookings ?? []).map((b) => ({
     checkIn: b.check_in as string,
