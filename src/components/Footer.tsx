@@ -14,7 +14,7 @@ import {
 
 export default function Footer() {
   return (
-    <footer className="bg-verdant px-6 py-16 text-ivory md:px-12">
+    <footer className="bg-espresso px-6 py-16 text-ivory md:px-12">
       <div className="mx-auto grid max-w-6xl gap-12 md:grid-cols-3">
         <div>
           <p className="font-display text-2xl">{HOTEL_NAME}</p>
@@ -31,7 +31,7 @@ export default function Footer() {
         </div>
 
         <div className="text-sm text-ivory/70">
-          <p className="mb-3 text-xs tracking-widest text-brass uppercase">
+          <p className="mb-3 text-xs tracking-widest text-ivory uppercase">
             Reach us
           </p>
           <p>
@@ -39,7 +39,7 @@ export default function Footer() {
               href={`tel:${HOTEL_PHONE_TEL}`}
               className="flex items-center gap-2 hover:text-ivory"
             >
-              <Phone size={16} className="text-brass" />
+              <Phone size={16} className="text-ivory" />
               {HOTEL_PHONE_DISPLAY}
             </a>
           </p>
@@ -48,7 +48,7 @@ export default function Footer() {
               href={`mailto:${HOTEL_EMAIL}`}
               className="flex items-center gap-2 hover:text-ivory"
             >
-              <Mail size={16} className="text-brass" />
+              <Mail size={16} className="text-ivory" />
               {HOTEL_EMAIL}
             </a>
           </p>
@@ -59,14 +59,14 @@ export default function Footer() {
               rel="noopener noreferrer"
               className="flex items-center gap-2 hover:text-ivory"
             >
-              <FaInstagram size={16} className="text-brass" />
+              <FaInstagram size={16} className="text-ivory" />
               @{HOTEL_INSTAGRAM_HANDLE}
             </a>
           </p>
         </div>
 
         <div className="text-sm text-ivory/70">
-          <p className="mb-3 text-xs tracking-widest text-brass uppercase">
+          <p className="mb-3 text-xs tracking-widest text-ivory uppercase">
             Stay
           </p>
           <p>Check-in from 2:00 PM</p>

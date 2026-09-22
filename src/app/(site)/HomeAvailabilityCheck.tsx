@@ -120,7 +120,7 @@ export default function HomeAvailabilityCheck() {
           <button
             type="button"
             onClick={handleCheckAvailability}
-            className="w-full rounded-full bg-verdant px-6 py-3 text-xs tracking-[0.2em] text-white uppercase transition-colors duration-base hover:bg-verdant/90 sm:w-auto"
+            className="w-full rounded-full border border-brass px-6 py-3 text-xs tracking-[0.2em] text-charcoal uppercase transition-colors duration-base hover:bg-brass/10 sm:w-auto"
           >
             Check Availability
           </button>

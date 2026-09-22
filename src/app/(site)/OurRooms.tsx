@@ -1,39 +1,49 @@
-'use client'
-
-import { useRef } from 'react'
-import Link from 'next/link'
 import Image from 'next/image'
+import type { ComponentType } from 'react'
+import { BedDouble, AirVent, Tv, Wifi, ShowerHead, CookingPot, Sofa, Toilet } from 'lucide-react'
+import IronIcon from '@/components/icons/IronIcon'
+import Reveal from '@/components/Reveal'
+
+type AmenityIcon = ComponentType<{ size?: number; strokeWidth?: number; className?: string }>
 
 export type RoomCardData = {
   id: string
   label: string
   description: string
+  amenities: string[]
   priceFromLabel: string
   coverImage: string | null
 }
 
-const SCROLL_STEP = 280
+// One icon per amenity string used across the 4 room types below — thin-
+// line lucide icons (matching FeatureStrip.tsx's existing use of the same
+// set) for everything lucide already covers; IronIcon is the one
+// hand-drawn exception, since lucide has no clothes-iron icon.
+const AMENITY_ICONS: Record<string, AmenityIcon> = {
+  'King bed': BedDouble,
+  'Air conditioning': AirVent,
+  'Smart TV': Tv,
+  Iron: IronIcon,
+  'Free Wi-Fi': Wifi,
+  'Ensuite bathroom with shower': ShowerHead,
+  'Dry Kitchenette': CookingPot,
+  'Living area': Sofa,
+  'Guest Toilet': Toilet,
+}
 
-// A row of the site's 4 real room types — uniform card size, no
-// alternating layout. Always a horizontal `overflow-x-auto` scroller
-// (snap-x) rather than switching to a static grid at a breakpoint: sized
-// so the 4 cards comfortably fit within max-w-6xl on desktop (arrows are
-// then effectively inert, nothing to scroll to), while genuinely
-// overflowing — and needing the arrows — on narrower screens. Circular
-// dark-green arrow buttons sit at the row's outer edges at every size,
-// matching the reference (they're visible there on what's clearly a
-// desktop screenshot, not a mobile-only affordance).
+// The site's 4 real room types as full-width, alternating image/copy
+// rows (image left + copy right, then flipped, repeating) — replaces the
+// previous uniform horizontal-scroll card row. Order is whatever `rooms`
+// arrives in (set by the caller, page.tsx); which side the image sits on
+// is purely a function of position here (even rows: image left, odd
+// rows: image right), so reordering rooms upstream automatically keeps
+// the alternation correct without this component needing to know room
+// identities.
 export default function OurRooms({ rooms }: { rooms: RoomCardData[] }) {
-  const scrollerRef = useRef<HTMLDivElement>(null)
-
-  function scrollBy(direction: 1 | -1) {
-    scrollerRef.current?.scrollBy({ left: direction * SCROLL_STEP, behavior: 'smooth' })
-  }
-
   if (rooms.length === 0) return null
 
   return (
-    <section className="section-py relative mx-auto max-w-6xl px-6 md:px-16">
+    <section className="section-py mx-auto max-w-6xl px-6 md:px-16">
       <p className="text-center text-xs tracking-widest text-stone uppercase">
         Our Rooms
       </p>
@@ -41,59 +51,65 @@ export default function OurRooms({ rooms }: { rooms: RoomCardData[] }) {
         Designed for comfort. <span className="italic">Curated for your stay.</span>
       </h2>
 
-      {rooms.length > 1 && (
-        <>
-          <button
-            type="button"
-            onClick={() => scrollBy(-1)}
-            aria-label="Previous rooms"
-            className="absolute top-[58%] left-0 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-verdant text-white shadow-lg transition-colors duration-base hover:bg-verdant/90 md:left-2"
-          >
-            ←
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollBy(1)}
-            aria-label="Next rooms"
-            className="absolute top-[58%] right-0 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-verdant text-white shadow-lg transition-colors duration-base hover:bg-verdant/90 md:right-2"
-          >
-            →
-          </button>
-        </>
-      )}
-
-      <div
-        ref={scrollerRef}
-        className="mt-12 flex snap-x snap-mandatory gap-6 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {rooms.map((room) => (
-          <Link
-            key={room.id}
-            href={`/rooms/${room.id}`}
-            className="group w-[78vw] max-w-72 flex-shrink-0 snap-start sm:w-64"
-          >
-            <div className="relative aspect-[4/5] overflow-hidden rounded-sm bg-verdant/10">
-              {room.coverImage ? (
-                <Image
-                  src={room.coverImage}
-                  alt={room.label}
-                  fill
-                  sizes="256px"
-                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-verdant/40 uppercase">
-                  Photo coming soon
+      <div className="mt-16 space-y-16 md:mt-20 md:space-y-24">
+        {rooms.map((room, index) => {
+          const imageOnRight = index % 2 === 1
+          return (
+            <Reveal key={room.id}>
+              <div className="grid items-center gap-8 md:grid-cols-2 md:gap-16">
+                <div
+                  className={`relative aspect-[4/3] overflow-hidden rounded-sm bg-verdant/10 ${
+                    imageOnRight ? 'md:order-2' : ''
+                  }`}
+                >
+                  {room.coverImage ? (
+                    <Image
+                      src={room.coverImage}
+                      alt={room.label}
+                      fill
+                      sizes="(min-width: 768px) 50vw, 100vw"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-verdant/40 uppercase">
+                      Photo coming soon
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <h3 className="mt-4 font-display text-xl text-charcoal">{room.label}</h3>
-            <p className="mt-1 text-sm text-stone">{room.description}</p>
-            <p className="mt-2 text-xs tracking-widest text-charcoal/70 uppercase">
-              {room.priceFromLabel}
-            </p>
-          </Link>
-        ))}
+
+                <div>
+                  <h3 className="font-display text-2xl text-charcoal md:text-3xl">
+                    {room.label}
+                  </h3>
+                  <p className="mt-3 text-sm leading-relaxed text-stone">
+                    {room.description}
+                  </p>
+
+                  <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3">
+                    {room.amenities.map((amenity) => {
+                      const Icon = AMENITY_ICONS[amenity]
+                      return (
+                        <li
+                          key={amenity}
+                          className="flex items-center gap-2 text-xs text-charcoal/70"
+                        >
+                          {Icon && (
+                            <Icon size={16} strokeWidth={1.5} className="shrink-0 text-verdant" />
+                          )}
+                          {amenity}
+                        </li>
+                      )
+                    })}
+                  </ul>
+
+                  <p className="mt-6 text-xs tracking-widest text-charcoal/70 uppercase">
+                    {room.priceFromLabel}
+                  </p>
+                </div>
+              </div>
+            </Reveal>
+          )
+        })}
       </div>
     </section>
   )

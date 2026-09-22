@@ -70,8 +70,8 @@ export default function Header() {
 
   return (
     // Fixed (not sticky) and out of document flow everywhere, with an
-    // exact h-16/h-20 row height — see (site)/layout.tsx's matching
-    // pt-16/pt-20 and the homepage hero's matching -mt-16/-mt-20. All
+    // exact h-14/h-16 row height — see (site)/layout.tsx's matching
+    // pt-14/pt-16 and the homepage hero's matching -mt-14/-mt-16. All
     // three share the same literal Tailwind spacing tokens, so the
     // compensation is always exact regardless of viewport size or how
     // tall the header's own content happens to render. Keep all three in
@@ -84,15 +84,17 @@ export default function Header() {
           : 'border-b border-charcoal/10 bg-ivory text-charcoal'
       }`}
     >
-      <div className="flex h-16 items-center justify-between md:h-20">
-        {/* Wordmark only — no tagline line beneath it. Title case, not
-            all-caps: Fraunces' distinctive high-contrast serif character
-            (the whole reason it was picked) reads much more clearly in
-            mixed case than flattened into caps. */}
+      <div className="flex h-14 items-center justify-between md:h-16">
+        {/* Wordmark only — no tagline line beneath it. Sized down from an
+            earlier, oversized pass so it reads proportionate to the nav
+            links beside it rather than dominating the bar. Title case,
+            not all-caps: Fraunces' distinctive high-contrast serif
+            character (the whole reason it was picked) reads much more
+            clearly in mixed case than flattened into caps. */}
         <Link
           href="/"
           onClick={() => setOpen(false)}
-          className="font-display text-xl tracking-wide md:text-2xl"
+          className="font-display text-base tracking-wide md:text-lg"
         >
           {HOTEL_NAME}
         </Link>
@@ -112,20 +114,20 @@ export default function Header() {
           </Link>
           <Link
             href="/rooms"
-            className="rounded-full bg-verdant px-5 py-2.5 tracking-widest text-white uppercase transition-colors duration-base hover:bg-verdant/90"
+            className="rounded-full border border-brass px-5 py-2.5 tracking-widest uppercase transition-colors duration-base hover:bg-brass/10"
           >
             Book now
           </Link>
         </nav>
 
-        {/* Green pill stays visible next to the hamburger on mobile too —
-            "collapses to a hamburger with the green pill button still
-            visible" is the explicit requirement, not folded into the
-            hamburger menu. */}
+        {/* Gold-bordered pill stays visible next to the hamburger on
+            mobile too — "collapses to a hamburger with the pill button
+            still visible" is the explicit requirement, not folded into
+            the hamburger menu. */}
         <div className="flex items-center gap-3 md:hidden">
           <Link
             href="/rooms"
-            className="rounded-full bg-verdant px-4 py-2 text-[11px] tracking-widest text-white uppercase transition-colors duration-base hover:bg-verdant/90"
+            className="rounded-full border border-brass px-4 py-2 text-[11px] tracking-widest uppercase transition-colors duration-base hover:bg-brass/10"
           >
             Book now
           </Link>

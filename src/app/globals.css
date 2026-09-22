@@ -9,6 +9,10 @@
    * highlights). Never a background or button fill — see the usage notes
    * on components that touch it. */
   --brass: #c9a227;
+  /* Deep espresso/walnut brown — footer background. A genuine warm brown
+   * (not black, not a gray-brown), echoing the wood tones in the site's
+   * own photography. */
+  --espresso: #4a2e1f;
   --charcoal: #26241f;
   --clay: #a85d3d;
   /* Warm neutral gray — secondary/muted text (room descriptions, subtext).
@@ -21,6 +25,7 @@
   --color-verdant: var(--verdant);
   --color-ivory: var(--ivory);
   --color-brass: var(--brass);
+  --color-espresso: var(--espresso);
   --color-charcoal: var(--charcoal);
   --color-clay: var(--clay);
   --color-stone: var(--stone);
