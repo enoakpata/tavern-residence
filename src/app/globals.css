@@ -1,18 +1,29 @@
 @import "tailwindcss";
 
 :root {
-  /* Deep forest green — primary accent (buttons, nav pill, icon strokes) */
+  /* Deep forest green — kept only for functional status colors (booking
+   * "confirmed"/"checked in" badges, "paid" payment badge, a success
+   * message) in lib/statusStyles.ts and booking/[id]/CancelBookingButton.tsx.
+   * No longer the site's primary accent — that's espresso now. Do not
+   * reuse this for anything else; add to espresso instead. */
   --verdant: #2b3a2e;
   /* Cream — main background for all non-hero sections */
   --ivory: #f7f2e5;
   /* Deep gold — a RARE accent only (thin icon strokes, subtle hover
    * highlights). Never a background or button fill — see the usage notes
    * on components that touch it. */
-  --brass: #c9a227;
-  /* Deep espresso/walnut brown — footer background. A genuine warm brown
-   * (not black, not a gray-brown), echoing the wood tones in the site's
-   * own photography. */
-  --espresso: #4a2e1f;
+  --brass: #584506;
+  /* Deep espresso/walnut brown — the site's primary accent (buttons, nav
+   * pill, icon strokes, focus rings, hover states) and the footer
+   * background. A genuine warm brown, echoing the wood tones in the
+   * site's own photography.
+   * FLAG: this currently has the exact same hex value as --brass right
+   * above it (#584506). They're meant to be visually distinct (a deep
+   * brown primary accent vs. a rare gold highlight) — this looks like an
+   * unintentional duplicate from a manual edit, not deliberate. Left
+   * as-is per "reuse the existing espresso token" rather than guessing
+   * a new value; flagged for a decision instead. */
+  --espresso: #584506;
   --charcoal: #26241f;
   --clay: #a85d3d;
   /* Warm neutral gray — secondary/muted text (room descriptions, subtext).
@@ -100,7 +111,7 @@ body {
   border: 2px solid var(--ivory);
 }
 *::-webkit-scrollbar-thumb:hover {
-  background-color: var(--verdant);
+  background-color: var(--espresso);
 }
 
 /* Scroll-reveal primitive used by Reveal.tsx — a plain CSS transition

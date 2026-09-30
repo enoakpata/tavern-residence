@@ -215,7 +215,7 @@ export default function NotificationBell() {
               <button
                 type="button"
                 onClick={handleClearAll}
-                className="text-xs text-verdant hover:underline"
+                className="text-xs text-espresso hover:underline"
               >
                 Clear all
               </button>
@@ -250,7 +250,7 @@ export default function NotificationBell() {
                       <button
                         type="button"
                         onClick={() => handleViewBooking(notification)}
-                        className="mt-1 text-xs text-verdant hover:underline"
+                        className="mt-1 text-xs text-espresso hover:underline"
                       >
                         View
                       </button>

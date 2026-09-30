@@ -92,7 +92,7 @@ export default function BookingFilters({ years }: { years: number[] }) {
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Name or phone"
-            className="w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+            className="w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
           />
           <button
             type="submit"
@@ -110,7 +110,7 @@ export default function BookingFilters({ years }: { years: number[] }) {
         <select
           value={searchParams.get('month') ?? ''}
           onChange={(e) => updateParam('month', e.target.value)}
-          className="mt-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+          className="mt-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
         >
           <option value="">All months</option>
           {MONTHS.map((m) => (
@@ -128,7 +128,7 @@ export default function BookingFilters({ years }: { years: number[] }) {
         <select
           value={searchParams.get('year') ?? ''}
           onChange={(e) => updateParam('year', e.target.value)}
-          className="mt-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+          className="mt-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
         >
           <option value="">All years</option>
           {years.map((y) => (
@@ -146,7 +146,7 @@ export default function BookingFilters({ years }: { years: number[] }) {
         <select
           value={searchParams.get('source') ?? ''}
           onChange={(e) => updateParam('source', e.target.value)}
-          className="mt-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+          className="mt-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
         >
           {SOURCES.map((s) => (
             <option key={s.value} value={s.value}>

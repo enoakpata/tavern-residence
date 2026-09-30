@@ -58,7 +58,7 @@ export default function GuestPicker({
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 text-base text-charcoal"
       >
-        <Users size={14} className="shrink-0 text-verdant" />
+        <Users size={14} className="shrink-0 text-espresso" />
         {summary}
         <ChevronDown
           size={14}

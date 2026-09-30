@@ -184,7 +184,7 @@ export default function AroundTheResidence({ images }: { images: string[] }) {
               type="button"
               onClick={() => setOpenIndex(displayedPage * PAGE_SIZE + index)}
               aria-label={`View photo ${displayedPage * PAGE_SIZE + index + 1} of ${photos.length}`}
-              className={`group relative overflow-hidden rounded-sm bg-verdant/10 ${TILE_SPANS[index % TILE_SPANS.length]}`}
+              className={`group relative overflow-hidden rounded-sm bg-espresso/10 ${TILE_SPANS[index % TILE_SPANS.length]}`}
             >
               <Image
                 src={photo.src}

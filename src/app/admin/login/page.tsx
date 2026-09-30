@@ -65,7 +65,7 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+              className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
             />
           </div>
           <div>
@@ -77,7 +77,7 @@ function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+              className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
             />
           </div>
         </div>
@@ -87,7 +87,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="mt-6 w-full rounded-sm bg-verdant py-3 text-sm tracking-widest text-ivory uppercase transition-colors hover:bg-verdant/90 disabled:opacity-50"
+          className="mt-6 w-full rounded-sm bg-espresso py-3 text-sm tracking-widest text-ivory uppercase transition-colors hover:bg-espresso/90 disabled:opacity-50"
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>

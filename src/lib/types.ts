@@ -38,4 +38,9 @@ export type Booking = {
   created_by: string | null
   created_at: string
   reminder_sent: boolean
+  // Optional free-text note from the guest at booking time (e.g. a room
+  // preference) — never a room picker, just a note staff can try to
+  // honor manually when assigning the physical room. See
+  // supabase/migrations/20260923_add_special_requests_to_bookings.sql.
+  special_requests: string | null
 }

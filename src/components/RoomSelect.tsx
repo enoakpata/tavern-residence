@@ -56,7 +56,7 @@ export default function RoomSelect({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between rounded-sm border border-charcoal/20 px-4 py-3 text-left text-sm focus:border-verdant focus:outline-none disabled:opacity-50"
+        className="flex w-full items-center justify-between rounded-sm border border-charcoal/20 px-4 py-3 text-left text-sm focus:border-espresso focus:outline-none disabled:opacity-50"
       >
         <span className={selectedRoom ? 'text-charcoal' : 'text-charcoal/40'}>
           {selectedRoom ? roomLabel(selectedRoom) : placeholder}
@@ -66,7 +66,7 @@ export default function RoomSelect({
           height="16"
           viewBox="0 0 24 24"
           fill="none"
-          className={`shrink-0 text-verdant transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`shrink-0 text-espresso transition-transform ${open ? 'rotate-180' : ''}`}
         >
           <path
             d="M6 9l6 6 6-6"
@@ -93,8 +93,8 @@ export default function RoomSelect({
                   !room.available
                     ? 'cursor-not-allowed text-charcoal/30'
                     : room.id === value
-                      ? 'bg-verdant/10 text-verdant'
-                      : 'text-charcoal hover:bg-verdant/5'
+                      ? 'bg-espresso/10 text-espresso'
+                      : 'text-charcoal hover:bg-espresso/5'
                 }`}
               >
                 <span>{roomLabel(room)}</span>

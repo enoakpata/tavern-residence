@@ -12,6 +12,7 @@ import {
 import HomeAvailabilityCheck from './HomeAvailabilityCheck'
 import OurRooms, { type RoomCardData } from './OurRooms'
 import AroundTheResidence from './AroundTheResidence'
+import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER } from '@/lib/roomTypeContent'
 
 // Without this, Next.js finds no dynamic API in use here and statically
 // prerenders the page once at build time — including the gallery folder
@@ -30,80 +31,6 @@ export const metadata: Metadata = {
   },
 }
 
-// The 4 real, guest-facing room types — exactly these 4, no more. No room
-// number is ever shown; each type maps internally to one representative
-// room only for its photo/id/price (link target), per the exact mapping
-// established earlier: Standard->104, 1-Bedroom Suite (with a guest
-// toilet)->102, 1-Bedroom Deluxe (without one)->106, Studio->107. Order
-// here is display order for the homepage's Our Rooms section (see
-// OurRooms.tsx) — Standard, Studio, 1-Bedroom Deluxe, 1-Bedroom Suite —
-// and also sets which side of each alternating row the photo lands on,
-// since that's purely a function of position there.
-const OUR_ROOMS_ROOM_NUMBERS = ['104', '107', '106', '102']
-const OUR_ROOMS_CONTENT: Record<
-  string,
-  { label: string; description: string; amenities: string[] }
-> = {
-  '104': {
-    label: 'Standard Room',
-    description:
-      'Relax in this charming bedroom, perfect for solo travelers, couples, or remote workers. The space features a comfortable bedroom and a clean ensuite bathroom, with a dedicated workstation that makes it easy to stay productive during your stay. Enjoy a peaceful atmosphere and all the essentials you need for a comfortable visit.',
-    amenities: [
-      'King bed',
-      'Air conditioning',
-      'Smart TV',
-      'Iron',
-      'Free Wi-Fi',
-      'Ensuite bathroom with shower',
-    ],
-  },
-  '107': {
-    label: 'Studio',
-    description:
-      "This charming, private studio suits solo travelers, couples, or remote workers just as well. Alongside a comfortable bedroom and a clean ensuite bathroom, you'll find a convenient dry kitchenette equipped for light cooking — handy for those who'd rather keep meals simple. A dedicated workstation keeps you productive, and every essential is on hand for a comfortable, peaceful stay.",
-    amenities: [
-      'King bed',
-      'Air conditioning',
-      'Smart TV',
-      'Iron',
-      'Free Wi-Fi',
-      'Ensuite bathroom with shower',
-      'Dry Kitchenette',
-    ],
-  },
-  '106': {
-    label: '1-Bedroom Deluxe',
-    description:
-      "A charming, private one-bedroom apartment built for solo travelers, couples, or remote workers who'd like a bit more room to spread out. It brings together a comfortable bedroom, a bright living room, a clean ensuite bathroom, and a dry kitchenette for light cooking, plus a dedicated workstation for getting things done. A peaceful atmosphere throughout, with everything you need for a comfortable stay.",
-    amenities: [
-      'King bed',
-      'Air conditioning',
-      'Smart TV',
-      'Iron',
-      'Free Wi-Fi',
-      'Ensuite bathroom with shower',
-      'Dry Kitchenette',
-      'Living area',
-    ],
-  },
-  '102': {
-    label: '1-Bedroom Suite',
-    description:
-      "The Residence's most complete one-bedroom apartment — private, charming, and suited to solo travelers, couples, or remote workers alike. Beyond the comfortable bedroom, bright living room, and dry kitchenette for light cooking, a separate guest toilet makes it easy to host without compromise. A dedicated workstation and a peaceful atmosphere round out everything you need for a comfortable stay.",
-    amenities: [
-      'King bed',
-      'Air conditioning',
-      'Smart TV',
-      'Iron',
-      'Free Wi-Fi',
-      'Ensuite bathroom with shower',
-      'Dry Kitchenette',
-      'Living area',
-      'Guest Toilet',
-    ],
-  },
-}
-
 export default async function Home() {
   const { data: roomRows } = await supabase
     .from('Rooms')
@@ -111,18 +38,26 @@ export default async function Home() {
 
   const roomsByNumber = new Map((roomRows ?? []).map((r) => [r.room_number as string, r]))
 
-  const ourRooms: RoomCardData[] = OUR_ROOMS_ROOM_NUMBERS.filter((num) =>
-    roomsByNumber.has(num)
-  ).map((num) => {
-    const room = roomsByNumber.get(num)!
+  // The 4 real, guest-facing room types — exactly these 4, no more. No
+  // room number is ever shown; each type maps internally to one
+  // representative room only for its photo/id/price (link target). Order
+  // (ROOM_TYPE_ORDER, from lib/roomTypeContent.ts) is display order for
+  // this section — Standard, Studio, 1-Bedroom Deluxe, 1-Bedroom Suite —
+  // and also sets which side of each alternating row the photo lands on,
+  // since that's purely a function of position there.
+  const ourRooms: RoomCardData[] = ROOM_TYPE_ORDER.filter((key) =>
+    roomsByNumber.has(ROOM_TYPE_CONTENT[key].representativeRoomNumber)
+  ).map((key) => {
+    const content = ROOM_TYPE_CONTENT[key]
+    const room = roomsByNumber.get(content.representativeRoomNumber)!
     return {
       id: room.id as string,
-      label: OUR_ROOMS_CONTENT[num].label,
-      description: OUR_ROOMS_CONTENT[num].description,
-      amenities: OUR_ROOMS_CONTENT[num].amenities,
+      label: content.label,
+      description: content.longDescription,
+      amenities: content.amenities,
       // Real nightly rate from Supabase — never invented.
       priceFromLabel: `From ₦${(room.price_per_night as number).toLocaleString()} / night`,
-      coverImage: getRoomCoverImage(num),
+      coverImage: getRoomCoverImage(content.representativeRoomNumber),
     }
   })
 
@@ -186,15 +121,17 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Booking widget — floats over the hero's bottom edge, entirely
-            within the photo (not extending past it into the section
-            below). This margin is independent of the header-sync one
-            above — it's sized to the widget's own (now much shorter,
-            trust-line-free) height, with a safety margin, not to the
-            header. Re-check this if the widget's content ever changes
-            height again — an estimate, not a measured value, since there
-            was no way to render and measure it live while building this. */}
-        <div className="relative z-10 -mt-32 px-6 md:-mt-24 md:px-12">
+        {/* Booking widget. Desktop (md+): floats over the hero's bottom
+            edge via a fixed negative margin, entirely within the photo —
+            safe there since the widget is a single short row at that
+            width, so its rendered height barely varies. Mobile: sits in
+            normal flow directly below the hero instead of overlapping it
+            — the widget is taller and more variable at narrow widths (see
+            its own 4-row stack), so a guessed negative-margin pull-up
+            reliably misjudged its height and left it floating mid-photo.
+            No overlap to calculate on mobile means no guess to get
+            wrong. */}
+        <div className="relative z-10 mt-6 px-6 md:-mt-24 md:px-12">
           <HomeAvailabilityCheck />
         </div>
 

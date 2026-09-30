@@ -110,14 +110,14 @@ export default function PoliciesPage() {
           Questions about any of the above? Reach us at{' '}
           <a
             href={`tel:${HOTEL_PHONE_TEL}`}
-            className="text-verdant hover:underline"
+            className="text-espresso hover:underline"
           >
             {HOTEL_PHONE_DISPLAY}
           </a>{' '}
           or{' '}
           <a
             href={`mailto:${HOTEL_EMAIL}`}
-            className="text-verdant hover:underline"
+            className="text-espresso hover:underline"
           >
             {HOTEL_EMAIL}
           </a>

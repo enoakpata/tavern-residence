@@ -176,6 +176,17 @@ export default function BookingDetailModal({
               )}
             </dl>
 
+            {booking.special_requests && (
+              <div>
+                <p className="text-xs tracking-widest text-charcoal/50 uppercase">
+                  Special requests
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-charcoal">
+                  {booking.special_requests}
+                </p>
+              </div>
+            )}
+
             <div>
               <p className="text-xs tracking-widest text-charcoal/50 uppercase">Actions</p>
               <div className="mt-3">

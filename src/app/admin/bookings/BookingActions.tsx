@@ -192,7 +192,7 @@ export default function BookingActions({
         <button
           disabled={isPending}
           onClick={() => run(() => markAsPaid(bookingId))}
-          className="rounded-full bg-verdant/10 px-3 py-1 text-xs text-verdant hover:bg-verdant/20 disabled:opacity-50"
+          className="rounded-full bg-espresso/10 px-3 py-1 text-xs text-espresso hover:bg-espresso/20 disabled:opacity-50"
         >
           Mark as paid
         </button>
@@ -202,7 +202,7 @@ export default function BookingActions({
         <button
           disabled={isPending}
           onClick={() => setPendingCheckout(true)}
-          className="rounded-full bg-verdant px-3 py-1 text-xs text-ivory hover:bg-verdant/90 disabled:opacity-50"
+          className="rounded-full bg-espresso px-3 py-1 text-xs text-ivory hover:bg-espresso/90 disabled:opacity-50"
         >
           Check out
         </button>

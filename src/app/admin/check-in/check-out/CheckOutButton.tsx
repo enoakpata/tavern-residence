@@ -36,7 +36,7 @@ export default function CheckOutButton({
         type="button"
         disabled={isPending}
         onClick={() => setConfirmOpen(true)}
-        className="mt-3 w-full rounded-full bg-verdant px-4 py-2 text-xs tracking-widest text-ivory uppercase transition-colors hover:bg-verdant/90 disabled:opacity-50"
+        className="mt-3 w-full rounded-full bg-espresso px-4 py-2 text-xs tracking-widest text-ivory uppercase transition-colors hover:bg-espresso/90 disabled:opacity-50"
       >
         {isPending ? 'Checking out…' : 'Check out'}
       </button>

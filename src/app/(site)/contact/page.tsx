@@ -39,9 +39,9 @@ export default function ContactPage() {
           </p>
           <a
             href={`tel:${HOTEL_PHONE_TEL}`}
-            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
+            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-espresso"
           >
-            <Phone size={18} className="text-verdant" />
+            <Phone size={18} className="text-espresso" />
             {HOTEL_PHONE_DISPLAY}
           </a>
         </div>
@@ -52,9 +52,9 @@ export default function ContactPage() {
           </p>
           <a
             href={`mailto:${HOTEL_EMAIL}`}
-            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
+            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-espresso"
           >
-            <Mail size={18} className="text-verdant" />
+            <Mail size={18} className="text-espresso" />
             {HOTEL_EMAIL}
           </a>
         </div>
@@ -67,9 +67,9 @@ export default function ContactPage() {
             href={HOTEL_INSTAGRAM_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
+            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-espresso"
           >
-            <FaInstagram size={18} className="text-verdant" />
+            <FaInstagram size={18} className="text-espresso" />
             @{HOTEL_INSTAGRAM_HANDLE}
           </a>
         </div>
@@ -82,9 +82,9 @@ export default function ContactPage() {
             href={GOOGLE_MAPS_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-verdant"
+            className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-espresso"
           >
-            <MapPin size={18} className="text-verdant" />
+            <MapPin size={18} className="text-espresso" />
             {HOTEL_ADDRESS}
           </a>
         </div>
@@ -92,7 +92,7 @@ export default function ContactPage() {
 
       <p className="mt-12 border-t border-charcoal/10 pt-6 text-sm text-charcoal/60">
         Can&apos;t find your confirmation email?{' '}
-        <Link href="/manage-booking" className="text-verdant hover:underline">
+        <Link href="/manage-booking" className="text-espresso hover:underline">
           Look up your booking
         </Link>
         .

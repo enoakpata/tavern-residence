@@ -43,6 +43,11 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   const checkIn = formData.get('check_in') as string
   const checkOut = formData.get('check_out') as string
   const paystackReference = formData.get('paystack_reference') as string
+  // Optional — trimmed to null rather than stored as an empty string, so
+  // "nothing entered" reads unambiguously as no request at all wherever
+  // this is displayed later (e.g. BookingDetailModal.tsx).
+  const specialRequestsRaw = (formData.get('special_requests') as string | null)?.trim()
+  const specialRequests = specialRequestsRaw ? specialRequestsRaw : null
 
   // guest_email is now required — Paystack needs it to run the card
   // verification charge, whereas before it was optional
@@ -110,6 +115,7 @@ const { error } = await supabase.from('Bookings').insert({
   payment_status: 'unpaid',
   payment_token: verification.authorizationCode,
   created_at: createdAt,
+  special_requests: specialRequests,
 })
 
 if (error) {

@@ -1,10 +1,6 @@
 import Image from 'next/image'
-import type { ComponentType } from 'react'
-import { BedDouble, AirVent, Tv, Wifi, ShowerHead, CookingPot, Sofa, Toilet } from 'lucide-react'
-import IronIcon from '@/components/icons/IronIcon'
 import Reveal from '@/components/Reveal'
-
-type AmenityIcon = ComponentType<{ size?: number; strokeWidth?: number; className?: string }>
+import { AMENITY_ICONS } from '@/lib/amenityIcons'
 
 export type RoomCardData = {
   id: string
@@ -13,22 +9,6 @@ export type RoomCardData = {
   amenities: string[]
   priceFromLabel: string
   coverImage: string | null
-}
-
-// One icon per amenity string used across the 4 room types below — thin-
-// line lucide icons (matching FeatureStrip.tsx's existing use of the same
-// set) for everything lucide already covers; IronIcon is the one
-// hand-drawn exception, since lucide has no clothes-iron icon.
-const AMENITY_ICONS: Record<string, AmenityIcon> = {
-  'King bed': BedDouble,
-  'Air conditioning': AirVent,
-  'Smart TV': Tv,
-  Iron: IronIcon,
-  'Free Wi-Fi': Wifi,
-  'Ensuite bathroom with shower': ShowerHead,
-  'Dry Kitchenette': CookingPot,
-  'Living area': Sofa,
-  'Guest Toilet': Toilet,
 }
 
 // The site's 4 real room types as full-width, alternating image/copy
@@ -58,7 +38,7 @@ export default function OurRooms({ rooms }: { rooms: RoomCardData[] }) {
             <Reveal key={room.id}>
               <div className="grid items-center gap-8 md:grid-cols-2 md:gap-16">
                 <div
-                  className={`relative aspect-[4/3] overflow-hidden rounded-sm bg-verdant/10 ${
+                  className={`relative aspect-[4/3] overflow-hidden rounded-sm bg-espresso/10 ${
                     imageOnRight ? 'md:order-2' : ''
                   }`}
                 >
@@ -71,7 +51,7 @@ export default function OurRooms({ rooms }: { rooms: RoomCardData[] }) {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-verdant/40 uppercase">
+                    <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-espresso/40 uppercase">
                       Photo coming soon
                     </div>
                   )}
@@ -94,7 +74,7 @@ export default function OurRooms({ rooms }: { rooms: RoomCardData[] }) {
                           className="flex items-center gap-2 text-xs text-charcoal/70"
                         >
                           {Icon && (
-                            <Icon size={16} strokeWidth={1.5} className="shrink-0 text-verdant" />
+                            <Icon size={16} strokeWidth={1.5} className="shrink-0 text-espresso" />
                           )}
                           {amenity}
                         </li>

@@ -95,7 +95,7 @@ export default function NewBookingForm() {
           Booking source
         </label>
         <div className="mt-2 flex gap-4">
-          <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm has-checked:border-verdant has-checked:bg-verdant/5">
+          <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm has-checked:border-espresso has-checked:bg-espresso/5">
             <input
               type="radio"
               name="source"
@@ -105,7 +105,7 @@ export default function NewBookingForm() {
             />
             Walk-in
           </label>
-          <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm has-checked:border-verdant has-checked:bg-verdant/5">
+          <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm has-checked:border-espresso has-checked:bg-espresso/5">
             <input
               type="radio"
               name="source"
@@ -159,7 +159,7 @@ export default function NewBookingForm() {
           type="text"
           name="guest_name"
           required
-          className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+          className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
         />
       </div>
 
@@ -172,7 +172,7 @@ export default function NewBookingForm() {
             type="tel"
             name="guest_phone"
             required
-            className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+            className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
           />
         </div>
         <div>
@@ -182,7 +182,7 @@ export default function NewBookingForm() {
           <input
             type="email"
             name="guest_email"
-            className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+            className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
           />
         </div>
       </div>
@@ -192,7 +192,7 @@ export default function NewBookingForm() {
           Payment method
         </label>
         <div className="mt-2 flex gap-4">
-          <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm has-checked:border-verdant has-checked:bg-verdant/5">
+          <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm has-checked:border-espresso has-checked:bg-espresso/5">
             <input
               type="radio"
               name="payment_method"
@@ -202,7 +202,7 @@ export default function NewBookingForm() {
             />
             Card (POS)
           </label>
-          <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm has-checked:border-verdant has-checked:bg-verdant/5">
+          <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-sm border border-charcoal/20 px-4 py-3 text-sm has-checked:border-espresso has-checked:bg-espresso/5">
             <input
               type="radio"
               name="payment_method"
@@ -222,7 +222,7 @@ export default function NewBookingForm() {
         <select
           name="payment_status"
           defaultValue={paymentMethod === 'card' ? 'paid' : 'unpaid'}
-          className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+          className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
         >
           <option value="paid">Paid</option>
           <option value="unpaid">Unpaid</option>
@@ -234,7 +234,7 @@ export default function NewBookingForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-sm bg-verdant py-4 text-sm tracking-widest text-ivory uppercase transition-colors hover:bg-verdant/90 disabled:opacity-50"
+        className="w-full rounded-sm bg-espresso py-4 text-sm tracking-widest text-ivory uppercase transition-colors hover:bg-espresso/90 disabled:opacity-50"
       >
         {isPending ? 'Creating booking…' : 'Create booking'}
       </button>

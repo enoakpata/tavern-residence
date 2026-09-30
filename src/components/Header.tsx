@@ -10,24 +10,30 @@ export default function Header() {
   const headerRef = useRef<HTMLElement>(null)
   const pathname = usePathname()
 
-  // Only the homepage has a full-bleed hero for the header to float over
-  // transparently — every other page starts directly under the header
-  // with no dark hero image behind it, so white nav text there would be
-  // unreadable against that page's own cream background if left
-  // transparent. Solid everywhere else, from the very first frame.
-  const isHome = pathname === '/'
+  // Only pages with a full-bleed hero (home, /rooms) have the header
+  // float over them transparently — every other page starts directly
+  // under the header with no dark hero image behind it, so white nav
+  // text there would be unreadable against that page's own cream
+  // background if left transparent. Solid everywhere else, from the very
+  // first frame.
+  const hasHero = pathname === '/' || pathname === '/rooms'
   const [scrolled, setScrolled] = useState(false)
-  const transparent = isHome && !scrolled
+  const transparent = hasHero && !scrolled
 
   useEffect(() => {
-    if (!isHome) return
+    if (!hasHero) return
     function handleScroll() {
       setScrolled(window.scrollY > 40)
     }
     handleScroll()
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [isHome])
+    // Re-syncs on every navigation, not just when hasHero itself flips —
+    // now that there are two hero pages, a client-side nav from one to
+    // the other (e.g. /rooms back to /) would otherwise carry over
+    // whatever `scrolled` was on the page just left, since `hasHero`
+    // itself never changes across that navigation.
+  }, [hasHero, pathname])
 
   // Mirrors the outside-click-closes pattern in DateRangePicker.tsx.
   useEffect(() => {
@@ -71,11 +77,13 @@ export default function Header() {
   return (
     // Fixed (not sticky) and out of document flow everywhere, with an
     // exact h-14/h-16 row height — see (site)/layout.tsx's matching
-    // pt-14/pt-16 and the homepage hero's matching -mt-14/-mt-16. All
-    // three share the same literal Tailwind spacing tokens, so the
-    // compensation is always exact regardless of viewport size or how
-    // tall the header's own content happens to render. Keep all three in
-    // sync if this height ever changes again.
+    // pt-14/pt-16, the homepage hero's matching -mt-14/-mt-16, and this
+    // file's own mobile menu panel below (top-14, mobile-only so it only
+    // needs to match the h-14 half of the pair). All share the same
+    // literal Tailwind spacing tokens, so the compensation is always
+    // exact regardless of viewport size or how tall the header's own
+    // content happens to render. Keep them all in sync if this height
+    // ever changes again.
     <header
       ref={headerRef}
       className={`fixed inset-x-0 top-0 z-50 px-6 transition-colors duration-base md:px-12 ${
@@ -120,59 +128,61 @@ export default function Header() {
           </Link>
         </nav>
 
-        {/* Gold-bordered pill stays visible next to the hamburger on
-            mobile too — "collapses to a hamburger with the pill button
-            still visible" is the explicit requirement, not folded into
-            the hamburger menu. */}
-        <div className="flex items-center gap-3 md:hidden">
-          <Link
-            href="/rooms"
-            className="rounded-full border border-brass px-4 py-2 text-[11px] tracking-widest uppercase transition-colors duration-base hover:bg-brass/10"
+        {/* Mobile row now shows just the hamburger — "Book now" moved
+            into the dropdown itself (see below) instead of sitting next
+            to it, so the header stays down to logo + hamburger only at
+            this breakpoint. */}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-label={open ? 'Close menu' : 'Open menu'}
+          aria-expanded={open}
+          className="flex h-9 w-9 items-center justify-center md:hidden"
+        >
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
           >
-            Book now
-          </Link>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-label={open ? 'Close menu' : 'Open menu'}
-            aria-expanded={open}
-            className="flex h-9 w-9 items-center justify-center"
-          >
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-            >
-              {open ? (
-                <>
-                  <line x1="5" y1="5" x2="19" y2="19" />
-                  <line x1="19" y1="5" x2="5" y2="19" />
-                </>
-              ) : (
-                <>
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </>
-              )}
-            </svg>
-          </button>
-        </div>
+            {open ? (
+              <>
+                <line x1="5" y1="5" x2="19" y2="19" />
+                <line x1="19" y1="5" x2="5" y2="19" />
+              </>
+            ) : (
+              <>
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </>
+            )}
+          </svg>
+        </button>
       </div>
 
-      {/* Solid regardless of the header's own transparent/scrolled state —
-          once open, this reads as its own panel rather than blending into
-          a hero photo behind it. */}
+      {/* Fixed to the viewport (top-14 = exactly the mobile header row's
+          own h-14, bottom-0), not sized by its own content — a plain
+          auto-height dropdown here previously stopped after its 4 links,
+          leaving the rest of the hero (headline, booking card) fully
+          visible underneath/around it. Pinning it to span the header's
+          bottom edge all the way to the viewport's bottom guarantees full,
+          opaque coverage regardless of how much content the page behind
+          it has. Solid bg-ivory regardless of the header's own
+          transparent/scrolled state, so it always reads as its own panel
+          rather than blending into a hero photo behind it. Stays mounted
+          while closed (opacity/translate only, not `hidden`) so the close
+          transition can animate — pointer-events-none then keeps it from
+          intercepting taps on the page underneath. */}
       <div
-        className={`grid overflow-hidden bg-ivory text-charcoal transition-[grid-template-rows] duration-300 ease-in-out md:hidden ${
-          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        className={`fixed inset-x-0 top-14 bottom-0 z-50 bg-ivory text-charcoal transition-[opacity,transform] duration-300 ease-in-out md:hidden ${
+          open ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-2 opacity-0'
         }`}
       >
-        <nav className="flex flex-col gap-1 overflow-hidden text-sm tracking-widest uppercase">
+        <nav className="flex flex-col overflow-y-auto px-6 pt-2 text-sm tracking-widest uppercase">
           <Link
             href="/policies"
             onClick={() => setOpen(false)}
@@ -200,6 +210,19 @@ export default function Header() {
             className="border-t border-charcoal/10 py-4 transition-colors duration-base hover:text-brass"
           >
             My Booking
+          </Link>
+
+          {/* Sole "Book now" affordance on mobile now — styled as its own
+              highlighted pill (matching the desktop nav's button, not the
+              plain text links above it) so it still reads as the primary
+              action once it's inside the menu rather than sitting apart
+              from it. */}
+          <Link
+            href="/rooms"
+            onClick={() => setOpen(false)}
+            className="mt-6 mb-4 rounded-full border border-brass px-5 py-3 text-center tracking-widest uppercase transition-colors duration-base hover:bg-brass/10"
+          >
+            Book now
           </Link>
         </nav>
       </div>

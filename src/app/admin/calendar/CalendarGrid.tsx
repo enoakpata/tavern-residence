@@ -59,7 +59,7 @@ export default function CalendarGrid({
                 className={[
                   'flex min-h-16 flex-col items-start gap-1 border-b border-r border-charcoal/10 p-1 text-left transition-colors sm:min-h-24 sm:gap-1.5 sm:p-2',
                   inMonth ? 'bg-white' : 'bg-ivory/60',
-                  hasBookings ? 'cursor-pointer hover:bg-verdant/5' : 'cursor-default',
+                  hasBookings ? 'cursor-pointer hover:bg-espresso/5' : 'cursor-default',
                 ].join(' ')}
               >
                 <span

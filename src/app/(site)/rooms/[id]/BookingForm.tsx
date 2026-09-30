@@ -90,6 +90,7 @@ export default function BookingForm({
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
+  const [specialRequests, setSpecialRequests] = useState('')
 
   // Tracks which required text fields are currently missing, so the
   // custom validation below (replacing the browser's native "please fill
@@ -288,8 +289,8 @@ export default function BookingForm({
         }`}
       >
         {displaySuccess ? (
-          <div className="rounded-sm border border-verdant/20 bg-verdant/5 p-6">
-            <p className="font-display text-xl text-verdant">Request received</p>
+          <div className="rounded-sm border border-espresso/20 bg-espresso/5 p-6">
+            <p className="font-display text-xl text-espresso">Request received</p>
             <p className="mt-2 text-sm text-charcoal/70">
               Your card has been verified and your booking request is in. We&apos;ll
               confirm with you shortly by email. Your booking
@@ -357,7 +358,7 @@ export default function BookingForm({
                   setGuestName(e.target.value)
                   clearInvalid('guest_name')
                 }}
-                className={`mt-2 w-full rounded-sm border px-4 py-3 text-sm focus:border-verdant focus:outline-none ${
+                className={`mt-2 w-full rounded-sm border px-4 py-3 text-sm focus:border-espresso focus:outline-none ${
                   invalidFields.has('guest_name') ? 'border-clay' : 'border-charcoal/20'
                 }`}
               />
@@ -377,7 +378,7 @@ export default function BookingForm({
                     setGuestPhone(e.target.value)
                     clearInvalid('guest_phone')
                   }}
-                  className={`mt-2 w-full rounded-sm border px-4 py-3 text-sm focus:border-verdant focus:outline-none ${
+                  className={`mt-2 w-full rounded-sm border px-4 py-3 text-sm focus:border-espresso focus:outline-none ${
                     invalidFields.has('guest_phone') ? 'border-clay' : 'border-charcoal/20'
                   }`}
                 />
@@ -395,11 +396,26 @@ export default function BookingForm({
                     setGuestEmail(e.target.value)
                     clearInvalid('guest_email')
                   }}
-                  className={`mt-2 w-full rounded-sm border px-4 py-3 text-sm focus:border-verdant focus:outline-none ${
+                  className={`mt-2 w-full rounded-sm border px-4 py-3 text-sm focus:border-espresso focus:outline-none ${
                     invalidFields.has('guest_email') ? 'border-clay' : 'border-charcoal/20'
                   }`}
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="text-xs tracking-widest text-charcoal/60 uppercase">
+                Special requests{' '}
+                <span className="normal-case tracking-normal text-charcoal/40">(optional)</span>
+              </label>
+              <textarea
+                name="special_requests"
+                rows={3}
+                value={specialRequests}
+                onChange={(e) => setSpecialRequests(e.target.value)}
+                placeholder="Any room preferences or requests? We'll do our best to accommodate them."
+                className="mt-2 w-full resize-none rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
+              />
             </div>
 
             <div className="rounded-sm bg-charcoal/5 p-4 text-xs text-charcoal/60">
@@ -416,7 +432,7 @@ export default function BookingForm({
             <button
               type="submit"
               disabled={isPending || step === 'verifying'}
-              className="w-full rounded-sm bg-verdant py-4 text-sm tracking-widest text-ivory uppercase transition-colors hover:bg-verdant/90 disabled:opacity-50"
+              className="w-full rounded-sm bg-espresso py-4 text-sm tracking-widest text-ivory uppercase transition-colors hover:bg-espresso/90 disabled:opacity-50"
             >
               {step === 'verifying' ? 'Verifying card…' : 'Book now'}
             </button>

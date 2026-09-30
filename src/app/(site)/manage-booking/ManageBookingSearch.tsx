@@ -51,7 +51,7 @@ export default function ManageBookingSearch() {
             required
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+            className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
           />
         </div>
         <div>
@@ -63,13 +63,13 @@ export default function ManageBookingSearch() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-verdant focus:outline-none"
+            className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
           />
         </div>
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-sm bg-verdant py-4 text-sm tracking-widest text-ivory uppercase transition-colors hover:bg-verdant/90 disabled:opacity-50"
+          className="w-full rounded-sm bg-espresso py-4 text-sm tracking-widest text-ivory uppercase transition-colors hover:bg-espresso/90 disabled:opacity-50"
         >
           {isPending ? 'Searching…' : 'Find my booking'}
         </button>
@@ -81,7 +81,7 @@ export default function ManageBookingSearch() {
             <p className="text-sm text-charcoal/70">
               No booking found with those details. Double-check your phone
               number and email, or{' '}
-              <Link href="/contact" className="text-verdant hover:underline">
+              <Link href="/contact" className="text-espresso hover:underline">
                 contact us
               </Link>{' '}
               for help.
@@ -92,7 +92,7 @@ export default function ManageBookingSearch() {
                 <li key={b.id}>
                   <Link
                     href={`/booking/${b.id}`}
-                    className="block rounded-sm border border-charcoal/10 bg-white p-5 transition-colors hover:border-verdant/40"
+                    className="block rounded-sm border border-charcoal/10 bg-white p-5 transition-colors hover:border-espresso/40"
                   >
                     <p className="text-xs tracking-widest text-brass uppercase">
                       {b.room_number ? `${b.room_number} — ${b.room_name}` : b.room_name}

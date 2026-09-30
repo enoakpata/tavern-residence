@@ -98,7 +98,7 @@ export default async function CalendarPage({
       <div className="mt-8 flex items-center justify-center gap-6">
         <Link
           href={`/admin/calendar?month=${prevMonth.getMonth() + 1}&year=${prevMonth.getFullYear()}`}
-          className="rounded-full p-2 text-charcoal/50 transition-colors hover:bg-verdant/10 hover:text-verdant"
+          className="rounded-full p-2 text-charcoal/50 transition-colors hover:bg-espresso/10 hover:text-espresso"
           aria-label="Previous month"
         >
           ←
@@ -108,7 +108,7 @@ export default async function CalendarPage({
         </p>
         <Link
           href={`/admin/calendar?month=${nextMonth.getMonth() + 1}&year=${nextMonth.getFullYear()}`}
-          className="rounded-full p-2 text-charcoal/50 transition-colors hover:bg-verdant/10 hover:text-verdant"
+          className="rounded-full p-2 text-charcoal/50 transition-colors hover:bg-espresso/10 hover:text-espresso"
           aria-label="Next month"
         >
           →

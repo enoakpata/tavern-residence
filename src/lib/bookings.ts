@@ -70,6 +70,60 @@ export async function isRoomAvailable(
 }
 
 /**
+ * Given every physical room_id sharing one type (see roomTypeContent.ts),
+ * returns ONE that's actually free for the date range — the first in
+ * `roomIds` order with no blocking booking — or null if none are. Callers
+ * that just need a yes/no (the /rooms type-grouped listing) use
+ * isAnyRoomAvailable below; the resolver used at "Book This Room"
+ * click-through (rooms/book/page.tsx) needs the actual id, to redirect
+ * into that one specific room's existing, unmodified booking page/flow.
+ * Same public booking_availability view and overlap logic as
+ * isRoomAvailable's own non-admin branch — this never needs the
+ * excludeBookingId case, since nothing admin-side edits a "type" the way
+ * a single booking's dates get edited.
+ */
+export async function resolveAvailableRoomId(
+  roomIds: string[],
+  checkIn: string,
+  checkOut: string
+): Promise<string | null> {
+  if (roomIds.length === 0) return null
+
+  const { data, error } = await supabase
+    .from('booking_availability')
+    .select('room_id')
+    .in('room_id', roomIds)
+    .in('status', ACTIVE_BOOKING_STATUSES)
+    .lt('check_in', checkOut)
+    .gt('check_out', checkIn)
+
+  if (error) {
+    console.error('Type availability check failed:', error)
+    // Fail closed: if we can't verify, don't let the booking through
+    return null
+  }
+
+  const blockedRoomIds = new Set(data.map((row) => row.room_id as string))
+  return roomIds.find((id) => !blockedRoomIds.has(id)) ?? null
+}
+
+/**
+ * Like isRoomAvailable, but for a whole room TYPE at once — true if AT
+ * LEAST ONE of the given physical room_ids is free for the date range.
+ * Used by the /rooms type-grouped listing: a "type" card represents every
+ * physical room sharing that type's name, not one hardcoded room_id, so
+ * availability has to be checked across the whole group rather than a
+ * single row.
+ */
+export async function isAnyRoomAvailable(
+  roomIds: string[],
+  checkIn: string,
+  checkOut: string
+): Promise<boolean> {
+  return (await resolveAvailableRoomId(roomIds, checkIn, checkOut)) !== null
+}
+
+/**
  * Fetches-the-data-and-decides wrapper around the shared cancellation
  * rule in src/lib/cancellationPolicy.ts, used by both the guest-facing
  * and staff-facing cancellation server actions. The actual free/fee

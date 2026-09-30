@@ -34,10 +34,18 @@ function dayAfter(iso: string): string {
 // query yet. Wiring that up would be a booking-logic change, not a visual
 // one, so it's left as a param for now rather than pretending to filter
 // results it doesn't.
-export default function HomeAvailabilityCheck() {
+export default function HomeAvailabilityCheck({
+  initialCheckIn = null,
+  initialCheckOut = null,
+}: {
+  // Only passed on /rooms, where dates may already be in the URL from a
+  // previous search — the homepage never has any, so it omits these.
+  initialCheckIn?: string | null
+  initialCheckOut?: string | null
+} = {}) {
   const router = useRouter()
-  const [checkIn, setCheckIn] = useState<string | null>(null)
-  const [checkOut, setCheckOut] = useState<string | null>(null)
+  const [checkIn, setCheckIn] = useState<string | null>(initialCheckIn)
+  const [checkOut, setCheckOut] = useState<string | null>(initialCheckOut)
   const [guests, setGuests] = useState<GuestCounts>({ adults: 1, children: 0 })
   const [error, setError] = useState('')
 
@@ -63,9 +71,15 @@ export default function HomeAvailabilityCheck() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl rounded-sm bg-white p-2 shadow-2xl sm:p-3">
-      <div className="grid grid-cols-2 gap-x-2 gap-y-2 sm:flex sm:flex-row sm:items-stretch sm:gap-0 sm:divide-x sm:divide-charcoal/10">
-        <div className="px-2 py-2 sm:flex-1 sm:px-5">
+    <div className="mx-auto w-full max-w-5xl rounded-sm bg-white p-4 shadow-2xl sm:p-3">
+      {/* Check-in/Check-out share a row on mobile (grid-cols-2); Guests and
+          the button each get their own full-width row below (col-span-2 —
+          harmless once `sm:flex` swaps the parent to flex display, so it
+          has no effect from `sm:` up). Giving the button the full card
+          width on mobile, rather than half a row shared with Guests, is
+          what keeps its label on one line instead of wrapping. */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:flex sm:flex-row sm:items-stretch sm:gap-0 sm:divide-x sm:divide-charcoal/10">
+        <div className="px-3 py-3 sm:flex-1 sm:px-5 sm:py-2">
           <p className="text-[10px] tracking-widest text-stone uppercase">
             Check-in
           </p>
@@ -73,7 +87,7 @@ export default function HomeAvailabilityCheck() {
             <DateRangePicker
               mode="single"
               blockedRanges={[]}
-              initialCheckIn={checkIn}
+              initialCheckIn={initialCheckIn}
               onChange={(newCheckIn) => {
                 setCheckIn(newCheckIn)
                 // A check-out already picked that's no longer after the
@@ -88,7 +102,7 @@ export default function HomeAvailabilityCheck() {
           </div>
         </div>
 
-        <div className="px-2 py-2 sm:flex-1 sm:px-5">
+        <div className="px-3 py-3 sm:flex-1 sm:px-5 sm:py-2">
           <p className="text-[10px] tracking-widest text-stone uppercase">
             Check-out
           </p>
@@ -96,7 +110,7 @@ export default function HomeAvailabilityCheck() {
             <DateRangePicker
               mode="single"
               blockedRanges={[]}
-              initialCheckIn={checkOut}
+              initialCheckIn={initialCheckOut}
               minDate={checkIn ? dayAfter(checkIn) : null}
               onChange={(newCheckOut) => {
                 setCheckOut(newCheckOut)
@@ -107,7 +121,7 @@ export default function HomeAvailabilityCheck() {
           </div>
         </div>
 
-        <div className="px-2 py-2 sm:flex-1 sm:px-5">
+        <div className="col-span-2 px-3 py-3 sm:flex-1 sm:px-5 sm:py-2">
           <p className="text-[10px] tracking-widest text-stone uppercase">
             Guests
           </p>
@@ -116,17 +130,17 @@ export default function HomeAvailabilityCheck() {
           </div>
         </div>
 
-        <div className="flex items-center px-2 py-2 sm:px-5">
+        <div className="col-span-2 flex items-center px-3 py-3 sm:px-5 sm:py-2">
           <button
             type="button"
             onClick={handleCheckAvailability}
-            className="w-full rounded-full border border-brass px-6 py-3 text-xs tracking-[0.2em] text-charcoal uppercase transition-colors duration-base hover:bg-brass/10 sm:w-auto"
+            className="w-full rounded-full border border-brass px-4 py-3 text-xs tracking-widest text-charcoal uppercase transition-colors duration-base hover:bg-brass/10 sm:w-auto sm:px-6 sm:tracking-[0.2em]"
           >
             Check Availability
           </button>
         </div>
       </div>
-      {error && <p className="px-2 pb-1 text-sm text-clay sm:px-5">{error}</p>}
+      {error && <p className="px-3 pb-1 text-sm text-clay sm:px-5">{error}</p>}
     </div>
   )
 }

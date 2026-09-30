@@ -16,8 +16,8 @@ import {
 } from '@/lib/dateUtils'
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-// Same drag-gesture threshold used by the photo galleries
-// (RoomGallery.tsx / AmbientGallery.tsx) for consistent swipe feel.
+// Same drag-gesture threshold used by the room photo gallery
+// (RoomGallery.tsx) for consistent swipe feel.
 const DRAG_THRESHOLD = 50
 
 export default function DateRangePicker({
@@ -193,13 +193,13 @@ export default function DateRangePicker({
           bare
             ? ''
             : `rounded-sm border ${
-                isDark ? 'border-ivory/40 focus:border-brass' : 'border-charcoal/20 focus:border-verdant'
+                isDark ? 'border-ivory/40 focus:border-brass' : 'border-charcoal/20 focus:border-espresso'
               } ${isLarge ? 'px-6 py-5 text-base' : 'px-4 py-3 text-sm'}`
         }`}
       >
         <Calendar
           size={isLarge ? 16 : 14}
-          className={`shrink-0 ${isDark ? 'text-brass' : 'text-verdant'}`}
+          className={`shrink-0 ${isDark ? 'text-brass' : 'text-espresso'}`}
         />
         <span
           className={
@@ -237,7 +237,7 @@ export default function DateRangePicker({
               type="button"
               onClick={() => setVisibleMonth((m) => addMonths(m, -1))}
               onPointerDown={(e) => e.stopPropagation()}
-              className={`rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant ${isLarge ? 'text-sm' : 'text-xs'}`}
+              className={`rounded-full p-1 text-charcoal/50 hover:bg-espresso/10 hover:text-espresso ${isLarge ? 'text-sm' : 'text-xs'}`}
               aria-label="Previous month"
             >
               ←
@@ -249,7 +249,7 @@ export default function DateRangePicker({
               type="button"
               onClick={() => setVisibleMonth((m) => addMonths(m, 1))}
               onPointerDown={(e) => e.stopPropagation()}
-              className={`rounded-full p-1 text-charcoal/50 hover:bg-verdant/10 hover:text-verdant ${isLarge ? 'text-sm' : 'text-xs'}`}
+              className={`rounded-full p-1 text-charcoal/50 hover:bg-espresso/10 hover:text-espresso ${isLarge ? 'text-sm' : 'text-xs'}`}
               aria-label="Next month"
             >
               →
@@ -293,14 +293,14 @@ export default function DateRangePicker({
                     isLarge ? 'text-xs md:text-sm' : 'text-[11px]',
                     disabled
                       ? 'cursor-not-allowed text-charcoal/25'
-                      : 'text-charcoal hover:bg-verdant/10',
-                    isSelected ? 'bg-verdant text-ivory hover:bg-verdant' : '',
+                      : 'text-charcoal hover:bg-espresso/10',
+                    isSelected ? 'bg-espresso text-ivory hover:bg-espresso' : '',
                     inRange && !isSelected ? 'bg-brass/20' : '',
                     // A subtle ring marks today when it isn't otherwise
                     // selected — the selected fill above always wins, and
                     // the ring never breaks the in-range band's square
                     // cells from touching seamlessly along a run of days.
-                    isToday && !isSelected ? 'ring-1 ring-inset ring-verdant/50' : '',
+                    isToday && !isSelected ? 'ring-1 ring-inset ring-espresso/50' : '',
                   ].join(' ')}
                 >
                   {date.getDate()}
@@ -315,7 +315,7 @@ export default function DateRangePicker({
             }`}
           >
             <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 bg-verdant" /> Selected
+              <span className="inline-block h-2 w-2 bg-espresso" /> Selected
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block h-2 w-2 rounded-full bg-charcoal/25" /> Booked
