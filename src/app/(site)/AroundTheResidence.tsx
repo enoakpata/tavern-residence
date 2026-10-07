@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
+import { ArrowUpRight } from 'lucide-react'
 import Reveal from '@/components/Reveal'
 import GalleryLightbox from '@/components/GalleryLightbox'
 import { GALLERY_IMAGE_GRADE } from '@/lib/galleryImageGrade'
@@ -14,9 +16,9 @@ import { GALLERY_IMAGE_GRADE } from '@/lib/galleryImageGrade'
 // separate concerns. Cycled with `%` against however many images
 // actually arrive, so nothing breaks if that count isn't a multiple of
 // this list's length.
-const CAPTIONS = ['Lobby', 'Lounge', 'Hallway', 'Rooftop', 'Courtyard', 'Reception', 'Garden']
+const CAPTIONS = ['Residence interior']
 
-const PAGE_SIZE = 7
+const PAGE_SIZE = 4
 
 // Bento spans for each tile, in DOM order, unprefixed so they apply at
 // every breakpoint — the grid itself goes from 2 columns (mobile) to 4
@@ -28,13 +30,10 @@ const PAGE_SIZE = 7
 // hand-placed grid-column/row coordinates that would break the moment a
 // page's photo count changes (e.g. a final, partial page).
 const TILE_SPANS = [
-  'col-span-2 row-span-2',
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-2',
-  'col-span-1 row-span-1',
-  'col-span-2 row-span-1',
-  'col-span-1 row-span-1',
+  'gallery-tile-tall',
+  'gallery-tile-small',
+  'gallery-tile-small',
+  'gallery-tile-tall',
 ]
 
 // Swipe must clear this many px horizontally, and stay mostly horizontal
@@ -80,6 +79,7 @@ export default function AroundTheResidence({ images }: { images: string[] }) {
   }, [swapPending, pageIndex])
 
   const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
   const [openIndex, setOpenIndex] = useState<number | null>(null)
 
   if (photos.length === 0) return null
@@ -93,13 +93,16 @@ export default function AroundTheResidence({ images }: { images: string[] }) {
 
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
     if (touchStartX.current === null) return
     const deltaX = e.changedTouches[0].clientX - touchStartX.current
+    const deltaY = e.changedTouches[0].clientY - (touchStartY.current ?? e.changedTouches[0].clientY)
     touchStartX.current = null
-    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX) return
+    touchStartY.current = null
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX || Math.abs(deltaX) <= Math.abs(deltaY)) return
     // Swipe left (negative delta) moves forward, same direction a
     // left-swipe carries content on any horizontally-paginated surface.
     goToPage(deltaX < 0 ? pageIndex + 1 : pageIndex - 1)
@@ -110,15 +113,13 @@ export default function AroundTheResidence({ images }: { images: string[] }) {
   const isLastPage = pageIndex === pageCount - 1
 
   return (
-    <section className="section-py mx-auto max-w-6xl px-6 md:px-16">
-      <p className="text-center text-xs tracking-widest text-brass uppercase">
-        The Property
-      </p>
-      <h2 className="mt-3 text-center font-display text-3xl text-charcoal md:text-4xl">
-        Around the Residence
-      </h2>
+    <section id="gallery" className="home-section residence-gallery-section">
+      <Reveal className="section-heading-row gallery-heading">
+        <div><p className="section-kicker">A closer look</p><h2 className="section-title">Experience the<br />Residence.</h2></div>
+        <div><p className="section-description">Thoughtful spaces. Familiar comforts.<br />Take a look around your next home away from home.</p><Link href="/contact" className="outline-pill">Find us in Lekki <span className="pill-icon"><ArrowUpRight size={17} aria-hidden="true" /></span></Link></div>
+      </Reveal>
 
-      <Reveal className="relative mt-12 md:mt-16">
+      <Reveal className="relative gallery-grid-wrapper">
         {pageCount > 1 && (
           <button
             type="button"
@@ -172,7 +173,7 @@ export default function AroundTheResidence({ images }: { images: string[] }) {
         <div
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
-          className={`grid grid-cols-2 auto-rows-[130px] grid-flow-dense gap-3 transition-[opacity,transform] duration-200 ease-out sm:auto-rows-[150px] md:grid-cols-4 md:auto-rows-[160px] md:gap-4 ${
+          className={`residence-gallery-grid transition-[opacity,transform] duration-200 ease-out ${
             contentVisible
               ? 'translate-x-0 opacity-100'
               : `opacity-0 ${swapDirection === 1 ? '-translate-x-3' : 'translate-x-3'}`
@@ -184,11 +185,11 @@ export default function AroundTheResidence({ images }: { images: string[] }) {
               type="button"
               onClick={() => setOpenIndex(displayedPage * PAGE_SIZE + index)}
               aria-label={`View photo ${displayedPage * PAGE_SIZE + index + 1} of ${photos.length}`}
-              className={`group relative overflow-hidden rounded-sm bg-espresso/10 ${TILE_SPANS[index % TILE_SPANS.length]}`}
+              className={`gallery-tile group relative overflow-hidden rounded-sm bg-espresso/10 ${TILE_SPANS[index % TILE_SPANS.length]}`}
             >
               <Image
                 src={photo.src}
-                alt={`${photo.caption} at Tavern Residence`}
+                alt={`Interior view ${displayedPage * PAGE_SIZE + index + 1} at Tavern Residence`}
                 fill
                 sizes="(min-width: 768px) 40vw, 75vw"
                 className={`object-cover transition-transform duration-700 ease-out group-hover:scale-105 ${GALLERY_IMAGE_GRADE}`}

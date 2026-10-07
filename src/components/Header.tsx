@@ -1,231 +1,115 @@
-'use client'
+"use client"
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { ArrowUpRight, Menu, X } from 'lucide-react'
 import { HOTEL_NAME } from '@/lib/siteConfig'
+
+const links = [
+  { label: 'Home', href: '/' },
+  { label: 'Rooms', href: '/rooms' },
+  { label: 'Facilities', href: '/#facilities' },
+  { label: 'Dining', href: '/#dining' },
+  { label: 'Contact', href: '/contact' },
+]
 
 export default function Header() {
   const [open, setOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const headerRef = useRef<HTMLElement>(null)
   const pathname = usePathname()
-
-  // Only pages with a full-bleed hero (home, /rooms) have the header
-  // float over them transparently — every other page starts directly
-  // under the header with no dark hero image behind it, so white nav
-  // text there would be unreadable against that page's own cream
-  // background if left transparent. Solid everywhere else, from the very
-  // first frame.
   const hasHero = pathname === '/' || pathname === '/rooms'
-  const [scrolled, setScrolled] = useState(false)
-  const transparent = hasHero && !scrolled
+  const transparent = hasHero && !scrolled && !open
 
   useEffect(() => {
-    if (!hasHero) return
     function handleScroll() {
       setScrolled(window.scrollY > 40)
     }
     handleScroll()
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
-    // Re-syncs on every navigation, not just when hasHero itself flips —
-    // now that there are two hero pages, a client-side nav from one to
-    // the other (e.g. /rooms back to /) would otherwise carry over
-    // whatever `scrolled` was on the page just left, since `hasHero`
-    // itself never changes across that navigation.
-  }, [hasHero, pathname])
+  }, [pathname])
 
-  // Mirrors the outside-click-closes pattern in DateRangePicker.tsx.
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  // Also close when the guest starts scrolling — listening for 'wheel'
-  // and 'touchmove' (the actual user gestures) rather than 'scroll' (the
-  // resulting position change) is deliberate: focusing the hamburger
-  // button while the page is already scrolled triggers the browser's own
-  // focus-into-view scroll animation on a sticky-positioned header, which
-  // fires genuine 'scroll' events with no user input involved — that
-  // self-inflicted scroll would otherwise close the menu the instant it
-  // opens. Wheel/touchmove can only originate from the guest.
   useEffect(() => {
     if (!open) return
-    function handleUserScroll() {
-      setOpen(false)
+    function handleOutside(event: MouseEvent) {
+      if (!headerRef.current?.contains(event.target as Node)) setOpen(false)
     }
-    window.addEventListener('wheel', handleUserScroll, { passive: true })
-    window.addEventListener('touchmove', handleUserScroll, { passive: true })
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+      if (event.key !== 'Tab') return
+      const links = Array.from(headerRef.current?.querySelectorAll<HTMLElement>('a, button') ?? [])
+        .filter((element) => element.getClientRects().length > 0)
+      const first = links[0]
+      const last = links[links.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last?.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first?.focus()
+      }
+    }
+    const focusFrame = window.requestAnimationFrame(() => {
+      headerRef.current?.querySelector<HTMLElement>('.guest-mobile-nav a')?.focus()
+    })
+    const previousOverflow = document.body.style.overflow
+    const desktop = window.matchMedia('(min-width: 900px)')
+    function closeOnDesktop(event: MediaQueryListEvent) {
+      if (event.matches) setOpen(false)
+    }
+    document.body.style.overflow = 'hidden'
+    desktop.addEventListener('change', closeOnDesktop)
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleKey)
     return () => {
-      window.removeEventListener('wheel', handleUserScroll)
-      window.removeEventListener('touchmove', handleUserScroll)
+      window.cancelAnimationFrame(focusFrame)
+      document.body.style.overflow = previousOverflow
+      desktop.removeEventListener('change', closeOnDesktop)
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleKey)
+      headerRef.current?.querySelector<HTMLElement>('.guest-menu-toggle')?.focus()
     }
   }, [open])
 
-  // Letter-spaced sans-serif labels with a brass underline that grows in
-  // on hover — one shared class string so every nav link (this component
-  // is the only place that needs it) stays identical. Brass here is the
-  // "rare accent" — a thin 1px hover line, never a fill.
-  const navLinkClasses =
-    'relative pb-1 tracking-widest uppercase after:absolute after:inset-x-0 after:-bottom-0.5 after:h-px after:origin-left after:scale-x-0 after:bg-brass after:transition-transform after:duration-base hover:after:scale-x-100'
-
   return (
-    // Fixed (not sticky) and out of document flow everywhere, with an
-    // exact h-14/h-16 row height — see (site)/layout.tsx's matching
-    // pt-14/pt-16, the homepage hero's matching -mt-14/-mt-16, and this
-    // file's own mobile menu panel below (top-14, mobile-only so it only
-    // needs to match the h-14 half of the pair). All share the same
-    // literal Tailwind spacing tokens, so the compensation is always
-    // exact regardless of viewport size or how tall the header's own
-    // content happens to render. Keep them all in sync if this height
-    // ever changes again.
-    <header
-      ref={headerRef}
-      className={`fixed inset-x-0 top-0 z-50 px-6 transition-colors duration-base md:px-12 ${
-        transparent
-          ? 'bg-transparent text-white'
-          : 'border-b border-charcoal/10 bg-ivory text-charcoal'
-      }`}
-    >
-      <div className="flex h-14 items-center justify-between md:h-16">
-        {/* Wordmark only — no tagline line beneath it. Sized down from an
-            earlier, oversized pass so it reads proportionate to the nav
-            links beside it rather than dominating the bar. Title case,
-            not all-caps: Fraunces' distinctive high-contrast serif
-            character (the whole reason it was picked) reads much more
-            clearly in mixed case than flattened into caps. */}
-        <Link
-          href="/"
-          onClick={() => setOpen(false)}
-          className="font-display text-base tracking-wide md:text-lg"
-        >
-          {HOTEL_NAME}
+    <header ref={headerRef} className={`guest-header ${transparent ? 'header-transparent' : 'header-solid'} ${open ? 'menu-open' : ''}`}>
+      <a href="#main-content" className="skip-link">Skip to content</a>
+      <div className="guest-header-row">
+        <Link href="/" onClick={() => setOpen(false)} className="guest-wordmark" aria-label={`${HOTEL_NAME} home`}>
+          TAVERN<span>RESIDENCE &middot; LEKKI</span>
         </Link>
-
-        <nav className="hidden items-center gap-8 text-xs md:flex md:gap-10">
-          <Link href="/rooms" className={navLinkClasses}>
-            Rooms
+        <nav className="guest-desktop-nav" aria-label="Main navigation">
+          {links.map((link) => (
+            <Link key={link.label} href={link.href} className={pathname === link.href ? 'nav-active' : ''} aria-current={pathname === link.href ? 'page' : undefined}>
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="guest-header-actions">
+          <Link href="/rooms" className="header-booking">
+            Booking <span><ArrowUpRight size={17} aria-hidden="true" /></span>
           </Link>
-          <Link href="/policies" className={navLinkClasses}>
-            Policies
-          </Link>
-          <Link href="/contact" className={navLinkClasses}>
-            Contact
-          </Link>
-          <Link href="/manage-booking" className={navLinkClasses}>
-            My Booking
-          </Link>
-          <Link
-            href="/rooms"
-            className="rounded-full border border-brass px-5 py-2.5 tracking-widest uppercase transition-colors duration-base hover:bg-brass/10"
-          >
-            Book now
+          <button type="button" onClick={() => setOpen(!open)} aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open} aria-controls="guest-mobile-menu" className="guest-menu-toggle">
+            {open ? <X size={23} /> : <Menu size={23} />}
+          </button>
+        </div>
+      </div>
+      {open && (
+        <nav id="guest-mobile-menu" className="guest-mobile-nav" aria-label="Mobile navigation">
+          {[...links, { label: 'My booking', href: '/manage-booking' }, { label: 'Policies', href: '/policies' }].map((link, index) => (
+            <Link key={link.label} href={link.href} onClick={() => setOpen(false)}>
+              <span className="mobile-nav-number">0{index + 1}</span>
+              {link.label}
+              <ArrowUpRight size={22} aria-hidden="true" />
+            </Link>
+          ))}
+          <Link href="/rooms" onClick={() => setOpen(false)} className="mobile-booking-link">
+            Find your room <ArrowUpRight size={22} aria-hidden="true" />
           </Link>
         </nav>
-
-        {/* Mobile row now shows just the hamburger — "Book now" moved
-            into the dropdown itself (see below) instead of sitting next
-            to it, so the header stays down to logo + hamburger only at
-            this breakpoint. */}
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-label={open ? 'Close menu' : 'Open menu'}
-          aria-expanded={open}
-          className="flex h-9 w-9 items-center justify-center md:hidden"
-        >
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-          >
-            {open ? (
-              <>
-                <line x1="5" y1="5" x2="19" y2="19" />
-                <line x1="19" y1="5" x2="5" y2="19" />
-              </>
-            ) : (
-              <>
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </>
-            )}
-          </svg>
-        </button>
-      </div>
-
-      {/* Fixed to the viewport (top-14 = exactly the mobile header row's
-          own h-14, bottom-0), not sized by its own content — a plain
-          auto-height dropdown here previously stopped after its 4 links,
-          leaving the rest of the hero (headline, booking card) fully
-          visible underneath/around it. Pinning it to span the header's
-          bottom edge all the way to the viewport's bottom guarantees full,
-          opaque coverage regardless of how much content the page behind
-          it has. Solid bg-ivory regardless of the header's own
-          transparent/scrolled state, so it always reads as its own panel
-          rather than blending into a hero photo behind it. Stays mounted
-          while closed (opacity/translate only, not `hidden`) so the close
-          transition can animate — pointer-events-none then keeps it from
-          intercepting taps on the page underneath. */}
-      <div
-        className={`fixed inset-x-0 top-14 bottom-0 z-50 bg-ivory text-charcoal transition-[opacity,transform] duration-300 ease-in-out md:hidden ${
-          open ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-2 opacity-0'
-        }`}
-      >
-        <nav className="flex flex-col overflow-y-auto px-6 pt-2 text-sm tracking-widest uppercase">
-          <Link
-            href="/policies"
-            onClick={() => setOpen(false)}
-            className="border-t border-charcoal/10 py-4"
-          >
-            Policies
-          </Link>
-          <Link
-            href="/rooms"
-            onClick={() => setOpen(false)}
-            className="border-t border-charcoal/10 py-4 transition-colors duration-base hover:text-brass"
-          >
-            Rooms
-          </Link>
-          <Link
-            href="/contact"
-            onClick={() => setOpen(false)}
-            className="border-t border-charcoal/10 py-4 transition-colors duration-base hover:text-brass"
-          >
-            Contact
-          </Link>
-          <Link
-            href="/manage-booking"
-            onClick={() => setOpen(false)}
-            className="border-t border-charcoal/10 py-4 transition-colors duration-base hover:text-brass"
-          >
-            My Booking
-          </Link>
-
-          {/* Sole "Book now" affordance on mobile now — styled as its own
-              highlighted pill (matching the desktop nav's button, not the
-              plain text links above it) so it still reads as the primary
-              action once it's inside the menu rather than sitting apart
-              from it. */}
-          <Link
-            href="/rooms"
-            onClick={() => setOpen(false)}
-            className="mt-6 mb-4 rounded-full border border-brass px-5 py-3 text-center tracking-widest uppercase transition-colors duration-base hover:bg-brass/10"
-          >
-            Book now
-          </Link>
-        </nav>
-      </div>
+      )}
     </header>
   )
 }

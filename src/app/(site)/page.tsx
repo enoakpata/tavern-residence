@@ -9,7 +9,10 @@ import {
   HOTEL_ADDRESS_REGION,
   HOTEL_PHONE_TEL,
 } from '@/lib/siteConfig'
-import HomeAvailabilityCheck from './HomeAvailabilityCheck'
+import Link from 'next/link'
+import { ArrowDown, ArrowUpRight } from 'lucide-react'
+import ScrollScene from '@/components/ScrollScene'
+import { FacilitiesSection, DiningSection, StayStylesSection } from './GuestHomeSections'
 import OurRooms, { type RoomCardData } from './OurRooms'
 import AroundTheResidence from './AroundTheResidence'
 import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER } from '@/lib/roomTypeContent'
@@ -65,7 +68,7 @@ export default async function Home() {
   // Reusing an already-uploaded gallery photo as the hero background
   // (real property/room photography, just not a dedicated hero shot) —
   // swap for a purpose-shot hero image whenever one exists.
-  const heroImage = galleryImages[0] ?? null
+  const heroImage = galleryImages[15] ?? galleryImages[0] ?? null
 
   // Excluded from the "Around the Residence" section's own pool only —
   // the hero above still picks freely from the full `galleryImages` list,
@@ -93,51 +96,24 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(hotelJsonLd) }}
       />
       <main>
-        {/* Hero — full-bleed photo, diagonal dark-to-transparent overlay
-            (darkest on the left, where the text sits), a single-line
-            Fraunces headline in one consistent weight/style throughout
-            (no mixed regular/italic treatment). -mt-14/-mt-16 exactly
-            cancels the fixed header's own h-14/h-16 (see Header.tsx and
-            (site)/layout.tsx's matching pt-14/pt-16), so the photo
-            reaches the literal top of the viewport with no gap.
-            Homepage-only. */}
-        <section className="relative -mt-14 flex h-screen items-center overflow-hidden px-6 text-white md:-mt-16 md:px-16">
-          {heroImage && (
-            <Image
-              src={heroImage}
-              alt={`${HOTEL_NAME} — a private hotel apartment in Lekki Phase 1, Lagos`}
-              fill
-              priority
-              sizes="100vw"
-              className="object-cover"
-            />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-r from-charcoal/85 via-charcoal/40 to-transparent" />
-
-          <div className="relative max-w-xl">
-            <h1 className="font-display text-display-md leading-tight md:text-display-lg">
-              Welcome to {HOTEL_NAME}
-            </h1>
+        <ScrollScene className="home-hero">
+          {heroImage && <Image src={heroImage} alt={`${HOTEL_NAME}, a private hotel apartment in Lekki Phase 1, Lagos`} fill priority sizes="100vw" className="hero-photo object-cover" />}
+          <div className="hero-shade" />
+          <div className="hero-intro"><span className="hero-location">LEKKI PHASE 1, LAGOS</span><p>A little escape. A warm welcome.<br />Your own place in the heart of Lekki.</p></div>
+          <div className="hero-headline"><p>Your stay, beautifully simple.</p><h1>Book your<br />comfort room<br />today.</h1><Link href="/rooms" className="hero-book-link">Find your room <ArrowUpRight size={20} aria-hidden="true" /></Link></div>
+          <div className="hero-orbit">
+            <div className="hero-orbit-photo"><Image src="/images/102/room_102.jpg" alt="A one-bedroom suite at Tavern Residence" fill sizes="(min-width: 900px) 24vw, 40vw" className="object-cover" /></div>
+            <span className="orbit-label orbit-label-one">Unwind <i /></span><span className="orbit-label orbit-label-two">Settle in <i /></span><span className="orbit-label orbit-label-three">Feel at home <i /></span>
           </div>
-        </section>
-
-        {/* Booking widget. Desktop (md+): floats over the hero's bottom
-            edge via a fixed negative margin, entirely within the photo —
-            safe there since the widget is a single short row at that
-            width, so its rendered height barely varies. Mobile: sits in
-            normal flow directly below the hero instead of overlapping it
-            — the widget is taller and more variable at narrow widths (see
-            its own 4-row stack), so a guessed negative-margin pull-up
-            reliably misjudged its height and left it floating mid-photo.
-            No overlap to calculate on mobile means no guess to get
-            wrong. */}
-        <div className="relative z-10 mt-6 px-6 md:-mt-24 md:px-12">
-          <HomeAvailabilityCheck />
-        </div>
+          <a href="#rooms-preview" className="hero-scroll-link">Scroll to discover <ArrowDown size={16} aria-hidden="true" /></a>
+        </ScrollScene>
 
         <OurRooms rooms={ourRooms} />
 
+        <FacilitiesSection />
+        <DiningSection />
         <AroundTheResidence images={residenceGalleryImages} />
+        <StayStylesSection />
       </main>
     </>
   )
