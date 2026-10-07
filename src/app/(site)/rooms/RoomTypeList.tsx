@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import { ArrowUpRight } from 'lucide-react'
+import Reveal from '@/components/Reveal'
 import type { RoomTypeContent, RoomTypeKey } from '@/lib/roomTypeContent'
 import { AMENITY_ICONS } from '@/lib/amenityIcons'
 import RoomTypeModal from './RoomTypeModal'
@@ -15,14 +17,8 @@ export type RoomTypeRowData = {
   isAvailable: boolean
 }
 
-// 4 rows, one per type, thumbnail left / details middle / price+actions
-// right on desktop — collapses to a stacked column per row on mobile.
-// Replaces the earlier 2x2 card grid: with exactly 4 known types this
-// reads as a tighter, more editorial list rather than a photo grid.
-// "Book Now" carries the room TYPE + selected dates straight to the
-// existing per-room booking flow (rooms/book/page.tsx resolves an actual
-// available room server-side); "View Room" opens the same detail modal
-// the old grid used, unchanged.
+// Photo cards preserve the existing type resolver, date parameters, and detail modal.
+// Hover and keyboard focus reveal more detail; touch screens show it immediately.
 export default function RoomTypeList({
   rows,
   hasDates,
@@ -45,18 +41,13 @@ export default function RoomTypeList({
 
   return (
     <>
-      <div className="mt-10 divide-y divide-charcoal/10 border-t border-charcoal/10">
+      <div className="hotel-room-grid">
         {rows.map((row) => {
           // Only actually blocks the row when we know it's unavailable —
           // with no dates picked yet, every type stays fully bookable.
           const isUnavailable = hasDates && !row.isAvailable
 
-          // Book Now always carries a type, never a physical room id —
-          // with no dates picked yet this lands on rooms/book without
-          // checkin/checkout, which redirects straight back to /rooms
-          // (see that route's own validation) so the guest picks dates
-          // there instead, same as today's "pick dates on the room page"
-          // fallback.
+          // Preserve the type and search parameters for the existing room resolver.
           const bookParams = new URLSearchParams({ type: row.content.dbName })
           if (checkIn) bookParams.set('checkin', checkIn)
           if (checkOut) bookParams.set('checkout', checkOut)
@@ -64,96 +55,66 @@ export default function RoomTypeList({
           if (childrenCount) bookParams.set('children', childrenCount)
 
           return (
-            <div
-              key={row.content.key}
-              className={`flex flex-col gap-5 py-8 md:flex-row md:items-center md:gap-8 ${
-                isUnavailable ? 'opacity-50' : ''
-              }`}
-            >
-              <div className="relative h-48 w-full shrink-0 overflow-hidden rounded-sm bg-espresso/10 md:h-28 md:w-40">
-                {row.coverImage ? (
-                  <Image
-                    src={row.coverImage}
-                    alt={row.content.label}
-                    fill
-                    sizes="(min-width: 768px) 160px, 100vw"
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-espresso/40 uppercase">
-                    Photo coming soon
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1">
-                <p className="text-xs tracking-widest text-brass uppercase">
-                  {row.content.category}
-                </p>
-                <h3 className="mt-1 font-display text-2xl text-charcoal">
-                  {row.content.label}
-                </h3>
-                {/* Icon + label spec line — compact amenity set, distinct
-                    from the modal's fuller list, wrapping onto more than
-                    one line on narrow viewports rather than truncating. */}
-                <ul className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                  {row.content.rowAmenities.map((amenity) => {
-                    const Icon = AMENITY_ICONS[amenity]
-                    return (
-                      <li
-                        key={amenity}
-                        className="flex items-center gap-1.5 text-xs text-charcoal/60"
-                      >
-                        {Icon && (
-                          <Icon size={14} strokeWidth={1.5} className="shrink-0 text-espresso" />
-                        )}
-                        {amenity}
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-
-              <div className="flex shrink-0 flex-row items-center justify-between gap-4 md:w-56 md:flex-col md:items-end">
-                <div>
-                  <p className="text-lg text-charcoal">From {row.priceLabel}</p>
-                  <p className="text-xs text-charcoal/50">per night</p>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  {isUnavailable ? (
-                    <span className="text-xs font-medium tracking-wide text-clay">
-                      Unavailable for selected dates
-                    </span>
-                  ) : (
-                    // Plain <a>, deliberately not next/link's <Link> — this
-                    // points at rooms/book, a pure server-redirect route
-                    // (see that file's own comment). A client-side <Link>
-                    // transition into it got stuck on the intermediate
-                    // /rooms/book URL instead of following through to the
-                    // resolved /rooms/[id] (confirmed live: the server
-                    // computed and served the right room, but the
-                    // browser's own URL never advanced past /rooms/book).
-                    // A plain anchor forces a real HTTP navigation, which
-                    // correctly follows the server's 307 — proven via
-                    // curl against every one of the 4 types.
-                    <a
-                      href={`/rooms/book?${bookParams.toString()}`}
-                      className="rounded-full bg-espresso px-5 py-2.5 text-xs tracking-widest text-ivory uppercase transition-colors duration-base hover:bg-espresso/90"
-                    >
-                      Book Now
-                    </a>
-                  )}
+            <Reveal key={row.content.key} className="hotel-room-reveal">
+              <article className={`hotel-room-card ${isUnavailable ? 'room-unavailable' : ''}`} aria-labelledby={`room-title-${row.content.key}`}>
+                <div className="hotel-room-photo-stage">
                   <button
                     type="button"
+                    className="hotel-room-photo"
                     onClick={() => setOpenKey(row.content.key)}
-                    className="text-sm text-espresso underline-offset-4 hover:underline"
+                    aria-label={`View ${row.content.label} details and photos`}
                   >
-                    View Room
+                    {row.coverImage ? (
+                      <Image
+                        src={row.coverImage}
+                        alt={row.content.label}
+                        fill
+                        sizes="(min-width: 900px) 550px, 100vw"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <span className="hotel-room-photo-placeholder">Photo coming soon</span>
+                    )}
+                    <span className="hotel-room-photo-arrow"><ArrowUpRight size={24} aria-hidden="true" /></span>
                   </button>
+                  {hasDates && <span className={`hotel-room-availability ${isUnavailable ? 'is-unavailable' : ''}`}>{isUnavailable ? 'Unavailable for these dates' : 'Available for your dates'}</span>}
                 </div>
-              </div>
-            </div>
+
+                <div className="hotel-room-copy">
+                  <p className="hotel-room-category">{row.content.category}</p>
+                  <h3 id={`room-title-${row.content.key}`} className="hotel-room-title">{row.content.label}</h3>
+                  <p className="hotel-room-description">{row.content.longDescription.split('. ')[0]}.</p>
+                  <div className="hotel-room-details">
+                    <ul className="hotel-room-specs">
+                      {row.content.rowAmenities.slice(0, 3).map((amenity) => {
+                        const Icon = AMENITY_ICONS[amenity]
+                        return (
+                          <li key={amenity}>
+                            {Icon && <Icon size={17} strokeWidth={1.25} aria-hidden="true" />}
+                            <span>{amenity}</span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                    <p className="hotel-room-price"><span>From</span> {row.priceLabel}<span>/ night</span></p>
+                  </div>
+                </div>
+
+                <div className="hotel-room-actions">
+                  <button type="button" onClick={() => setOpenKey(row.content.key)} className="hotel-room-view">
+                    View room <ArrowUpRight size={16} aria-hidden="true" />
+                  </button>
+                  {isUnavailable ? (
+                    <a href="#availability" className="hotel-room-change-dates">Try other dates</a>
+                  ) : (
+                    // Keep a full navigation: the existing server redirect needs a plain anchor.
+                    <a href={`/rooms/book?${bookParams.toString()}`} className="hotel-room-book">
+                      Book now <ArrowUpRight size={16} aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+              </article>
+            </Reveal>
           )
         })}
       </div>

@@ -1,5 +1,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { ArrowDown, ArrowUpRight } from 'lucide-react'
+import Reveal from '@/components/Reveal'
+import ScrollScene from '@/components/ScrollScene'
 import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
 import { isAnyRoomAvailable } from '@/lib/bookings'
@@ -10,6 +13,7 @@ import { todayInLagos } from '@/lib/dateUtils'
 import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER, type RoomTypeKey } from '@/lib/roomTypeContent'
 import HomeAvailabilityCheck from '../HomeAvailabilityCheck'
 import RoomTypeList, { type RoomTypeRowData } from './RoomTypeList'
+import './rooms.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -113,84 +117,80 @@ export default async function RoomsPage({
     })
   )
 
-  // A different photo than the homepage hero's own galleryImages[0], so
-  // the two full-bleed heroes don't look identical back to back — same
-  // treatment (full-bleed, object-cover, diagonal dark-to-transparent
-  // overlay), different shot.
+  // Use a bedroom photo distinct from the homepage's lounge photo.
   const galleryImages = getGalleryImages()
-  const heroImage = galleryImages[1] ?? galleryImages[0] ?? null
+  const heroImage = galleryImages[19] ?? galleryImages[0] ?? null
 
   return (
-    <main>
-      {/* Hero — same full-bleed photo treatment as the homepage's
-          (page.tsx): diagonal dark-to-transparent overlay, left-aligned
-          content column. -mt-14/-mt-16 cancels the fixed header's own
-          h-14/h-16 (see Header.tsx and (site)/layout.tsx's matching
-          pt-14/pt-16) so the photo reaches the literal top of the
-          viewport with no gap — Header.tsx's own `hasHero` check now
-          includes /rooms specifically so it floats transparently over
-          this, not just the homepage's. Shorter than the homepage's full
-          h-screen — this is a secondary page, not the guest's first
-          landing moment, so it doesn't need the same full-viewport
-          presence. */}
-      <section className="relative -mt-14 flex h-[70vh] min-h-[480px] items-center overflow-hidden px-6 text-white md:-mt-16 md:h-[75vh] md:px-16">
+    <main className="rooms-page">
+      <ScrollScene className="rooms-page-hero">
         {heroImage && (
           <Image
             src={heroImage}
-            alt={`${HOTEL_NAME} — rooms and suites in Lekki Phase 1, Lagos`}
+            alt={`${HOTEL_NAME}, rooms and suites in Lekki Phase 1, Lagos`}
             fill
             priority
             sizes="100vw"
-            className="object-cover"
+            className="rooms-hero-photo object-cover"
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-r from-charcoal/85 via-charcoal/40 to-transparent" />
-
-        <div className="relative max-w-xl">
-          <p className="text-xs tracking-widest text-brass uppercase">Accommodation</p>
-          <h1 className="mt-4 font-display text-display-md leading-tight md:text-display-lg">
-            Our Rooms
-          </h1>
-          <p className="mt-5 text-sm text-white/80">
-            Considered comfort, in four distinct forms — from an intimate
-            studio to our most complete suite.
-          </p>
-          {/* Generic — not tied to a type, so this scrolls to the room
-              list below rather than the /rooms/book resolver, which
-              needs a specific type to do anything useful. Each row's own
-              Book Now (and the modal's) carries a real type. */}
-          <Link
-            href="#rooms"
-            className="mt-8 inline-block rounded-full border border-brass px-6 py-3 text-xs tracking-widest uppercase transition-colors duration-base hover:bg-brass/10"
-          >
-            Book Now
+        <div className="rooms-hero-shade" />
+        <div className="rooms-hero-copy">
+          <p className="rooms-hero-kicker">The rooms at Tavern Residence</p>
+          <h1>Room to<br />slow down.</h1>
+          <p>Four ways to settle in.<br />Find the space that feels like yours.</p>
+          <Link href="#rooms" className="outline-pill rooms-hero-link">
+            Explore the collection <ArrowDown size={16} aria-hidden="true" />
           </Link>
         </div>
-      </section>
+        <span className="rooms-hero-location">Lekki Phase 1, Lagos</span>
+      </ScrollScene>
 
-      {/* Availability bar — a separate, minimal section, not layered
-          over the hero. Same exact Check-in/Check-out/Guests/Check
-          Availability component the homepage's own hero uses
-          (HomeAvailabilityCheck.tsx) — it already targets /rooms with
-          its results, so reusing it here just refreshes this same page's
-          own query params instead of navigating elsewhere. */}
-      <section className="mx-auto max-w-6xl px-6 py-8 md:px-12 md:py-10">
-        <HomeAvailabilityCheck
-          initialCheckIn={hasDates ? rawCheckIn : null}
-          initialCheckOut={hasDates ? rawCheckOut : null}
-        />
-      </section>
-
-      <section id="rooms" className="mx-auto max-w-6xl scroll-mt-20 px-6 pb-16 md:px-12 md:pb-24">
-        <p className="text-xs tracking-widest text-brass uppercase">The Collection</p>
-        <h2 className="mt-3 font-display text-3xl text-charcoal md:text-4xl">
-          Every room, considered.
-        </h2>
-
-        {rows.length === 0 ? (
-          <p className="mt-16 text-charcoal/60">
-            No rooms are listed yet. Check back shortly.
+      <section id="availability" className="rooms-availability-section">
+        <Reveal className="rooms-availability-copy">
+          <p className="section-kicker">Your next stay starts here</p>
+          <h2 className="section-title">A room for your plans.<br />A little time for you.</h2>
+          <p className="section-description">
+            Choose your dates and check which rooms are available.
+            From a comfortable Standard to a spacious 1-Bedroom Suite,
+            there is a place to make yourself at home.
           </p>
+          <a href="#rooms" className="rooms-collection-link">
+            Meet the rooms <ArrowUpRight size={18} aria-hidden="true" />
+          </a>
+        </Reveal>
+        <Reveal className="rooms-availability-calendar">
+          <p className="section-kicker">Make yourself at home</p>
+          <h2>Check your room availability<br />on this calendar.</h2>
+          <HomeAvailabilityCheck
+            key={`${rawCheckIn}-${rawCheckOut}`}
+            variant="calendar"
+            initialCheckIn={hasDates ? rawCheckIn : null}
+            initialCheckOut={hasDates ? rawCheckOut : null}
+          />
+        </Reveal>
+      </section>
+
+      <section id="rooms" className="rooms-collection-section">
+        <Reveal className="rooms-collection-heading">
+          <div>
+            <p className="section-kicker">The collection</p>
+            <h2 className="section-title">Our rooms.</h2>
+          </div>
+          <p className="section-description">
+            Quiet corners, thoughtful details, and space to be yourself.
+            Discover all four room types at the Residence.
+          </p>
+        </Reveal>
+        {hasDates && (
+          <div className="rooms-search-summary" role="status">
+            <span>Availability for your selected dates</span>
+            <span>{rawCheckIn} &ndash; {rawCheckOut}</span>
+            <Link href="/rooms">Clear dates</Link>
+          </div>
+        )}
+        {rows.length === 0 ? (
+          <p className="rooms-empty-state">No rooms are listed yet. Check back shortly.</p>
         ) : (
           <RoomTypeList
             rows={rows}

@@ -30,6 +30,7 @@ export default function DateRangePicker({
   mode = 'range',
   minDate = null,
   bare = false,
+  inline = false,
 }: {
   blockedRanges: BlockedRange[]
   onChange: (checkIn: string | null, checkOut: string | null) => void
@@ -42,6 +43,8 @@ export default function DateRangePicker({
   // (e.g. the homepage booking widget's hairline-divided card) — every
   // other behavior is unchanged.
   bare?: boolean
+  // Presentation-only: show the existing calendar directly in the page.
+  inline?: boolean
   // 'single' collects just one date in one click — the selected day is
   // reported as the first (checkIn) onChange argument, with the second
   // always null. Used for editing just a check-out date, where forcing
@@ -186,7 +189,7 @@ export default function DateRangePicker({
 
   return (
     <div className="relative" ref={containerRef}>
-      <button
+      {!inline && <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={`flex w-full items-center gap-2 text-left focus:outline-none ${
@@ -214,15 +217,15 @@ export default function DateRangePicker({
         >
           {displayLabel}
         </span>
-      </button>
+      </button>}
 
-      {open && (
+      {(open || inline) && (
         <div
-          className={`absolute z-20 mt-2 rounded-sm border border-charcoal/10 bg-white shadow-xl ${
+          className={`${inline ? 'inline-calendar relative w-full p-4' : 'absolute z-20 mt-2 rounded-sm border border-charcoal/10 bg-white shadow-xl'} ${!inline ? (
             isLarge
               ? 'w-[min(300px,calc(100vw-2rem))] p-4'
               : 'w-[min(260px,calc(100vw-2rem))] p-3'
-          }`}
+          ) : ''}`}
         >
           <div
             className={`flex select-none touch-pan-y items-center justify-between ${

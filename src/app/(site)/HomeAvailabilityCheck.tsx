@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { ArrowUpRight } from 'lucide-react'
 import DateRangePicker from '@/components/DateRangePicker'
 import GuestPicker, { type GuestCounts } from './GuestPicker'
 import { parseISODate, toISODate } from '@/lib/dateUtils'
@@ -15,18 +16,8 @@ function dayAfter(iso: string): string {
   return toISODate(d)
 }
 
-// The floating white booking bar overlapping the hero's bottom edge (see
-// the -mt-* wrapper around this in page.tsx). A 2x2 grid below `sm`
-// (Check-in/Check-out on one row, Guests/button on the next) rather than
-// stacking all 4 items in one vertical column — kept deliberately short
-// even on narrow screens, since the whole point of the wrapper's
-// negative margin is to keep this bar from extending past the hero photo
-// behind it, and a 4-row stack would make that essentially unachievable
-// on a phone-height viewport. From `sm:` up it's a single hairline-
-// divided row. Check-in/check-out reuse DateRangePicker in `mode="single"`
-// (bare, so it renders as plain text + its own calendar icon with no
-// border) — two fields, still the one shared date-picker component and
-// its existing validation doing the work.
+// The homepage uses the inline calendar; the rooms page keeps the compact
+// booking bar. Both presentations share the same availability navigation.
 //
 // Guests is a real, working selector (adults/children are carried through
 // to /rooms as ?adults=&children=), but nothing on /rooms currently
@@ -37,11 +28,13 @@ function dayAfter(iso: string): string {
 export default function HomeAvailabilityCheck({
   initialCheckIn = null,
   initialCheckOut = null,
+  variant = 'bar',
 }: {
   // Only passed on /rooms, where dates may already be in the URL from a
   // previous search — the homepage never has any, so it omits these.
   initialCheckIn?: string | null
   initialCheckOut?: string | null
+  variant?: 'bar' | 'calendar'
 } = {}) {
   const router = useRouter()
   const [checkIn, setCheckIn] = useState<string | null>(initialCheckIn)
@@ -70,8 +63,35 @@ export default function HomeAvailabilityCheck({
     router.push(`/rooms?${params.toString()}`)
   }
 
+  if (variant === 'calendar') {
+    return (
+      <div className="availability-calendar">
+        <DateRangePicker
+          blockedRanges={[]}
+          initialCheckIn={initialCheckIn}
+          initialCheckOut={initialCheckOut}
+          onChange={(newCheckIn, newCheckOut) => {
+            setCheckIn(newCheckIn)
+            setCheckOut(newCheckOut)
+            setError('')
+          }}
+          inline
+          size="large"
+        />
+        <div className="calendar-guest-row">
+          <span>Guests</span>
+          <GuestPicker value={guests} onChange={setGuests} />
+        </div>
+        <button type="button" onClick={handleCheckAvailability} className="calendar-submit">
+          Check availability <ArrowUpRight size={17} aria-hidden="true" />
+        </button>
+        {error && <p role="alert" className="calendar-error">{error}</p>}
+      </div>
+    )
+  }
+
   return (
-    <div className="mx-auto w-full max-w-5xl rounded-sm bg-white p-4 shadow-2xl sm:p-3">
+    <div className="availability-bar mx-auto w-full max-w-5xl rounded-sm bg-white p-4 sm:p-3">
       {/* Check-in/Check-out share a row on mobile (grid-cols-2); Guests and
           the button each get their own full-width row below (col-span-2 —
           harmless once `sm:flex` swaps the parent to flex display, so it
