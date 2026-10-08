@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ArrowUpRight, Menu, X } from 'lucide-react'
@@ -18,6 +18,7 @@ export default function Header() {
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const headerRef = useRef<HTMLElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const hasHero = pathname === '/' || pathname === '/rooms'
   const transparent = hasHero && !scrolled && !open
@@ -33,17 +34,19 @@ export default function Header() {
 
   useEffect(() => {
     if (!open) return
-    function handleOutside(event: MouseEvent) {
-      if (!headerRef.current?.contains(event.target as Node)) setOpen(false)
-    }
-    function handleKey(event: KeyboardEvent) {
+    const panel = menuRef.current
+    if (!panel) return
+    const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false)
       if (event.key !== 'Tab') return
-      const links = Array.from(headerRef.current?.querySelectorAll<HTMLElement>('a, button') ?? [])
+      const links = Array.from(panel.querySelectorAll<HTMLElement>('a, button'))
         .filter((element) => element.getClientRects().length > 0)
       const first = links[0]
       const last = links[links.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
+      if (!panel.contains(document.activeElement)) {
+        event.preventDefault()
+        first?.focus({ preventScroll: true })
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault()
         last?.focus()
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -52,7 +55,7 @@ export default function Header() {
       }
     }
     const focusFrame = window.requestAnimationFrame(() => {
-      headerRef.current?.querySelector<HTMLElement>('.guest-mobile-nav a')?.focus()
+      panel.querySelector<HTMLElement>('[data-menu-close]')?.focus({ preventScroll: true })
     })
     const previousOverflow = document.body.style.overflow
     const desktop = window.matchMedia('(min-width: 900px)')
@@ -60,20 +63,23 @@ export default function Header() {
       if (event.matches) setOpen(false)
     }
     document.body.style.overflow = 'hidden'
+    const background = Array.from(document.querySelectorAll<HTMLElement>('.guest-header, .site-content, .guest-footer'))
+    const previousInert = background.map((element) => element.inert)
+    background.forEach((element) => { element.inert = true })
     desktop.addEventListener('change', closeOnDesktop)
-    document.addEventListener('mousedown', handleOutside)
     document.addEventListener('keydown', handleKey)
     return () => {
       window.cancelAnimationFrame(focusFrame)
       document.body.style.overflow = previousOverflow
+      background.forEach((element, index) => { element.inert = previousInert[index] })
       desktop.removeEventListener('change', closeOnDesktop)
-      document.removeEventListener('mousedown', handleOutside)
       document.removeEventListener('keydown', handleKey)
-      headerRef.current?.querySelector<HTMLElement>('.guest-menu-toggle')?.focus()
+      headerRef.current?.querySelector<HTMLElement>('.guest-menu-toggle')?.focus({ preventScroll: true })
     }
   }, [open])
 
   return (
+    <>
     <header ref={headerRef} className={`guest-header ${transparent ? 'header-transparent' : 'header-solid'} ${open ? 'menu-open' : ''}`}>
       <a href="#main-content" className="skip-link">Skip to content</a>
       <div className="guest-header-row">
@@ -96,20 +102,46 @@ export default function Header() {
           </button>
         </div>
       </div>
-      {open && (
-        <nav id="guest-mobile-menu" className="guest-mobile-nav" aria-label="Mobile navigation">
+    </header>
+    {/* A sibling avoids the blurred header becoming the fixed panel's containing block. */}
+    <div
+      ref={menuRef}
+      id="guest-mobile-menu"
+      className={`mobile-menu-panel ${open ? 'is-open' : ''}`}
+      role="dialog"
+      aria-modal={open || undefined}
+      aria-labelledby="mobile-menu-title"
+      aria-hidden={!open}
+      inert={!open}
+    >
+      <h2 id="mobile-menu-title" className="sr-only">Site navigation</h2>
+      <div className="mobile-menu-header">
+        <Link href="/" onClick={() => setOpen(false)} className="guest-wordmark" aria-label={`${HOTEL_NAME} home`}>
+          TAVERN<span>RESIDENCE &middot; LEKKI</span>
+        </Link>
+        <button type="button" data-menu-close onClick={() => setOpen(false)} className="mobile-menu-close" aria-label="Close menu">
+          <X size={26} strokeWidth={1.5} aria-hidden="true" />
+        </button>
+      </div>
+      <div className="mobile-menu-content">
+        <p className="mobile-menu-eyebrow">Make yourself at home</p>
+        <nav className="guest-mobile-nav" aria-label="Mobile navigation">
           {[...links, { label: 'My booking', href: '/manage-booking' }, { label: 'Policies', href: '/policies' }].map((link, index) => (
-            <Link key={link.label} href={link.href} onClick={() => setOpen(false)}>
+            <Link key={link.label} href={link.href} onClick={() => setOpen(false)} style={{ '--menu-item-index': index } as CSSProperties} aria-current={pathname === link.href ? 'page' : undefined}>
               <span className="mobile-nav-number">0{index + 1}</span>
               {link.label}
               <ArrowUpRight size={22} aria-hidden="true" />
             </Link>
           ))}
-          <Link href="/rooms" onClick={() => setOpen(false)} className="mobile-booking-link">
-            Find your room <ArrowUpRight size={22} aria-hidden="true" />
-          </Link>
         </nav>
-      )}
-    </header>
+      </div>
+      <div className="mobile-menu-footer">
+        <Link href="/rooms" onClick={() => setOpen(false)} className="mobile-booking-link">
+          Find your room <span><ArrowUpRight size={22} aria-hidden="true" /></span>
+        </Link>
+        <p>Your own little place in Lekki, Lagos.</p>
+      </div>
+    </div>
+    </>
   )
 }

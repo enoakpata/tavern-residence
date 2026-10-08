@@ -1,6 +1,6 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Abril_Fatface, IM_Fell_French_Canon } from "next/font/google";
+import { Abril_Fatface, Lora } from "next/font/google";
 import "./guest.css";
 
 const primaryFont = Abril_Fatface({
@@ -11,9 +11,9 @@ const primaryFont = Abril_Fatface({
   fallback: ["Georgia", "serif"],
 });
 
-const secondaryFont = IM_Fell_French_Canon({
+const secondaryFont = Lora({
   subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "500", "600", "700"],
   style: ["normal", "italic"],
   display: "swap",
   variable: "--font-secondary",
