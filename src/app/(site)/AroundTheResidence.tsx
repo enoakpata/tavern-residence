@@ -1,212 +1,26 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
-import { ArrowUpRight } from 'lucide-react'
-import Reveal from '@/components/Reveal'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import GalleryLightbox from '@/components/GalleryLightbox'
-import { GALLERY_IMAGE_GRADE } from '@/lib/galleryImageGrade'
-
-// Placeholder captions standing in for real ones — swap these (and the
-// images passed in from page.tsx) for the real, labeled shots whenever
-// they exist. Not shown anywhere as visible UI (see the hover tiles and
-// GalleryLightbox — no caption text renders in either); kept only as
-// `alt` text, since accessibility labeling and "no text overlay" are
-// separate concerns. Cycled with `%` against however many images
-// actually arrive, so nothing breaks if that count isn't a multiple of
-// this list's length.
-const CAPTIONS = ['Residence interior']
-
-const PAGE_SIZE = 4
-
-// Bento spans for each tile, in DOM order, unprefixed so they apply at
-// every breakpoint — the grid itself goes from 2 columns (mobile) to 4
-// (md+, see the container below), and a span like "col-span-2" scales
-// with it automatically (half the grid on mobile, half on desktop too,
-// just more columns to divide). Paired with `grid-flow-dense`, the
-// browser packs each span into the next available gap on its own — one
-// large feature tile, one tall, one wide, the rest square — without
-// hand-placed grid-column/row coordinates that would break the moment a
-// page's photo count changes (e.g. a final, partial page).
-const TILE_SPANS = [
-  'gallery-tile-tall',
-  'gallery-tile-small',
-  'gallery-tile-small',
-  'gallery-tile-tall',
-]
-
-// Swipe must clear this many px horizontally, and stay mostly horizontal
-// (not a vertical scroll gesture), to count as a page-change swipe rather
-// than the guest just scrolling the page past this section.
-const SWIPE_THRESHOLD_PX = 50
 
 export default function AroundTheResidence({ images }: { images: string[] }) {
-  const photos = images.map((src, i) => ({ src, caption: CAPTIONS[i % CAPTIONS.length] }))
-
-  const pageCount = Math.ceil(photos.length / PAGE_SIZE)
-  const [pageIndex, setPageIndex] = useState(0)
-
-  // Fade the current page out, swap its photos while invisible, fade the
-  // new page in — adjusting state during render (React's documented
-  // pattern for reacting to a prop/state change without an extra
-  // effect-triggered render) is the same approach BookingForm.tsx already
-  // uses for its own step-swap fade, and GalleryLightbox.tsx for its
-  // photo crossfade. Kept as a horizontal offset alongside the opacity
-  // fade (see the transform below) for a touch of the "slide" motion
-  // without an actual sliding animation — still one calm, deliberate
-  // fade, matching the rest of the site's motion.
-  const [displayedPage, setDisplayedPage] = useState(0)
-  const [contentVisible, setContentVisible] = useState(true)
-  const [swapPending, setSwapPending] = useState(false)
-  // Which edge the incoming page should feel like it's arriving from —
-  // only affects the brief translate-x during the fade, not layout.
-  const [swapDirection, setSwapDirection] = useState<1 | -1>(1)
-
-  if (pageIndex !== displayedPage && !swapPending) {
-    setContentVisible(false)
-    setSwapPending(true)
-  }
-
-  useEffect(() => {
-    if (!swapPending) return
-    const timeout = setTimeout(() => {
-      setDisplayedPage(pageIndex)
-      setContentVisible(true)
-      setSwapPending(false)
-    }, 200)
-    return () => clearTimeout(timeout)
-  }, [swapPending, pageIndex])
-
-  const touchStartX = useRef<number | null>(null)
-  const touchStartY = useRef<number | null>(null)
+  const track = useRef<HTMLDivElement>(null)
+  const [active, setActive] = useState(0)
   const [openIndex, setOpenIndex] = useState<number | null>(null)
-
-  if (photos.length === 0) return null
-
-  function goToPage(next: number) {
-    const clamped = Math.max(0, Math.min(pageCount - 1, next))
-    if (clamped === pageIndex) return
-    setSwapDirection(clamped > pageIndex ? 1 : -1)
-    setPageIndex(clamped)
+  if (!images.length) return null
+  function show(index: number) {
+    const element = track.current
+    if (!element) return
+    const next = (index + images.length) % images.length
+    const card = element.children[next] as HTMLElement | undefined
+    if (card) element.scrollTo({ left: card.offsetLeft - element.offsetLeft, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
   }
-
-  function handleTouchStart(e: React.TouchEvent) {
-    touchStartX.current = e.touches[0].clientX
-    touchStartY.current = e.touches[0].clientY
-  }
-
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null) return
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current
-    const deltaY = e.changedTouches[0].clientY - (touchStartY.current ?? e.changedTouches[0].clientY)
-    touchStartX.current = null
-    touchStartY.current = null
-    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX || Math.abs(deltaX) <= Math.abs(deltaY)) return
-    // Swipe left (negative delta) moves forward, same direction a
-    // left-swipe carries content on any horizontally-paginated surface.
-    goToPage(deltaX < 0 ? pageIndex + 1 : pageIndex - 1)
-  }
-
-  const pagePhotos = photos.slice(displayedPage * PAGE_SIZE, displayedPage * PAGE_SIZE + PAGE_SIZE)
-  const isFirstPage = pageIndex === 0
-  const isLastPage = pageIndex === pageCount - 1
-
-  return (
-    <section id="gallery" className="home-section residence-gallery-section">
-      <Reveal className="section-heading-row gallery-heading">
-        <div><p className="section-kicker">A closer look</p><h2 className="section-title">Experience the<br />Residence.</h2></div>
-        <div><p className="section-description">Thoughtful spaces. Familiar comforts.<br />Take a look around your next home away from home.</p><Link href="/contact" className="outline-pill">Find us in Lekki <span className="pill-icon"><ArrowUpRight size={17} aria-hidden="true" /></span></Link></div>
-      </Reveal>
-
-      <Reveal className="relative gallery-grid-wrapper">
-        {pageCount > 1 && (
-          <button
-            type="button"
-            onClick={() => goToPage(pageIndex - 1)}
-            aria-label="Previous photos"
-            disabled={isFirstPage}
-            className={`absolute left-0 top-1/2 z-10 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center text-charcoal/50 transition-opacity duration-base hover:text-charcoal ${
-              isFirstPage ? 'pointer-events-none opacity-0' : 'opacity-100'
-            }`}
-          >
-            <svg
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M15 5l-7 7 7 7" />
-            </svg>
-          </button>
-        )}
-
-        {pageCount > 1 && (
-          <button
-            type="button"
-            onClick={() => goToPage(pageIndex + 1)}
-            aria-label="Next photos"
-            disabled={isLastPage}
-            className={`absolute right-0 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 translate-x-1/2 items-center justify-center text-charcoal/50 transition-opacity duration-base hover:text-charcoal ${
-              isLastPage ? 'pointer-events-none opacity-0' : 'opacity-100'
-            }`}
-          >
-            <svg
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        )}
-
-        <div
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          className={`residence-gallery-grid transition-[opacity,transform] duration-200 ease-out ${
-            contentVisible
-              ? 'translate-x-0 opacity-100'
-              : `opacity-0 ${swapDirection === 1 ? '-translate-x-3' : 'translate-x-3'}`
-          }`}
-        >
-          {pagePhotos.map((photo, index) => (
-            <button
-              key={photo.src}
-              type="button"
-              onClick={() => setOpenIndex(displayedPage * PAGE_SIZE + index)}
-              aria-label={`View photo ${displayedPage * PAGE_SIZE + index + 1} of ${photos.length}`}
-              className={`gallery-tile group relative overflow-hidden rounded-sm bg-espresso/10 ${TILE_SPANS[index % TILE_SPANS.length]}`}
-            >
-              <Image
-                src={photo.src}
-                alt={`Interior view ${displayedPage * PAGE_SIZE + index + 1} at Tavern Residence`}
-                fill
-                sizes="(min-width: 768px) 40vw, 75vw"
-                className={`object-cover transition-transform duration-700 ease-out group-hover:scale-105 ${GALLERY_IMAGE_GRADE}`}
-              />
-            </button>
-          ))}
-        </div>
-      </Reveal>
-
-      {openIndex !== null && (
-        <GalleryLightbox
-          photos={photos}
-          index={openIndex}
-          onClose={() => setOpenIndex(null)}
-          onNavigate={setOpenIndex}
-        />
-      )}
-    </section>
-  )
+  return <section id="gallery" className="home-section residence-gallery-section">
+    <div className="editorial-heading"><p className="eyebrow">SPACE TO MAKE YOUR OWN</p><h2>Life at the Residence</h2><p>Warm interiors, thoughtful details, and familiar comforts. Take a closer look at the spaces that make Tavern Residence a welcoming place for business trips, weekends away, and longer stays.</p><button className="quiet-button" onClick={() => setOpenIndex(active)}>Discover the residence</button></div>
+    <div className="residence-carousel"><div ref={track} className="residence-photo-track" tabIndex={0} aria-label="Residence photo gallery" onScroll={() => { const element = track.current; if (element) setActive(Math.min(images.length - 1, Math.round(element.scrollLeft / (((element.firstElementChild as HTMLElement)?.offsetWidth ?? 0) + 24)))) }}>{images.map((src, index) => <button className="residence-photo" key={src} onClick={() => setOpenIndex(index)} aria-label={'Enlarge residence photo ' + (index + 1)}><Image src={src} alt={'Interior detail ' + (index + 1) + ' at Tavern Residence'} fill sizes="(min-width: 768px) 80vw, 90vw" className="object-cover" /></button>)}</div><button className="slider-arrow previous" onClick={() => show(active - 1)} aria-label="Previous residence photo"><ChevronLeft size={20} /></button><button className="slider-arrow next" onClick={() => show(active + 1)} aria-label="Next residence photo"><ChevronRight size={20} /></button></div>
+    <div className="gallery-pagination"><span>{String(active + 1).padStart(2, '0')}</span><div className="gallery-progress"><span style={{ width: ((active + 1) / images.length) * 100 + '%' }} /></div><span>{String(images.length).padStart(2, '0')}</span></div>
+    {openIndex !== null && <GalleryLightbox photos={images.map(src => ({ src, caption: 'Residence interior' }))} index={openIndex} onClose={() => setOpenIndex(null)} onNavigate={setOpenIndex} />}
+  </section>
 }

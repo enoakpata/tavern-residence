@@ -9,10 +9,9 @@ import {
   HOTEL_ADDRESS_REGION,
   HOTEL_PHONE_TEL,
 } from '@/lib/siteConfig'
-import Link from 'next/link'
-import { ArrowDown, ArrowUpRight } from 'lucide-react'
-import ScrollScene from '@/components/ScrollScene'
-import { FacilitiesSection, DiningSection, StayStylesSection } from './GuestHomeSections'
+import { FacilitiesSection, DiningSection, StayStylesSection, WelcomeSection, ComfortSection, GettingHereSection, BookingInvitation } from './GuestHomeSections'
+import ResidenceStories from './ResidenceStories'
+import HomeAvailabilityCheck from './HomeAvailabilityCheck'
 import OurRooms, { type RoomCardData } from './OurRooms'
 import AroundTheResidence from './AroundTheResidence'
 import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER } from '@/lib/roomTypeContent'
@@ -73,7 +72,9 @@ export default async function Home() {
   // Excluded from the "Around the Residence" section's own pool only —
   // the hero above still picks freely from the full `galleryImages` list,
   // so this doesn't affect which photo ends up as the hero background.
-  const residenceGalleryImages = galleryImages.filter((src) => !src.endsWith('/1.jpg'))
+  const residenceGalleryImages = galleryImages
+    .filter((src) => !src.endsWith('/1.jpg'))
+    .sort((a, b) => Number(b.endsWith('/19.jpg')) - Number(a.endsWith('/19.jpg')))
 
   const hotelJsonLd = {
     '@context': 'https://schema.org',
@@ -96,24 +97,23 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(hotelJsonLd) }}
       />
       <main>
-        <ScrollScene className="home-hero">
-          {heroImage && <Image src={heroImage} alt={`${HOTEL_NAME}, a private hotel apartment in Lekki Phase 1, Lagos`} fill priority sizes="100vw" className="hero-photo object-cover" />}
+        <section className="home-hero">
+          {heroImage && <Image src={heroImage} alt={`${HOTEL_NAME}, a private hotel apartment in Lekki Phase 1, Lagos`} fill preload sizes="100vw" className="hero-photo object-cover" />}
           <div className="hero-shade" />
-          <div className="hero-intro"><span className="hero-location">LEKKI PHASE 1, LAGOS</span><p>A little escape. A warm welcome.<br />Your own place in the heart of Lekki.</p></div>
-          <div className="hero-headline"><p>Your stay, beautifully simple.</p><h1>Book your<br />comfort room<br />today.</h1><Link href="/rooms" className="hero-book-link">Find your room <ArrowUpRight size={20} aria-hidden="true" /></Link></div>
-          <div className="hero-orbit">
-            <div className="hero-orbit-photo"><Image src="/images/102/room_102.jpg" alt="A one-bedroom suite at Tavern Residence" fill sizes="(min-width: 900px) 24vw, 40vw" className="object-cover" /></div>
-            <span className="orbit-label orbit-label-one">Unwind <i /></span><span className="orbit-label orbit-label-two">Settle in <i /></span><span className="orbit-label orbit-label-three">Feel at home <i /></span>
-          </div>
-          <a href="#rooms-preview" className="hero-scroll-link">Scroll to discover <ArrowDown size={16} aria-hidden="true" /></a>
-        </ScrollScene>
-
+          <div className="hero-headline"><h1>Experience comfort &amp; convenience{' '}<br />at your home in Lekki</h1><p>A warm welcome. A little more room. A stay to remember.</p></div>
+          <div className="hero-availability"><HomeAvailabilityCheck /></div>
+        </section>
+        <WelcomeSection />
+        <ResidenceStories />
         <OurRooms rooms={ourRooms} />
 
         <FacilitiesSection />
         <DiningSection />
+        <ComfortSection />
         <AroundTheResidence images={residenceGalleryImages} />
         <StayStylesSection />
+        <BookingInvitation />
+        <GettingHereSection />
       </main>
     </>
   )

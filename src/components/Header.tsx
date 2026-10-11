@@ -7,30 +7,18 @@ import { ArrowUpRight, Menu, X } from 'lucide-react'
 import { HOTEL_NAME } from '@/lib/siteConfig'
 
 const links = [
-  { label: 'Home', href: '/' },
+  { label: 'Overview', href: '/#overview' },
   { label: 'Rooms', href: '/rooms' },
-  { label: 'Facilities', href: '/#facilities' },
-  { label: 'Dining', href: '/#dining' },
-  { label: 'Contact', href: '/contact' },
+  { label: 'Amenities', href: '/#facilities' },
+  { label: 'Gallery', href: '/#gallery' },
+  { label: 'Experiences', href: '/#experiences' },
 ]
 
 export default function Header() {
   const [open, setOpen] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
   const headerRef = useRef<HTMLElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
-  const hasHero = pathname === '/' || pathname === '/rooms'
-  const transparent = hasHero && !scrolled && !open
-
-  useEffect(() => {
-    function handleScroll() {
-      setScrolled(window.scrollY > 40)
-    }
-    handleScroll()
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [pathname])
 
   useEffect(() => {
     if (!open) return
@@ -80,11 +68,11 @@ export default function Header() {
 
   return (
     <>
-    <header ref={headerRef} className={`guest-header ${transparent ? 'header-transparent' : 'header-solid'} ${open ? 'menu-open' : ''}`}>
+    <header ref={headerRef} className={`guest-header header-solid ${open ? 'menu-open' : ''}`}>
       <a href="#main-content" className="skip-link">Skip to content</a>
       <div className="guest-header-row">
         <Link href="/" onClick={() => setOpen(false)} className="guest-wordmark" aria-label={`${HOTEL_NAME} home`}>
-          TAVERN<span>RESIDENCE &middot; LEKKI</span>
+          Tavern Residence
         </Link>
         <nav className="guest-desktop-nav" aria-label="Main navigation">
           {links.map((link) => (
@@ -95,7 +83,7 @@ export default function Header() {
         </nav>
         <div className="guest-header-actions">
           <Link href="/rooms" className="header-booking">
-            Booking <span><ArrowUpRight size={17} aria-hidden="true" /></span>
+            View rooms
           </Link>
           <button type="button" onClick={() => setOpen(!open)} aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open} aria-controls="guest-mobile-menu" className="guest-menu-toggle">
             {open ? <X size={23} /> : <Menu size={23} />}
@@ -117,7 +105,7 @@ export default function Header() {
       <h2 id="mobile-menu-title" className="sr-only">Site navigation</h2>
       <div className="mobile-menu-header">
         <Link href="/" onClick={() => setOpen(false)} className="guest-wordmark" aria-label={`${HOTEL_NAME} home`}>
-          TAVERN<span>RESIDENCE &middot; LEKKI</span>
+          Tavern Residence
         </Link>
         <button type="button" data-menu-close onClick={() => setOpen(false)} className="mobile-menu-close" aria-label="Close menu">
           <X size={26} strokeWidth={1.5} aria-hidden="true" />

@@ -1,11 +1,9 @@
-"use client"
+'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowUpRight, ChevronLeft, ChevronRight } from 'lucide-react'
-import Reveal from '@/components/Reveal'
-import HomeAvailabilityCheck from './HomeAvailabilityCheck'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 export type RoomCardData = {
   id: string
@@ -18,38 +16,32 @@ export type RoomCardData = {
 
 export default function OurRooms({ rooms }: { rooms: RoomCardData[] }) {
   const track = useRef<HTMLDivElement>(null)
+  const [active, setActive] = useState(0)
   function move(direction: number) {
     const element = track.current
     if (!element) return
-    element.scrollBy({ left: direction * (element.clientWidth / 3 + 16), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+    element.scrollBy({ left: direction * (element.clientWidth / 2 + 14), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
   }
-
+  function show(index: number) {
+    const element = track.current
+    const card = element?.children[index] as HTMLElement | undefined
+    if (element && card) element.scrollTo({ left: card.offsetLeft - element.offsetLeft, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+  }
   return (
     <section id="rooms-preview" className="home-section rooms-preview-section">
-      <Reveal className="rooms-preview-copy">
-        {rooms.length > 0 && <div ref={track} className="rooms-preview-track" aria-label="Explore our room types" tabIndex={0}>
-          {rooms.map((room) => <Link key={room.id} href={`/rooms/${room.id}`} className="preview-room-card">
-            {room.coverImage && <Image src={room.coverImage} alt={room.label} fill sizes="(min-width: 900px) 23vw, 60vw" className="object-cover" />}
-            <div className="photo-shade" />
-            <span className="room-detail-tag">Details <ArrowUpRight size={12} aria-hidden="true" /></span>
-            <div className="preview-room-caption"><h3>{room.label}</h3><p>{room.priceFromLabel}</p></div>
-          </Link>)}
-        </div>}
-        <div className="rooms-preview-heading">
-          <h2 className="section-title">Choose the best room<br />for your perfect stay.</h2>
-          {rooms.length > 1 && <div className="carousel-controls">
-            <button type="button" onClick={() => move(-1)} aria-label="Previous rooms"><ChevronLeft size={18} /></button>
-            <button type="button" onClick={() => move(1)} aria-label="Next rooms"><ChevronRight size={18} /></button>
-          </div>}
+      <div className="editorial-heading"><h2>Rooms &amp; Suites</h2><p>Find your own corner of comfort at Tavern Residence. From a restful room to a spacious one-bedroom apartment, each space brings together thoughtful details and the ease of feeling at home.</p><Link href="/rooms" className="quiet-button">Discover all</Link></div>
+      {rooms.length > 0 ? <>
+        <div className="room-carousel">
+          <div ref={track} className="rooms-preview-track" aria-label="Explore our room types" tabIndex={0} onScroll={() => { const element = track.current; if (element) setActive(Math.min(rooms.length - 1, Math.round(element.scrollLeft / (((element.firstElementChild as HTMLElement)?.offsetWidth ?? 0) + 24)))) }}>
+            {rooms.map(room => <Link key={room.id} href={'/rooms/' + room.id} className="preview-room-card">
+              {room.coverImage && <Image src={room.coverImage} alt={room.label} fill sizes="(min-width: 768px) 45vw, 85vw" className="object-cover" />}
+              <div className="photo-shade" /><div className="preview-room-caption"><h3>{room.label}</h3><p>{room.priceFromLabel}</p></div><ChevronRight className="room-card-arrow" size={22} aria-hidden="true" />
+            </Link>)}
+          </div>
+          {rooms.length > 1 && <><button className="slider-arrow previous" onClick={() => move(-1)} aria-label="Previous room"><ChevronLeft size={20} /></button><button className="slider-arrow next" onClick={() => move(1)} aria-label="Next room"><ChevronRight size={20} /></button></>}
         </div>
-        <p className="section-description">Find your own little corner of comfort.<br />Four room types. One warm welcome.</p>
-        <Link href="/rooms" className="outline-pill">Explore rooms <span className="pill-icon"><ArrowUpRight size={17} aria-hidden="true" /></span></Link>
-      </Reveal>
-      <Reveal className="rooms-calendar-column">
-        <p className="section-kicker">Make yourself at home</p>
-        <h2>Check your room availability<br />on this calendar.</h2>
-        <HomeAvailabilityCheck variant="calendar" />
-      </Reveal>
+        <div className="slider-dots">{rooms.map((room, index) => <button key={room.id} onClick={() => show(index)} aria-label={'Show ' + room.label} aria-pressed={active === index} className={active === index ? 'active' : ''} />)}</div>
+      </> : <p className="rooms-empty">Explore our room types and plan your stay. <Link href="/rooms">View rooms</Link></p>}
     </section>
   )
 }
