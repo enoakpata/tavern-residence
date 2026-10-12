@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
   const { data: bookings, error } = await supabaseAdmin
     .from('Bookings')
-    .select('id, guest_name, guest_email, check_in, Rooms(room_number, name)')
+    .select('id, guest_name, guest_email, check_in, Rooms(name)')
     .eq('check_in', tomorrow)
     .eq('status', 'confirmed')
     .eq('reminder_sent', false)
@@ -45,7 +45,6 @@ export async function GET(request: Request) {
         to: booking.guest_email,
         ...buildCheckinReminderEmail({
           guestName: booking.guest_name,
-          roomNumber: room?.room_number ?? '',
           roomName: room?.name ?? 'your room',
           checkIn: booking.check_in,
           bookingId: booking.id,

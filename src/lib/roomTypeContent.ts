@@ -57,7 +57,7 @@ export const ROOM_TYPE_CONTENT: Record<RoomTypeKey, RoomTypeContent> = {
     dbName: 'Standard Room',
     label: 'Standard Room',
     category: 'Standard',
-    rowAmenities: ['King bed', 'Ensuite bathroom', 'Smart TV', 'Free Wi-Fi', 'Air conditioning'],
+    rowAmenities: ['Ensuite bathroom', 'Smart TV', 'Free Wi-Fi', 'Air conditioning'],
     longDescription:
       'Relax in this charming bedroom, perfect for solo travelers, couples, or remote workers. The space features a comfortable bedroom and a clean ensuite bathroom, with a dedicated workstation that makes it easy to stay productive during your stay. Enjoy a peaceful atmosphere and all the essentials you need for a comfortable visit.',
     amenities: [
@@ -76,7 +76,6 @@ export const ROOM_TYPE_CONTENT: Record<RoomTypeKey, RoomTypeContent> = {
     label: 'Studio',
     category: 'Studio',
     rowAmenities: [
-      'King bed',
       'Dry kitchenette',
       'Ensuite bathroom',
       'Smart TV',
@@ -102,7 +101,6 @@ export const ROOM_TYPE_CONTENT: Record<RoomTypeKey, RoomTypeContent> = {
     label: '1-Bedroom Deluxe',
     category: '1-Bedroom',
     rowAmenities: [
-      'King bed',
       'Living area',
       'Dry kitchenette',
       'Ensuite bathroom',
@@ -129,7 +127,6 @@ export const ROOM_TYPE_CONTENT: Record<RoomTypeKey, RoomTypeContent> = {
     label: '1-Bedroom Suite',
     category: '1-Bedroom',
     rowAmenities: [
-      'King bed',
       'Living area',
       'Guest toilet',
       'Dry kitchenette',

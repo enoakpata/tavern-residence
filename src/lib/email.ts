@@ -43,7 +43,6 @@ function formatDate(isoDate: string) {
 
 export function buildGuestConfirmationEmail({
   guestName,
-  roomNumber,
   roomName,
   checkIn,
   checkOut,
@@ -52,7 +51,6 @@ export function buildGuestConfirmationEmail({
   isSameDayBooking = false,
 }: {
   guestName: string
-  roomNumber: string
   roomName: string
   checkIn: string
   checkOut: string
@@ -78,7 +76,7 @@ export function buildGuestConfirmationEmail({
     <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
       <p>Hi ${guestName},</p>
 
-      <p>Thanks for booking with ${HOTEL_NAME}. Your request for Room ${roomNumber} — ${roomName} — has been received.</p>
+      <p>Thanks for booking with ${HOTEL_NAME}. Your request for the ${roomName} has been received.</p>
 
       <p>
         <strong>Check-in:</strong> ${formatDate(checkIn)}<br />
@@ -107,13 +105,11 @@ export function buildGuestConfirmationEmail({
 
 export function buildCheckinReminderEmail({
   guestName,
-  roomNumber,
   roomName,
   checkIn,
   bookingId,
 }: {
   guestName: string
-  roomNumber: string
   roomName: string
   checkIn: string
   bookingId: string
@@ -127,7 +123,7 @@ export function buildCheckinReminderEmail({
       <p>Just a reminder that your stay at ${HOTEL_NAME} begins tomorrow, ${formatDate(checkIn)}.</p>
 
       <p>
-        <strong>Room:</strong> ${roomNumber} — ${roomName}<br />
+        <strong>Room:</strong> ${roomName}<br />
         <strong>Check-in from:</strong> 2:00 PM<br />
         <strong>Address:</strong> ${HOTEL_ADDRESS}
       </p>
@@ -143,7 +139,7 @@ export function buildCheckinReminderEmail({
   `
 
   return {
-    subject: `See you tomorrow — Room ${roomNumber} at ${HOTEL_NAME}`,
+    subject: `See you tomorrow — ${roomName} at ${HOTEL_NAME}`,
     html,
   }
 }

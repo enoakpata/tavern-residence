@@ -36,7 +36,7 @@ export default async function ManageBookingPage({
 
   const { data: booking } = await supabaseAdmin
     .from('Bookings')
-    .select('*, Rooms(name, room_number, price_per_night)')
+    .select('*, Rooms(name, price_per_night)')
     .eq('id', id)
     .single()
 
@@ -75,7 +75,7 @@ export default async function ManageBookingPage({
 
       <div className="mt-8 rounded-sm border border-charcoal/10 bg-white p-6">
         <p className="text-xs tracking-widest text-brass uppercase">
-          {room ? `${room.room_number} — ${room.name}` : 'Room'}
+          {room?.name ?? 'Room'}
         </p>
 
         <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-charcoal/10 pt-4 text-sm">

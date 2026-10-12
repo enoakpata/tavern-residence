@@ -154,12 +154,12 @@ export default async function RoomDetailPage({
     <main className="mx-auto max-w-6xl px-6 py-16 md:px-12 md:py-24">
       <div className="grid gap-12 lg:grid-cols-2">
         <div>
-          <RoomGallery images={images} roomName={r.name} roomNumber={r.room_number} />
+          <RoomGallery images={images} roomName={r.name} />
         </div>
 
         <div>
           <p className="text-xs tracking-widest text-brass uppercase">
-            {r.room_type} · Room {r.room_number} · {r.floor} floor
+            {r.room_type} · {r.floor} floor
           </p>
           <h1 className="mt-3 font-display text-4xl text-charcoal">
             {r.name}

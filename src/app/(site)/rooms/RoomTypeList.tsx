@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import { Users, BedDouble as BedIcon } from 'lucide-react'
 import type { RoomTypeContent, RoomTypeKey } from '@/lib/roomTypeContent'
 import { AMENITY_ICONS } from '@/lib/amenityIcons'
 import RoomTypeModal from './RoomTypeModal'
@@ -11,14 +12,18 @@ export type RoomTypeRowData = {
   coverImage: string | null
   galleryImages: string[]
   priceLabel: string
+  // Real Rooms.max_occupancy / bed_type off the representative room —
+  // never invented. bed_type is currently "King" for every room, already
+  // covered by the "King bed" entry in rowAmenities, so only occupancy
+  // gets its own icon+label pairing here (see the capacity row below).
+  maxOccupancy: number
+  bedType: string
   // Only meaningful when hasDates is true — see below.
   isAvailable: boolean
 }
 
 // 4 rows, one per type, thumbnail left / details middle / price+actions
 // right on desktop — collapses to a stacked column per row on mobile.
-// Replaces the earlier 2x2 card grid: with exactly 4 known types this
-// reads as a tighter, more editorial list rather than a photo grid.
 // "Book Now" carries the room TYPE + selected dates straight to the
 // existing per-room booking flow (rooms/book/page.tsx resolves an actual
 // available room server-side); "View Room" opens the same detail modal
@@ -64,20 +69,23 @@ export default function RoomTypeList({
           if (childrenCount) bookParams.set('children', childrenCount)
 
           return (
+            // Calm, not bouncy — a soft background tint on the row and a
+            // gentle zoom on its thumbnail, both on the same transition
+            // duration the site uses everywhere else (duration-base).
             <div
               key={row.content.key}
-              className={`flex flex-col gap-5 py-8 md:flex-row md:items-center md:gap-8 ${
+              className={`group flex flex-col gap-5 rounded-sm px-3 py-8 transition-colors duration-base hover:bg-charcoal/[0.02] sm:-mx-3 md:flex-row md:items-center md:gap-8 ${
                 isUnavailable ? 'opacity-50' : ''
               }`}
             >
-              <div className="relative h-48 w-full shrink-0 overflow-hidden rounded-sm bg-espresso/10 md:h-28 md:w-40">
+              <div className="relative h-56 w-full shrink-0 overflow-hidden rounded-sm bg-espresso/10 sm:h-36 sm:w-36">
                 {row.coverImage ? (
                   <Image
                     src={row.coverImage}
                     alt={row.content.label}
                     fill
-                    sizes="(min-width: 768px) 160px, 100vw"
-                    className="object-cover"
+                    sizes="(min-width: 640px) 144px, 100vw"
+                    className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-espresso/40 uppercase">
@@ -90,9 +98,25 @@ export default function RoomTypeList({
                 <p className="text-xs tracking-widest text-brass uppercase">
                   {row.content.category}
                 </p>
-                <h3 className="mt-1 font-display text-2xl text-charcoal">
+                <h3 className="mt-1 font-display text-2xl text-charcoal md:text-[26px]">
                   {row.content.label}
                 </h3>
+
+                {/* Capacity + bed type — small icon+label pairing, same
+                    treatment as the amenity spec line below it but kept
+                    as its own row since it's about the room's basic
+                    specs rather than its amenities. */}
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  <span className="flex items-center gap-1.5 text-xs text-charcoal/70">
+                    <Users size={14} strokeWidth={1.5} className="shrink-0 text-espresso" />
+                    Up to {row.maxOccupancy} guest{row.maxOccupancy === 1 ? '' : 's'}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs text-charcoal/70">
+                    <BedIcon size={14} strokeWidth={1.5} className="shrink-0 text-espresso" />
+                    {row.bedType} bed
+                  </span>
+                </div>
+
                 {/* Icon + label spec line — compact amenity set, distinct
                     from the modal's fuller list, wrapping onto more than
                     one line on narrow viewports rather than truncating. */}
@@ -114,13 +138,13 @@ export default function RoomTypeList({
                 </ul>
               </div>
 
-              <div className="flex shrink-0 flex-row items-center justify-between gap-4 md:w-56 md:flex-col md:items-end">
+              <div className="flex shrink-0 flex-row items-end justify-between gap-4 md:w-48 md:flex-col md:items-end">
                 <div>
                   <p className="text-lg text-charcoal">From {row.priceLabel}</p>
                   <p className="text-xs text-charcoal/50">per night</p>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col items-end gap-2">
                   {isUnavailable ? (
                     <span className="text-xs font-medium tracking-wide text-clay">
                       Unavailable for selected dates
@@ -144,10 +168,13 @@ export default function RoomTypeList({
                       Book Now
                     </a>
                   )}
+                  {/* Secondary action, deliberately understated (smaller,
+                      muted) so Book Now reads as the row's one primary
+                      CTA — stacked beneath it rather than beside it. */}
                   <button
                     type="button"
                     onClick={() => setOpenKey(row.content.key)}
-                    className="text-sm text-espresso underline-offset-4 hover:underline"
+                    className="py-1 text-xs text-charcoal/50 underline-offset-4 hover:text-charcoal hover:underline"
                   >
                     View Room
                   </button>

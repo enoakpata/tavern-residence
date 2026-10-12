@@ -95,7 +95,7 @@ export default function ManageBookingSearch() {
                     className="block rounded-sm border border-charcoal/10 bg-white p-5 transition-colors hover:border-espresso/40"
                   >
                     <p className="text-xs tracking-widest text-brass uppercase">
-                      {b.room_number ? `${b.room_number} — ${b.room_name}` : b.room_name}
+                      {b.room_name}
                     </p>
                     <p className="mt-2 text-charcoal">
                       {formatDate(b.check_in)} – {formatDate(b.check_out)}

@@ -137,7 +137,6 @@ const roomNumber = roomData?.room_number ?? ''
 
 const guestEmailContent = buildGuestConfirmationEmail({
   guestName,
-  roomNumber,
   roomName,
   checkIn,
   checkOut,

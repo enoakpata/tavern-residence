@@ -10,17 +10,14 @@ const IMAGE_SIZES = '(min-width: 1024px) 50vw, 100vw'
 export default function RoomGallery({
   images,
   roomName,
-  roomNumber,
 }: {
   images: string[]
   roomName: string
-  // Omitted by callers showing a room TYPE rather than one physical room
-  // (e.g. the /rooms type-detail modal) — alt text drops the "Room X"
-  // clause entirely in that case, rather than showing a blank/undefined
-  // room number.
-  roomNumber?: string
 }) {
-  const altSuffix = roomNumber ? ` — Room ${roomNumber} at ${HOTEL_NAME}` : ` at ${HOTEL_NAME}`
+  // No room number in alt text — this gallery is guest-facing (room
+  // detail page, /rooms type-detail modal), and guests only ever see the
+  // room TYPE name, never a physical room number.
+  const altSuffix = ` at ${HOTEL_NAME}`
   const [active, setActive] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const dragStartX = useRef(0)
