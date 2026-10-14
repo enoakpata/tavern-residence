@@ -12,6 +12,7 @@ import {
 } from '@/lib/email'
 import type { Room } from '@/lib/types'
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
+import { displayRoomName } from '@/lib/roomTypeContent'
 
 type ActionResult = { success: true } | { success: false; error: string }
 
@@ -102,15 +103,13 @@ export async function createManualBooking(formData: FormData): Promise<ActionRes
     try {
       const { data: roomData } = await supabase
         .from('Rooms')
-        .select('name, room_number')
+        .select('name')
         .eq('id', roomId)
         .single()
-      const roomName = roomData?.name ?? 'your room'
-      const roomNumber = roomData?.room_number ?? ''
+      const roomName = displayRoomName(roomData?.name, 'your room')
 
       const guestEmailContent = buildGuestConfirmationEmail({
         guestName,
-        roomNumber,
         roomName,
         checkIn,
         checkOut,
@@ -524,7 +523,7 @@ async function notifyCancellationByEmail(
       ...buildCancellationNotificationEmail({
         guestName: booking.guest_name,
         roomNumber: booking.Rooms?.room_number ?? '',
-        roomName: booking.Rooms?.name ?? 'the room',
+        roomName: displayRoomName(booking.Rooms?.name, 'the room'),
         checkIn: booking.check_in,
         checkOut: booking.check_out,
         feeCharged,

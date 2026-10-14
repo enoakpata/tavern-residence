@@ -6,6 +6,7 @@ import { calculateCancellationOutcome } from '@/lib/bookings'
 import { chargeAuthorization } from '@/lib/paystack'
 import { sendEmail, buildCancellationNotificationEmail } from '@/lib/email'
 import { HOTEL_PHONE_DISPLAY, HOTEL_EMAIL } from '@/lib/siteConfig'
+import { displayRoomName } from '@/lib/roomTypeContent'
 
 const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
 
@@ -31,7 +32,7 @@ async function notifyCancellation(
   feeAmount: number
 ) {
   const roomNumber = booking.Rooms?.room_number ?? ''
-  const roomName = booking.Rooms?.name ?? 'the room'
+  const roomName = displayRoomName(booking.Rooms?.name, 'the room')
   const message = `Booking cancelled: ${booking.guest_name} — Room ${roomNumber} (${
     feeCharged ? `₦${feeAmount.toLocaleString()} fee charged` : 'no fee'
   })`

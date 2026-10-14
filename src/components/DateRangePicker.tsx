@@ -221,7 +221,7 @@ export default function DateRangePicker({
 
       {(open || inline) && (
         <div
-          className={`${inline ? 'inline-calendar relative w-full p-4' : 'absolute z-20 mt-2 rounded-sm border border-charcoal/10 bg-white shadow-xl'} ${!inline ? (
+          className={`${inline ? 'inline-calendar relative w-full p-4' : 'date-picker-popover absolute z-20 mt-2 rounded-sm border border-charcoal/10 bg-white shadow-xl'} ${!inline ? (
             isLarge
               ? 'w-[min(300px,calc(100vw-2rem))] p-4'
               : 'w-[min(260px,calc(100vw-2rem))] p-3'

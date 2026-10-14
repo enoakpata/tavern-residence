@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
+import CrossfadeImage from './CrossfadeImage'
 import { GALLERY_IMAGE_GRADE } from '@/lib/galleryImageGrade'
 
 export type LightboxPhoto = { src: string; caption: string }
@@ -9,10 +9,8 @@ export type LightboxPhoto = { src: string; caption: string }
 // Custom-built lightbox (no plugin) — dark, cinematic overlay for viewing
 // the property photography full-bleed. Close/arrow controls are thin-line
 // SVGs matching the header's own icon style (see Header.tsx's hamburger/
-// close icon: stroke-only, round caps, no fill). Switching photos does a
-// short opacity crossfade rather than a slide, mirroring the same
-// fade-swap pattern BookingForm.tsx already uses for its own step
-// transitions — nothing new invented for that motion.
+// close icon: stroke-only, round caps, no fill). Switching photos crossfades
+// via CrossfadeImage rather than a slide — see that component for how.
 export default function GalleryLightbox({
   photos,
   index,
@@ -24,26 +22,14 @@ export default function GalleryLightbox({
   onClose: () => void
   onNavigate: (index: number) => void
 }) {
-  // Crossfade between photos (and the initial fade-in on open): adjusting
-  // state during render — React's documented pattern for reacting to a
-  // prop change without an extra effect-triggered render — the same one
-  // BookingForm.tsx already uses for its own step-swap fade. This starts
-  // the fade-out synchronously the moment `index` changes; the effect
-  // below only ever calls setState inside its setTimeout callback, never
-  // directly in the effect body.
-  const [visible, setVisible] = useState(false)
-  const [lastIndex, setLastIndex] = useState(index)
-
-  if (index !== lastIndex) {
-    setLastIndex(index)
-    if (visible) setVisible(false)
-  }
-
+  // Fade-in on open only — the crossfade *between* photos as `index`
+  // changes is CrossfadeImage's own job now (two stacked layers, see
+  // that component), not re-implemented here.
+  const [mounted, setMounted] = useState(false)
   useEffect(() => {
-    if (visible) return
-    const timeout = setTimeout(() => setVisible(true), 20)
-    return () => clearTimeout(timeout)
-  }, [visible])
+    const frame = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
 
   // Locks background scroll while the lightbox is open — a full-bleed
   // photo viewer, unlike ConfirmModal's small dialog, so a scrolling page
@@ -143,10 +129,10 @@ export default function GalleryLightbox({
 
       <div
         className={`relative h-[65vh] w-full max-w-4xl transition-opacity duration-200 ${
-          visible ? 'opacity-100' : 'opacity-0'
+          mounted ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        <Image
+        <CrossfadeImage
           src={photo.src}
           alt={`${photo.caption} at Tavern Residence`}
           fill

@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowDown, ArrowUpRight } from 'lucide-react'
-import Reveal from '@/components/Reveal'
+import { ArrowDown } from 'lucide-react'
 import ScrollScene from '@/components/ScrollScene'
 import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
@@ -19,7 +18,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: `Rooms & Suites | ${HOTEL_NAME}`,
-  description: `Browse Studio, 1-Bedroom, and Standard rooms at ${HOTEL_NAME} in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION} — from ₦90,000 to ₦200,000 per night, each with a king bed and kitchenette.`,
+  description: `Browse Studio, 1-Bedroom, and Single rooms at ${HOTEL_NAME} in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION} — from ₦90,000 to ₦200,000 per night, each with a king bed and kitchenette.`,
 }
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -90,8 +89,8 @@ export default async function RoomsPage({
       const content = ROOM_TYPE_CONTENT[key]
       const physicalRooms = roomsByTypeKey.get(key)!
       const roomIds = physicalRooms.map((r) => r.id)
-      // A representative physical room, only for its photos/price — its
-      // own room_number is never shown, only used to look up which
+      // A representative physical room, only for its photos/price/specs —
+      // its own room_number is never shown, only used to look up which
       // image folder (public/images/<room_number>/) belongs to this type.
       const representative =
         physicalRooms.find((r) => r.room_number === content.representativeRoomNumber) ??
@@ -112,6 +111,9 @@ export default async function RoomsPage({
           MODAL_GALLERY_MAX_PHOTOS
         ),
         priceLabel: `₦${representative.price_per_night.toLocaleString()}`,
+        // Real Rooms columns — never invented.
+        maxOccupancy: representative.max_occupancy,
+        bedType: representative.bed_type,
         isAvailable,
       }
     })
@@ -136,72 +138,47 @@ export default async function RoomsPage({
         )}
         <div className="rooms-hero-shade" />
         <div className="rooms-hero-copy">
-          <p className="rooms-hero-kicker">The rooms at Tavern Residence</p>
-          <h1>Room to<br />slow down.</h1>
-          <p>Four ways to settle in.<br />Find the space that feels like yours.</p>
+          <h1>Rooms and Suites</h1>
           <Link href="#rooms" className="outline-pill rooms-hero-link">
             Explore the collection <ArrowDown size={16} aria-hidden="true" />
           </Link>
         </div>
         <span className="rooms-hero-location">Lekki Phase 1, Lagos</span>
-      </ScrollScene>
 
-      <section id="availability" className="rooms-availability-section">
-        <Reveal className="rooms-availability-copy">
-          <p className="section-kicker">Your next stay starts here</p>
-          <h2 className="section-title">A room for your plans.<br />A little time for you.</h2>
-          <p className="section-description">
-            Choose your dates and check which rooms are available.
-            From a comfortable Standard to a spacious 1-Bedroom Suite,
-            there is a place to make yourself at home.
-          </p>
-          <a href="#rooms" className="rooms-collection-link">
-            Meet the rooms <ArrowUpRight size={18} aria-hidden="true" />
-          </a>
-        </Reveal>
-        <Reveal className="rooms-availability-calendar">
-          <p className="section-kicker">Make yourself at home</p>
-          <h2>Check your room availability<br />on this calendar.</h2>
+        {/* The exact homepage availability bar (HomeAvailabilityCheck's
+            default "bar" variant, same DateRangePicker/GuestPicker) —
+            reused as-is, not rebuilt, overlaid on the hero the same way
+            the homepage's own hero-availability sits on its hero. The
+            hero's own image/headline/button above are untouched; this is
+            purely an added sibling. */}
+        <div id="availability" className="hero-availability rooms-hero-availability">
           <HomeAvailabilityCheck
             key={`${rawCheckIn}-${rawCheckOut}`}
-            variant="calendar"
             initialCheckIn={hasDates ? rawCheckIn : null}
             initialCheckOut={hasDates ? rawCheckOut : null}
           />
-        </Reveal>
-      </section>
+        </div>
+      </ScrollScene>
 
-      <section id="rooms" className="rooms-collection-section">
-        <Reveal className="rooms-collection-heading">
-          <div>
-            <p className="section-kicker">The collection</p>
-            <h2 className="section-title">Our rooms.</h2>
-          </div>
-          <p className="section-description">
-            Quiet corners, thoughtful details, and space to be yourself.
-            Discover all four room types at the Residence.
-          </p>
-        </Reveal>
-        {hasDates && (
-          <div className="rooms-search-summary" role="status">
-            <span>Availability for your selected dates</span>
-            <span>{rawCheckIn} &ndash; {rawCheckOut}</span>
-            <Link href="/rooms">Clear dates</Link>
-          </div>
-        )}
-        {rows.length === 0 ? (
-          <p className="rooms-empty-state">No rooms are listed yet. Check back shortly.</p>
-        ) : (
-          <RoomTypeList
-            rows={rows}
-            hasDates={hasDates}
-            checkIn={hasDates ? rawCheckIn : null}
-            checkOut={hasDates ? rawCheckOut : null}
-            adults={adults}
-            childrenCount={childrenCount}
-          />
-        )}
-      </section>
+      {hasDates && (
+        <div className="rooms-search-summary" role="status">
+          <span>Availability for your selected dates</span>
+          <span>{rawCheckIn} &ndash; {rawCheckOut}</span>
+          <Link href="/rooms">Clear dates</Link>
+        </div>
+      )}
+      {rows.length === 0 ? (
+        <p className="rooms-empty-state">No rooms are listed yet. Check back shortly.</p>
+      ) : (
+        <RoomTypeList
+          rows={rows}
+          hasDates={hasDates}
+          checkIn={hasDates ? rawCheckIn : null}
+          checkOut={hasDates ? rawCheckOut : null}
+          adults={adults}
+          childrenCount={childrenCount}
+        />
+      )}
     </main>
   )
 }

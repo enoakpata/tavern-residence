@@ -2,7 +2,7 @@
 html:has(.guest-site) { scroll-behavior: smooth; }
 .guest-site {
   --ivory: #fff; --charcoal: #3e3c33; --stone: #68665e; --espresso: #66511d; --brass: #E3C162;
-  --primary: #E3C162; --primary-hover: #d4ae46; --on-primary: #30291b;
+  --primary: #f3dda0; --primary-hover: #d4ae46; --on-primary: #30291b;
   --paper: #f5f3eb; --line: #e5e2d7;
   display: flex; flex: 1; flex-direction: column; min-height: 100svh; background: #fff;
   color: var(--charcoal); font-family: var(--font-secondary), Arial, sans-serif; overflow-x: clip;
@@ -45,22 +45,76 @@ html:has(.guest-site) { scroll-behavior: smooth; }
 .guest-site .home-hero { position: relative; isolation: isolate; width: 100%; max-width: none; margin: 0; height: calc(100svh - 65px); background: #393529; border-radius: 0; color: white; }
 .hero-photo { border-radius: 0; }
 .hero-shade { position: absolute; inset: 0; border-radius: 0; background: linear-gradient(rgb(25 20 13 / 28%),rgb(25 20 13 / 40%)); }
+/* Extra darkening specifically behind the now-transparent availability
+   bar — a safety net for whichever hero photo happens to be in rotation
+   (getGalleryImages()/the homepage's own pick) being too bright for the
+   glass bar's white text on its own, without having to make the bar
+   itself less transparent. Sits below the bar's own z-index:5 so the
+   bar renders on top of it; clipped to each hero's own border-radius
+   automatically via that hero's overflow:hidden (/rooms) or square
+   corners (homepage, full-bleed). Shared by both .home-hero and
+   .rooms-page-hero (defined in rooms.css) rather than duplicated. */
+.guest-site .home-hero::after, .rooms-page-hero::after { content: ''; position: absolute; inset: auto 0 0 0; height: 45%; max-height: 220px; background: linear-gradient(to bottom, transparent, rgb(10 8 5 / 55%)); pointer-events: none; z-index: 4; }
 .hero-headline { position: absolute; top: 38%; left: 24px; right: 24px; transform: translateY(-50%); text-align: center; }
 .hero-headline h1 { font-size: clamp(40px, 4.7vw, 68px); line-height: 1.04; color: #fff; text-wrap: balance; }
 .hero-headline p { margin-top: 20px; font-size: 12px; color: #f5f0e5; line-height: 1.6; }
 .hero-availability { position: absolute; z-index: 5; bottom: 26px; left: 28px; right: 28px; }
-.hero-availability .availability-bar { max-width: none; background: var(--primary); padding: 12px; border: none; border-radius: 3px; color: var(--on-primary); }
+/* Same glass look on both the homepage hero and /rooms — the hero photo
+   shows through (see the .availability-bar base rule below), so every
+   label/value/icon/divider inside needs to switch to light text instead
+   of its normal dark default — the next block does that, scoped to
+   .hero-availability so it only affects the bar while it's actually
+   sitting over a photo (the /rooms mobile fallback, where the bar drops
+   out of the hero entirely, resets all of this back to dark — see
+   rooms.css). A soft dark gradient at the base of each hero (further
+   down this file, on .home-hero/.rooms-page-hero) backs this up in case
+   a given hero photo is too bright on its own.
+
+   The :not() exclusions below matter: DateRangePicker's and GuestPicker's
+   popovers render as DOM children of .availability-bar (not a portal),
+   so without them this descendant selector's specificity beats the
+   popovers' own Tailwind text-color utilities and turns their calendar/
+   stepper text white on their own white popover background. Excluding
+   popover descendants leaves the trigger row (outside the popover) glass-
+   styled as before, while the popover's own past/available/today/
+   selected/booked styling — untouched here — shows through normally. */
+.hero-availability .availability-bar { max-width: none; padding: 12px; }
 .hero-availability .availability-bar > div { align-items: center; }
-.hero-availability .availability-bar .text-stone { color: var(--on-primary); }
-.hero-availability .availability-bar > div > div { border-color: rgb(48 41 27 / 20%); }
+.hero-availability .availability-bar > div > div { border-color: rgb(255 255 255 / 25%); }
 .hero-availability .availability-bar > div > div:last-child { border: none; }
-.hero-availability .availability-bar > div > div:last-child > button { background: #fff; color: #514b32; border: none; border-radius: 3px; font-size: 11px; letter-spacing: 0; text-transform: none; min-height: 44px; }
-.hero-availability .availability-bar > div > div:last-child > button:hover { background: #eee9d8; }
-.hero-availability .availability-bar > p { color: #713421; }
-.hero-availability .availability-bar > div > div > div > button { color: #fff; }
-.hero-availability .availability-bar > div > div > div > button .text-stone { color: var(--on-primary); }
-.hero-availability .guest-picker-trigger { color: #fff; }
-.availability-bar { border: 1px solid var(--line); border-radius: 3px; box-shadow: none; }
+.hero-availability .availability-bar p:not(.date-picker-popover *, .guest-picker-popover *),
+.hero-availability .availability-bar span:not(.date-picker-popover *, .guest-picker-popover *),
+.hero-availability .availability-bar button:not(.date-picker-popover *, .guest-picker-popover *) { color: #fff; text-shadow: 0 1px 3px rgb(0 0 0 / 35%); }
+.hero-availability .availability-bar svg:not(.date-picker-popover *, .guest-picker-popover *) { color: rgb(255 255 255 / 90%); }
+.hero-availability .availability-bar > p { color: #ffe3c2; }
+/* Opens upward instead of downward while inside the bar — the bar now
+   lives INSIDE the hero (bottom-anchored, overlaid), and /rooms' hero
+   specifically has overflow:hidden (for its own rounded photo corners,
+   untouched) which would otherwise clip a downward-opening popover
+   against the hero's own bottom edge. Opening upward lands it in the
+   hero's own open space above the bar instead, where there's room on
+   both heroes regardless of overflow — no change to the homepage's
+   hero (no overflow:hidden there either way), just a consistently
+   better-fitting direction for a bottom-anchored trigger generally. */
+.hero-availability .date-picker-popover, .hero-availability .guest-picker-popover {
+  top: auto; bottom: 100%; margin-top: 0; margin-bottom: 10px;
+}
+/* Glass — the hero photo shows through. A light tint (not solid white),
+   blurred, with a soft white hairline border — the one shared bar look,
+   used as-is by both the homepage hero overlay and the /rooms hero
+   overlay. */
+.availability-bar { background: rgb(255 255 255 / 15%); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgb(255 255 255 / 35%); border-radius: 3px; box-shadow: none; }
+/* Shared "Check Availability" button — rectangular (not a pill), the
+   site's gold token as a semi-transparent fill (not solid), white text,
+   normal case — used by the bar on both pages so they share one exact
+   look, per the component itself rather than a page-scoped override.
+   Gold token (--primary) is #f3dda0 = rgb(243 221 160); hardcoded as
+   rgb()/alpha here since CSS can't apply an alpha on top of a var()
+   color without color-mix(), and the exact opacity matters (it's what
+   keeps the white text readable over the hero photo). */
+.availability-submit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 24px; border-radius: 3px; background: rgb(243 221 160 / 62%); border: 1px solid rgb(243 221 160 / 80%); color: #fff; text-shadow: 0 1px 3px rgb(0 0 0 / 35%); font-family: var(--font-secondary), Arial, sans-serif; font-size: 13px; font-weight: 500; letter-spacing: normal; text-transform: none; transition: background .2s, border-color .2s; }
+.availability-submit:hover { background: rgb(243 221 160 / 88%); }
+.availability-submit:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .guest-site .welcome-section { margin-top: 80px; margin-bottom: 0; }
 .guest-site .welcome-section h2 { font-size: clamp(36px, 3.8vw, 52px); }
 .guest-site .welcome-section > p:not(.eyebrow) { max-width: 880px; }
@@ -69,10 +123,17 @@ html:has(.guest-site) { scroll-behavior: smooth; }
 .stories-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .stories-heading h2 { font-size: 42px; }
 .stories-heading .text-link { text-decoration: underline; text-underline-offset: 4px; }
-.stories-layout { display: grid; grid-template-columns: 1.4fr 1fr 1fr; align-items: start; gap: 16px; }
+/* Dead CSS — kept only because AroundTheResidence.tsx's gallery grid
+   copies these values; the "Our Story" section that used to render
+   with these classes has been removed. No story-copy text sits below
+   the photo any more — story-feature now stretches to match the
+   taller, offset side photos instead of pinning to the row's start, and
+   story-photo fills that stretched height so the trio keeps looking like
+   one deliberate composition rather than a short photo over a gap. */
+.stories-layout { display: grid; grid-template-columns: 1.4fr 1fr 1fr; align-items: stretch; gap: 16px; }
 .story-feature { position: relative; border-left: 1px solid var(--line); }
 .story-feature::after { content: ''; position: absolute; bottom: 0; left: -4px; width: 7px; height: 7px; border: 1px solid #b1ab94; border-radius: 50%; background: white; }
-.story-photo { position: relative; height: 330px; overflow: hidden; border-radius: 4px; }
+.story-photo { position: relative; height: 100%; overflow: hidden; border-radius: 4px; }
 .story-copy { padding: 22px 20px 0; }
 .story-copy h3 { font-size: 37px; margin: 8px 0 12px; line-height: 1.05; }
 .story-copy > p:not(.eyebrow) { font-size: 12px; color: var(--stone); line-height: 1.8; max-width: 370px; }
@@ -111,9 +172,9 @@ html:has(.guest-site) { scroll-behavior: smooth; }
 
 /* Amenity blocks, dining card and alternating stay features. */
 .guest-site .facilities-section { margin-top: 100px; }
-.amenity-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
-.amenity-tile { grid-column: span 2; background: var(--paper); border-radius: 4px; padding: 25px; min-height: 166px; position: relative; transition: background .2s, color .2s; }
-.amenity-tile:nth-child(n+4) { grid-column: span 3; }
+/* 4 even tiles (previously 6 columns split 3+2 for 5 tiles). */
+.amenity-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.amenity-tile { background: var(--paper); border-radius: 4px; padding: 25px; min-height: 166px; position: relative; transition: background .2s, color .2s; }
 .amenity-tile > svg:first-child { color: var(--espresso); margin-bottom: 20px; }
 .amenity-tile h3 { font-size: 28px; line-height: 1.1; margin-bottom: 10px; }
 .amenity-tile p { font-size: 11px; line-height: 1.6; }
@@ -140,12 +201,34 @@ html:has(.guest-site) { scroll-behavior: smooth; }
 .comfort-copy .text-link { margin-top: 10px; }
 .comfort-photo { position: relative; height: 360px; border-radius: 4px; overflow: hidden; }
 
-/* Full-width gallery with native swipe and an accessible lightbox. */
+/* Full-width gallery with pointer-drag swipe and an accessible lightbox.
+   AroundTheResidence.tsx renders one fixed-position trio — a sliding
+   window over `images` (large tile + 2 small tiles, advancing by
+   exactly one image per step) — using the same staggered feature + two
+   offset photos pattern the former "Our Story" section used (see
+   .stories-layout/.story-* above) — copied here rather than shared,
+   since the two sections' grids are otherwise independent and may
+   diverge later. .residence-photo-track/.residence-group below are dead
+   — left over from an earlier native-scroll-track version of this
+   gallery — since the component no longer renders those classes. */
 .guest-site .residence-gallery-section { margin-top: 110px; }
 .residence-photo-track { position: relative; display: flex; gap: 24px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
-.residence-photo { flex: 0 0 100%; position: relative; aspect-ratio: 1.8; scroll-snap-align: start; overflow: hidden; border-radius: 4px; }
-.residence-photo img { transition: transform .4s; }
-.residence-photo:hover img { transform: scale(1.02); }
+.residence-group { flex: 0 0 100%; scroll-snap-align: start; }
+.residence-trio { display: grid; grid-template-columns: 1.4fr 1fr 1fr; align-items: stretch; gap: 16px; }
+.residence-feature { position: relative; border-left: 1px solid var(--line); }
+.residence-feature::after { content: ''; position: absolute; bottom: 0; left: -4px; width: 7px; height: 7px; border: 1px solid #b1ab94; border-radius: 50%; background: white; }
+.residence-feature-photo { position: relative; height: 100%; width: 100%; overflow: hidden; border-radius: 4px; display: block; }
+.residence-secondary, .residence-third { position: relative; overflow: hidden; border-radius: 4px; height: 420px; width: 100%; display: block; }
+.residence-secondary { margin-top: 110px; }
+.residence-third { margin-top: 32px; }
+/* Combined with the opacity transition here (not left to CrossfadeImage's
+   own Tailwind transition-opacity utility class) because this rule's
+   higher specificity (class + type selector) would otherwise win and
+   silently drop the opacity half of the crossfade — the shorthand
+   `transition` property always resets every sub-property it doesn't
+   list. Duration/easing kept in sync with CrossfadeImage's own constant. */
+.residence-trio img { transition: transform .4s, opacity 600ms ease-in-out; }
+.residence-feature-photo:hover img, .residence-secondary:hover img, .residence-third:hover img { transform: scale(1.02); }
 .gallery-pagination { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 25px; font-size: 10px; color: var(--stone); }
 .gallery-progress { height: 2px; width: 70px; background: var(--line); }
 .gallery-progress > span { display: block; height: 100%; background: var(--espresso); transition: width .2s; }
@@ -225,10 +308,13 @@ html:has(.guest-site) { scroll-behavior: smooth; }
   .guest-site .home-section, .guest-footer { width: calc(100% - 56px); margin-top: 75px; }
   .hero-availability { left: 18px; right: 18px; bottom: 20px; }
   .hero-availability .availability-bar > div > div { padding-inline: 12px; }
-  .story-photo { height: 245px; }
+  .story-photo { height: 100%; }
   .story-secondary { height: 330px; margin-top: 70px; }
   .story-third { height: 330px; }
   .story-copy { padding-inline: 15px; }
+  .residence-feature-photo { height: 100%; }
+  .residence-secondary { height: 330px; margin-top: 70px; }
+  .residence-third { height: 330px; }
   .comfort-photo { height: 300px; }
   .comfort-row { gap: 30px; }
   .comfort-copy h3 { font-size: 34px; }
@@ -256,7 +342,7 @@ html:has(.guest-site) { scroll-behavior: smooth; }
   .hero-availability .availability-bar { padding: 10px; }
   .hero-availability .availability-bar > div { gap: 8px; }
   .hero-availability .availability-bar > div > div { padding: 10px 6px; }
-  .hero-availability .availability-bar > div > div:nth-child(3) { border-top: 1px solid rgb(48 41 27 / 20%); }
+  .hero-availability .availability-bar > div > div:nth-child(3) { border-top: 1px solid rgb(255 255 255 / 25%); }
   .hero-availability .availability-bar > div > div:last-child { padding: 0; }
   .guest-site .home-section, .guest-footer { width: calc(100% - 40px); margin-top: 65px; }
   .guest-site .editorial-heading { margin-bottom: 28px; }
@@ -283,8 +369,7 @@ html:has(.guest-site) { scroll-behavior: smooth; }
   .slider-arrow.previous { left: -12px; }
   .slider-arrow.next { right: -12px; }
   .amenity-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .amenity-tile, .amenity-tile:nth-child(n+4) { grid-column: auto; padding: 20px 16px; min-height: 170px; }
-  .amenity-tile:last-child { grid-column: 1 / -1; min-height: 140px; }
+  .amenity-tile { padding: 20px 16px; min-height: 170px; }
   .amenity-tile h3 { font-size: 25px; }
   .amenity-tile p { font-size: 11px; }
   .amenity-tile > svg:first-child { margin-bottom: 15px; }
@@ -298,7 +383,11 @@ html:has(.guest-site) { scroll-behavior: smooth; }
   .comfort-copy { padding: 0 10px; }
   .comfort-copy h3 { font-size: 35px; }
   .comfort-copy > p:not(.eyebrow) { font-size: 13px; }
-  .residence-photo { aspect-ratio: 1.2; }
+  .residence-trio { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .residence-feature { grid-column: 1 / -1; }
+  .residence-feature-photo { height: 270px; }
+  .residence-secondary, .residence-third { height: 205px; margin-top: 10px; }
+  .residence-third { margin-top: 40px; }
   .guest-site .residence-gallery-section, .guest-site .experiences-section { margin-top: 75px; }
   .experience-grid { grid-template-columns: 1fr; gap: 25px; }
   .experience-photo { height: 240px; }
@@ -328,11 +417,11 @@ html:has(.guest-site) { scroll-behavior: smooth; }
   .guest-site .reveal { opacity: 1; transform: none; }
 }
 
-/* Keep only the booking-bar triggers light; popovers retain dark text. */
-.hero-availability .availability-bar > div > div > div > .relative > button,
-.hero-availability .availability-bar > div > div > div > .relative > button > span,
-.hero-availability .availability-bar > div > div > div > .relative > button > svg { color: var(--on-primary); font-size: 13px; }
-.hero-availability .availability-bar > div > div > div > .relative > .absolute { color: var(--charcoal); }
+/* The bar's own triggers/popovers now just use their normal dark-text
+   defaults (the near-white background provides the contrast against the
+   hero photo, not light-colored trigger text) — only the "it opens
+   rightward" nudge for the 3rd field's popover (Guests, closest to the
+   bar's right edge) still needs a page-specific position tweak. */
 .hero-availability .availability-bar > div > div:nth-child(3) .relative > .absolute { right: 0; }
 
 .dining-photo img { object-position: center 70%; }
@@ -342,4 +431,87 @@ html:has(.guest-site) { scroll-behavior: smooth; }
 .guest-site :is(button, a).bg-brass:hover, .guest-site :is(button, a).bg-espresso:hover { background-color: var(--primary-hover); }
 .guest-site .text-brass { color: var(--espresso); }
 .guest-site :is(button,a,input,textarea,select):focus-visible { outline-color: var(--espresso); }
-.hero-availability .availability-bar > div > div > div > button, .hero-availability .guest-picker-trigger { color: var(--on-primary); }
+
+/* Popovers (date picker + guests) clamped to the viewport on narrow
+   screens — previously they could open off the right edge and clip
+   (the .w-[min(...)] width clamp alone doesn't prevent that, since it
+   only caps width, not horizontal position). Fixed to the viewport
+   (not the trigger), which also sidesteps any ancestor's own
+   overflow:hidden (none of DateRangePicker's/GuestPicker's ancestors on
+   either page apply a transform, so `fixed` stays viewport-relative —
+   confirmed for both the homepage and /rooms hero contexts). Acts as a
+   simple bottom sheet: anchored to the bottom with side margins, scrolls
+   internally if the content (a 6-week month grid) is taller than the
+   available space. !important because these need to reliably win over
+   the components' own Tailwind position/width utility classes, which
+   have identical (0,1,0) specificity and could otherwise come after this
+   rule in the cascade depending on build order. */
+@media (max-width: 599px) {
+  .date-picker-popover:not(.inline-calendar), .guest-picker-popover {
+    position: fixed !important;
+    inset: auto 16px 16px 16px !important;
+    margin-top: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: min(75vh, 500px);
+    overflow-y: auto;
+  }
+}
+
+/* =====================================================================
+   GLASS HEADER EXPERIMENT — self-contained, nothing above this point
+   touched. Applied only on hero pages (Header.tsx: `hasHero`, matched by
+   exact pathname — "/" and "/rooms" only, so /rooms/[id] etc. stay
+   solid). TO REVERT: delete this block, and in Header.tsx stop adding
+   `header--glass`/`is-scrolled` to the <header>'s className (one small
+   edit there, or just leave those classes being added — with no CSS
+   left to match them, they're inert). The existing .guest-header/
+   .header-solid rules above are completely unchanged.
+
+   Switches the header from its normal `position: sticky` (reserves
+   64-65px of layout space above the hero) to `position: fixed` (floats
+   over it, zero layout space) so the hero can reach the very top of the
+   viewport — which is why .home-hero's height and /rooms' <main>
+   top-padding are adjusted below, scoped with :has(.header--glass) so
+   removing this block (or the class) reverts those automatically too,
+   with no leftover gap or overlap. Text stays white throughout both
+   states (transparent-over-photo, then more solid once scrolled) rather
+   than swapping colors, which keeps the 200-300ms transition to a
+   single property family (background/blur) instead of a color flip. */
+.header--glass {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgb(0 0 0 / 20%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid transparent;
+  box-shadow: none;
+  transition: background .25s ease, backdrop-filter .25s ease, border-color .25s ease;
+}
+.header--glass .guest-wordmark,
+.header--glass .guest-desktop-nav a,
+.header--glass .guest-menu-toggle { color: #fff; text-shadow: 0 1px 3px rgb(0 0 0 / 35%); transition: color .25s ease; }
+.header--glass .guest-desktop-nav a:hover, .header--glass .guest-desktop-nav .nav-active { color: #fff; text-decoration-color: rgb(255 255 255 / 70%); }
+/* Same translucent-gold button as the availability bar's own
+   .availability-submit (section 3) — same rgb()/alpha values, reused
+   here rather than duplicated differently. */
+.header--glass .header-booking { background: rgb(243 221 160 / 62%); border: 1px solid rgb(243 221 160 / 80%); color: #fff; text-shadow: 0 1px 3px rgb(0 0 0 / 35%); transition: background .25s ease, border-color .25s ease; }
+.header--glass .header-booking:hover { background: rgb(243 221 160 / 88%); }
+
+.header--glass.is-scrolled {
+  background: rgb(25 20 13 / 90%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom-color: rgb(255 255 255 / 12%);
+}
+
+/* Hero-height/main-padding compensation for the header no longer
+   occupying layout space — see the block comment above for why this is
+   scoped to :has(.header--glass) rather than applied unconditionally.
+   Not scoped to any breakpoint, so its (0,3,0) specificity also beats
+   the existing mobile-only .home-hero height rule above (0,2,0) at
+   every viewport, including the ones under 599px. */
+.guest-site:has(.header--glass) .home-hero { height: 100svh; }
+.guest-site:has(.header--glass) .site-content > main:has(.rooms-page-hero) { padding-top: 0; }

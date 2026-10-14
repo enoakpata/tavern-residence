@@ -1,6 +1,7 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { displayRoomName } from '@/lib/roomTypeContent'
 
 export type BookingSearchResult = {
   id: string
@@ -8,7 +9,6 @@ export type BookingSearchResult = {
   check_out: string
   status: string
   room_name: string
-  room_number: string
 }
 
 /**
@@ -30,7 +30,7 @@ export async function findBookings(
 
   const { data } = await supabaseAdmin
     .from('Bookings')
-    .select('id, check_in, check_out, status, Rooms(name, room_number)')
+    .select('id, check_in, check_out, status, Rooms(name)')
     .eq('guest_phone', trimmedPhone)
     .ilike('guest_email', trimmedEmail)
     .order('check_in', { ascending: false })
@@ -46,8 +46,7 @@ export async function findBookings(
       check_in: b.check_in,
       check_out: b.check_out,
       status: b.status,
-      room_name: room?.name ?? 'Room',
-      room_number: room?.room_number ?? '',
+      room_name: displayRoomName(room?.name, 'Room'),
     }
   })
 

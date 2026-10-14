@@ -16,11 +16,20 @@
 // guests as a room number anywhere this content is used.
 export type RoomTypeKey = 'standard' | 'studio' | 'deluxe' | 'suite'
 
+// The 4 real Rooms.name values, exactly as currently stored in Supabase —
+// a literal union rather than `string` so a typo in one of the 4 entries
+// below (or a rename that misses one) is a compile error here, instead of
+// a silently-dropped room card discovered later. This doesn't catch the
+// DB value itself changing out from under the code (no TS type can), but
+// the symptom is identical either way: fix by updating the one value
+// below to match whatever Supabase's Rooms.name actually is.
+export type RoomDbName = 'Single Room' | 'Studio Room' | '1-Bedroom Deluxe' | '1-Bedroom Suite'
+
 export type RoomTypeContent = {
   key: RoomTypeKey
   // Exact Rooms.name value shared by every physical room of this type —
   // the grouping key /rooms/page.tsx matches against.
-  dbName: string
+  dbName: RoomDbName
   // Display heading — matches the homepage's existing Our Rooms labels
   // exactly (kept as-is rather than switched to the longer dbName, so
   // the homepage's own copy doesn't change as a side effect of this).
@@ -54,9 +63,9 @@ export const ROOM_TYPE_ORDER: RoomTypeKey[] = ['standard', 'studio', 'deluxe', '
 export const ROOM_TYPE_CONTENT: Record<RoomTypeKey, RoomTypeContent> = {
   standard: {
     key: 'standard',
-    dbName: 'Standard Room',
-    label: 'Standard Room',
-    category: 'Standard',
+    dbName: 'Single Room',
+    label: 'Single Room',
+    category: 'Single',
     rowAmenities: ['King bed', 'Ensuite bathroom', 'Smart TV', 'Free Wi-Fi', 'Air conditioning'],
     longDescription:
       'Relax in this charming bedroom, perfect for solo travelers, couples, or remote workers. The space features a comfortable bedroom and a clean ensuite bathroom, with a dedicated workstation that makes it easy to stay productive during your stay. Enjoy a peaceful atmosphere and all the essentials you need for a comfortable visit.',
@@ -156,4 +165,28 @@ export const ROOM_TYPE_CONTENT: Record<RoomTypeKey, RoomTypeContent> = {
 
 export function getRoomTypeContentByDbName(dbName: string): RoomTypeContent | null {
   return Object.values(ROOM_TYPE_CONTENT).find((content) => content.dbName === dbName) ?? null
+}
+
+// Display label for a raw Rooms.name value (exactly what's stored in the
+// DB, e.g. "Studio Room") — the one place that maps a DB value to its
+// guest/staff-facing display name ("Studio"), so every caller that has a
+// raw room name and needs to render it goes through here instead of
+// re-deriving the mapping, or worse, displaying the DB value as-is. Used
+// outside /rooms too (confirmation/reminder emails, the admin dashboard,
+// manage-booking) — kept here rather than reverted, since those callers
+// still depend on it. Falls back to the raw value itself if it doesn't
+// match any known type (should never happen, but fails safely rather
+// than hiding a legitimate room name), or to `fallback` if there's no
+// name at all (e.g. the room record itself is missing).
+export function displayRoomName(dbName: string | null | undefined, fallback = 'the room'): string {
+  if (!dbName) return fallback
+  return getRoomTypeContentByDbName(dbName)?.label ?? dbName
+}
+
+// Same mapping, for the coarser Rooms.room_type column ('Standard' |
+// 'Studio' | '1-Bedroom') — only 'Standard' differs from its DB value,
+// the others render as-is.
+export function displayRoomCategory(roomType: string | null | undefined): string {
+  if (!roomType) return ''
+  return roomType === 'Standard' ? 'Single' : roomType
 }

@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import Image from 'next/image'
+import CrossfadeImage from './CrossfadeImage'
 import { HOTEL_NAME } from '@/lib/siteConfig'
 
 const DRAG_THRESHOLD = 50
@@ -10,39 +11,17 @@ const IMAGE_SIZES = '(min-width: 1024px) 50vw, 100vw'
 export default function RoomGallery({
   images,
   roomName,
-  roomNumber,
 }: {
   images: string[]
   roomName: string
-  // Omitted by callers showing a room TYPE rather than one physical room
-  // (e.g. the /rooms type-detail modal) — alt text drops the "Room X"
-  // clause entirely in that case, rather than showing a blank/undefined
-  // room number.
-  roomNumber?: string
 }) {
-  const altSuffix = roomNumber ? ` — Room ${roomNumber} at ${HOTEL_NAME}` : ` at ${HOTEL_NAME}`
+  // No room number in alt text — this gallery is guest-facing (room
+  // detail page, /rooms type-detail modal), and guests only ever see the
+  // room TYPE name, never a physical room number.
+  const altSuffix = ` at ${HOTEL_NAME}`
   const [active, setActive] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const dragStartX = useRef(0)
-
-  // Fade between photos — adjusting state during render (React's
-  // documented pattern for reacting to a state change without an extra
-  // effect-triggered render), the same approach GalleryLightbox.tsx
-  // already uses for its own photo crossfade: fade out the instant
-  // `active` changes, swap the src while invisible, fade back in. The
-  // effect below only ever calls setState inside its setTimeout callback,
-  // never directly in the effect body.
-  const [visible, setVisible] = useState(true)
-  const [lastActive, setLastActive] = useState(active)
-  if (active !== lastActive) {
-    setLastActive(active)
-    if (visible) setVisible(false)
-  }
-  useEffect(() => {
-    if (visible) return
-    const timeout = setTimeout(() => setVisible(true), 20)
-    return () => clearTimeout(timeout)
-  }, [visible])
 
   if (images.length === 0) {
     return (
@@ -120,17 +99,14 @@ export default function RoomGallery({
         onPointerLeave={handlePointerCancel}
         onKeyDown={handleKeyDown}
       >
-        <Image
-          key={images[active]}
+        <CrossfadeImage
           src={images[active]}
           alt={`${roomName}${altSuffix}, photo ${active + 1} of ${images.length}`}
           fill
           draggable={false}
           priority
           sizes={IMAGE_SIZES}
-          className={`object-cover transition-opacity duration-200 ${
-            visible ? 'opacity-100' : 'opacity-0'
-          }`}
+          className="object-cover"
         />
 
         {images.length > 1 && (

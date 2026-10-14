@@ -92,13 +92,11 @@ export default function HomeAvailabilityCheck({
 
   return (
     <div className="availability-bar mx-auto w-full max-w-5xl rounded-sm bg-white p-4 sm:p-3">
-      {/* Check-in/Check-out share a row on mobile (grid-cols-2); Guests and
-          the button each get their own full-width row below (col-span-2 —
-          harmless once `sm:flex` swaps the parent to flex display, so it
-          has no effect from `sm:` up). Giving the button the full card
-          width on mobile, rather than half a row shared with Guests, is
-          what keeps its label on one line instead of wrapping. */}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:flex sm:flex-row sm:items-stretch sm:gap-0 sm:divide-x sm:divide-charcoal/10">
+      {/* Every field stacks full-width on mobile (grid-cols-1) — a narrow
+          half-width Check-in/Check-out column used to force "Select
+          dates"/"Select check-out" onto two lines. `sm:flex` swaps to the
+          horizontal divided layout from the sm: breakpoint up. */}
+      <div className="grid grid-cols-1 gap-y-3 sm:flex sm:flex-row sm:items-stretch sm:gap-0 sm:divide-x sm:divide-charcoal/10">
         <div className="px-3 py-3 sm:flex-1 sm:px-5 sm:py-2">
           <p className="text-[10px] tracking-widest text-stone uppercase">
             Check-in
@@ -141,7 +139,7 @@ export default function HomeAvailabilityCheck({
           </div>
         </div>
 
-        <div className="col-span-2 px-3 py-3 sm:flex-1 sm:px-5 sm:py-2">
+        <div className="px-3 py-3 sm:flex-1 sm:px-5 sm:py-2">
           <p className="text-[10px] tracking-widest text-stone uppercase">
             Guests
           </p>
@@ -150,11 +148,11 @@ export default function HomeAvailabilityCheck({
           </div>
         </div>
 
-        <div className="col-span-2 flex items-center px-3 py-3 sm:px-5 sm:py-2">
+        <div className="flex items-center px-3 py-3 sm:px-5 sm:py-2">
           <button
             type="button"
             onClick={handleCheckAvailability}
-            className="w-full rounded-full border border-brass px-4 py-3 text-xs tracking-widest text-charcoal uppercase transition-colors duration-base hover:bg-brass/10 sm:w-auto sm:px-6 sm:tracking-[0.2em]"
+            className="availability-submit w-full sm:w-auto"
           >
             Check Availability
           </button>

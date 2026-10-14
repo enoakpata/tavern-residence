@@ -12,6 +12,7 @@ import {
   buildHotelNotificationEmail,
 } from '@/lib/email'
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
+import { displayRoomName } from '@/lib/roomTypeContent'
 
 export async function checkAvailability(
   roomId: string,
@@ -132,12 +133,11 @@ const { data: roomData } = await supabase
   .select('name, room_number')
   .eq('id', roomId)
   .single()
-const roomName = roomData?.name ?? 'your room'
+const roomName = displayRoomName(roomData?.name, 'your room')
 const roomNumber = roomData?.room_number ?? ''
 
 const guestEmailContent = buildGuestConfirmationEmail({
   guestName,
-  roomNumber,
   roomName,
   checkIn,
   checkOut,

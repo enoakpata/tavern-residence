@@ -69,7 +69,7 @@ export default function GuestPicker({
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-3 w-64 rounded-sm border border-charcoal/10 bg-ivory p-5 shadow-xl">
+        <div className="guest-picker-popover absolute z-20 mt-3 w-64 rounded-sm border border-charcoal/10 bg-ivory p-5 shadow-xl">
           <div className="flex items-center justify-between">
             <span className="text-sm text-charcoal">Adults</span>
             <div className="flex items-center gap-3">

@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import { ArrowUpRight } from 'lucide-react'
 import Reveal from '@/components/Reveal'
 import type { RoomTypeContent, RoomTypeKey } from '@/lib/roomTypeContent'
 import { AMENITY_ICONS } from '@/lib/amenityIcons'
+import RoomRowCarousel from './RoomRowCarousel'
 import RoomTypeModal from './RoomTypeModal'
 
 export type RoomTypeRowData = {
@@ -13,12 +13,19 @@ export type RoomTypeRowData = {
   coverImage: string | null
   galleryImages: string[]
   priceLabel: string
+  // Real Rooms columns off the representative room — never invented, for
+  // the row's "Guests / Bed" detail line.
+  maxOccupancy: number
+  bedType: string
   // Only meaningful when hasDates is true — see below.
   isAvailable: boolean
 }
 
-// Photo cards preserve the existing type resolver, date parameters, and detail modal.
-// Hover and keyboard focus reveal more detail; touch screens show it immediately.
+// Full-width alternating rows (image carousel / text), rather than a
+// card grid — row N's image goes left on odd rows, right on even rows
+// (index 0 = row 1 = image left), purely a function of position in
+// `rows`, which is already in the fixed display order (see
+// roomTypeContent.ts's ROOM_TYPE_ORDER).
 export default function RoomTypeList({
   rows,
   hasDates,
@@ -41,13 +48,11 @@ export default function RoomTypeList({
 
   return (
     <>
-      <div className="hotel-room-grid">
-        {rows.map((row) => {
-          // Only actually blocks the row when we know it's unavailable —
-          // with no dates picked yet, every type stays fully bookable.
+      <div id="rooms" className="room-rows">
+        {rows.map((row, index) => {
           const isUnavailable = hasDates && !row.isAvailable
+          const images = row.galleryImages.length > 0 ? row.galleryImages : row.coverImage ? [row.coverImage] : []
 
-          // Preserve the type and search parameters for the existing room resolver.
           const bookParams = new URLSearchParams({ type: row.content.dbName })
           if (checkIn) bookParams.set('checkin', checkIn)
           if (checkOut) bookParams.set('checkout', checkOut)
@@ -55,65 +60,53 @@ export default function RoomTypeList({
           if (childrenCount) bookParams.set('children', childrenCount)
 
           return (
-            <Reveal key={row.content.key} className="hotel-room-reveal">
-              <article className={`hotel-room-card ${isUnavailable ? 'room-unavailable' : ''}`} aria-labelledby={`room-title-${row.content.key}`}>
-                <div className="hotel-room-photo-stage">
-                  <button
-                    type="button"
-                    className="hotel-room-photo"
-                    onClick={() => setOpenKey(row.content.key)}
-                    aria-label={`View ${row.content.label} details and photos`}
-                  >
-                    {row.coverImage ? (
-                      <Image
-                        src={row.coverImage}
-                        alt={row.content.label}
-                        fill
-                        sizes="(min-width: 900px) 550px, 100vw"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <span className="hotel-room-photo-placeholder">Photo coming soon</span>
-                    )}
-                    <span className="hotel-room-photo-arrow"><ArrowUpRight size={24} aria-hidden="true" /></span>
-                  </button>
-                  {hasDates && <span className={`hotel-room-availability ${isUnavailable ? 'is-unavailable' : ''}`}>{isUnavailable ? 'Unavailable for these dates' : 'Available for your dates'}</span>}
-                </div>
+            <Reveal key={row.content.key} className={`room-row ${index % 2 === 1 ? 'room-row-reverse' : ''}`}>
+              <div className="room-row-media">
+                <RoomRowCarousel images={images} roomName={row.content.label} />
+                {hasDates && (
+                  <span className={`room-row-availability ${isUnavailable ? 'is-unavailable' : ''}`}>
+                    {isUnavailable ? 'Unavailable for these dates' : 'Available for your dates'}
+                  </span>
+                )}
+              </div>
 
-                <div className="hotel-room-copy">
-                  <p className="hotel-room-category">{row.content.category}</p>
-                  <h3 id={`room-title-${row.content.key}`} className="hotel-room-title">{row.content.label}</h3>
-                  <p className="hotel-room-description">{row.content.longDescription.split('. ')[0]}.</p>
-                  <div className="hotel-room-details">
-                    <ul className="hotel-room-specs">
-                      {row.content.rowAmenities.slice(0, 3).map((amenity) => {
-                        const Icon = AMENITY_ICONS[amenity]
-                        return (
-                          <li key={amenity}>
-                            {Icon && <Icon size={17} strokeWidth={1.25} aria-hidden="true" />}
-                            <span>{amenity}</span>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                    <p className="hotel-room-price"><span>From</span> {row.priceLabel}<span>/ night</span></p>
-                  </div>
-                </div>
-
-                <div className="hotel-room-actions">
-                  <button type="button" onClick={() => setOpenKey(row.content.key)} className="hotel-room-view">
-                    View room <ArrowUpRight size={16} aria-hidden="true" />
-                  </button>
+              <div className="room-row-text">
+                <p className="room-row-eyebrow">{row.content.category}</p>
+                <h3 className="room-row-name">{row.content.label}</h3>
+                <p className="room-row-description">{row.content.longDescription}</p>
+                <p className="room-row-price">
+                  Starts from {row.priceLabel}<span> / night</span>
+                </p>
+                <ul className="room-row-facts">
+                  <li>Up to {row.maxOccupancy} guest{row.maxOccupancy === 1 ? '' : 's'}</li>
+                  <li>{row.bedType} bed</li>
+                </ul>
+                <ul className="room-row-amenities">
+                  {row.content.amenities.map((amenity) => {
+                    const Icon = AMENITY_ICONS[amenity]
+                    return (
+                      <li key={amenity}>
+                        {Icon && <Icon size={16} strokeWidth={1.25} aria-hidden="true" />}
+                        <span>{amenity}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <div className="room-row-actions">
                   {isUnavailable ? (
-                    <a href="#availability" className="hotel-room-change-dates">Try other dates</a>
+                    <a href="#availability" className="room-row-book">Try other dates</a>
                   ) : (
-                    // Keep a full navigation: the existing server redirect needs a plain anchor.
-                    <a href={`/rooms/book?${bookParams.toString()}`} className="hotel-room-book">
+                    // Plain <a>, not next/link's <Link> — the existing server
+                    // redirect (rooms/book/page.tsx) needs a full navigation.
+                    <a href={`/rooms/book?${bookParams.toString()}`} className="room-row-book">
                       Book now <ArrowUpRight size={16} aria-hidden="true" />
                     </a>
                   )}
+                  <button type="button" onClick={() => setOpenKey(row.content.key)} className="room-row-more">
+                    More details
+                  </button>
                 </div>
-              </article>
+              </div>
             </Reveal>
           )
         })}

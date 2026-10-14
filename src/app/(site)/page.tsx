@@ -9,8 +9,7 @@ import {
   HOTEL_ADDRESS_REGION,
   HOTEL_PHONE_TEL,
 } from '@/lib/siteConfig'
-import { FacilitiesSection, DiningSection, StayStylesSection, WelcomeSection, ComfortSection, GettingHereSection, BookingInvitation } from './GuestHomeSections'
-import ResidenceStories from './ResidenceStories'
+import { FacilitiesSection, GettingHereSection, BookingInvitation } from './GuestHomeSections'
 import HomeAvailabilityCheck from './HomeAvailabilityCheck'
 import OurRooms, { type RoomCardData } from './OurRooms'
 import AroundTheResidence from './AroundTheResidence'
@@ -98,20 +97,15 @@ export default async function Home() {
       />
       <main>
         <section className="home-hero">
-          {heroImage && <Image src={heroImage} alt={`${HOTEL_NAME}, a private hotel apartment in Lekki Phase 1, Lagos`} fill preload sizes="100vw" className="hero-photo object-cover" />}
+          {heroImage && <Image src={heroImage} alt={`${HOTEL_NAME}, a private hotel apartment in Lekki Phase 1, Lagos`} fill priority sizes="100vw" className="hero-photo object-cover" />}
           <div className="hero-shade" />
-          <div className="hero-headline"><h1>Experience comfort &amp; convenience{' '}<br />at your home in Lekki</h1><p>A warm welcome. A little more room. A stay to remember.</p></div>
+          <div className="hero-headline"><h1>Welcome to Tavern Residence</h1><p>A stay to remember</p></div>
           <div className="hero-availability"><HomeAvailabilityCheck /></div>
         </section>
-        <WelcomeSection />
-        <ResidenceStories />
         <OurRooms rooms={ourRooms} />
 
         <FacilitiesSection />
-        <DiningSection />
-        <ComfortSection />
         <AroundTheResidence images={residenceGalleryImages} />
-        <StayStylesSection />
         <BookingInvitation />
         <GettingHereSection />
       </main>

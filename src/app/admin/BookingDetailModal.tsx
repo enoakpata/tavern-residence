@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { getBookingDetail } from './bookings/actions'
 import BookingActions from './bookings/BookingActions'
 import { STATUS_STYLES, STATUS_LABELS, PAYMENT_STYLES } from '@/lib/statusStyles'
+import { displayRoomCategory, displayRoomName } from '@/lib/roomTypeContent'
 
 type BookingDetail = Awaited<ReturnType<typeof getBookingDetail>>
 
@@ -127,12 +128,12 @@ export default function BookingDetailModal({
               <div>
                 <dt className="text-charcoal/50">Room</dt>
                 <dd className="mt-1 text-charcoal">
-                  {room ? `${room.room_number} — ${room.name}` : '—'}
+                  {room ? `${room.room_number} — ${displayRoomName(room.name)}` : '—'}
                 </dd>
               </div>
               <div>
                 <dt className="text-charcoal/50">Room type</dt>
-                <dd className="mt-1 text-charcoal">{room?.room_type ?? '—'}</dd>
+                <dd className="mt-1 text-charcoal">{room ? displayRoomCategory(room.room_type) : '—'}</dd>
               </div>
               <div>
                 <dt className="text-charcoal/50">Check-in</dt>

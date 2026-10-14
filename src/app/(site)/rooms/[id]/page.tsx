@@ -7,6 +7,7 @@ import type { Room } from '@/lib/types'
 import { HOTEL_NAME } from '@/lib/siteConfig'
 import { todayInLagos } from '@/lib/dateUtils'
 import { ACTIVE_BOOKING_STATUSES } from '@/lib/bookings'
+import { displayRoomCategory, displayRoomName } from '@/lib/roomTypeContent'
 import BookingForm from './BookingForm'
 import RoomGallery from '@/components/RoomGallery'
 
@@ -78,7 +79,7 @@ export async function generateMetadata({
   }
 
   const r = room as Room
-  const title = `${r.name} | ${HOTEL_NAME}`
+  const title = `${displayRoomName(r.name)} | ${HOTEL_NAME}`
   const description = truncateForMeta(r.description, META_DESCRIPTION_LENGTH)
   const coverImage = getRoomImages(r.room_number)[0]
 
@@ -154,15 +155,15 @@ export default async function RoomDetailPage({
     <main className="mx-auto max-w-6xl px-6 py-16 md:px-12 md:py-24">
       <div className="grid gap-12 lg:grid-cols-2">
         <div>
-          <RoomGallery images={images} roomName={r.name} roomNumber={r.room_number} />
+          <RoomGallery images={images} roomName={displayRoomName(r.name)} />
         </div>
 
         <div>
           <p className="text-xs tracking-widest text-brass uppercase">
-            {r.room_type} · Room {r.room_number} · {r.floor} floor
+            {displayRoomCategory(r.room_type)} · {r.floor} floor
           </p>
           <h1 className="mt-3 font-display text-4xl text-charcoal">
-            {r.name}
+            {displayRoomName(r.name)}
           </h1>
           <p className="mt-4 text-charcoal/70">{r.description}</p>
 
