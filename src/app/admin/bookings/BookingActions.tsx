@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import {
-  markAsPaid,
   cancelBookingByStaff,
   updateBookingStatus,
   editBookingDates,
@@ -21,8 +20,9 @@ type BookingActionsProps = {
   createdAt: string
   guestName: string
   roomNumber: string
-  paymentStatus: string
-  paymentToken: string | null
+  // Derived server-side (getBookingDetail) — never the actual card token,
+  // which must never reach the client. See that function's own comment.
+  hasCardOnFile: boolean
   pricePerNight: number
   // Called after any action succeeds — lets a parent that's showing its
   // own snapshot of this booking (the detail modal, which fetches once
@@ -58,16 +58,18 @@ export default function BookingActions({
   createdAt,
   guestName,
   roomNumber,
-  paymentStatus,
-  paymentToken,
+  hasCardOnFile,
   pricePerNight,
   onActionComplete,
 }: BookingActionsProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
-  const [pendingCancel, setPendingCancel] = useState<
-    null | { feeApplies: boolean; feeAmount: number }
-  >(null)
+  // Always shown once Cancel is clicked (not computed/skipped up front) —
+  // the admin reviews the policy-suggested fee and reason, then edits or
+  // zeroes the amount before confirming; nothing here decides or charges
+  // automatically.
+  const [pendingCancel, setPendingCancel] = useState<null | { reason: string }>(null)
+  const [cancelFeeInput, setCancelFeeInput] = useState('0')
   const [pendingCheckout, setPendingCheckout] = useState(false)
   const [cancelResult, setCancelResult] = useState<null | { success: boolean; message: string }>(
     null
@@ -105,32 +107,20 @@ export default function BookingActions({
   const canEditCheckIn = status === 'confirmed'
 
   function handleCancelClick() {
-    // No actual chargeable token on file (e.g. paid by transfer, or a
-    // walk-in who paid by POS card with no Paystack token recorded) —
-    // always the simple free-cancellation confirm, regardless of timing.
-    // payment_method alone isn't the right signal here: a walk-in can have
-    // payment_method 'card' with no token at all.
-    if (!paymentToken) {
-      setPendingCancel({ feeApplies: false, feeAmount: 0 })
-      return
-    }
-    // A booking whose check-in date has already passed naturally falls
-    // into the fee branch here too (hoursUntilCheckIn goes negative),
-    // which is how a no-show gets its 50% fee without needing a separate
-    // button.
-    const { free, feeAmount } = getCancellationOutcome({
-      createdAt,
-      checkIn,
-      pricePerNight,
-    })
-    setPendingCancel({ feeApplies: !free, feeAmount })
+    // feeAmount/reason are the policy's suggestion, shown for reference —
+    // the admin can edit or zero the amount in the dialog before
+    // confirming; nothing here decides or charges automatically.
+    const { feeAmount, reason } = getCancellationOutcome({ createdAt, checkIn, pricePerNight })
+    setPendingCancel({ reason })
+    setCancelFeeInput(String(feeAmount))
   }
 
   function handleConfirmCancel() {
+    const feeAmount = Math.max(0, Math.round(Number(cancelFeeInput) || 0))
     setPendingCancel(null)
     setError('')
     startTransition(async () => {
-      const res = await cancelBookingByStaff(bookingId)
+      const res = await cancelBookingByStaff(bookingId, feeAmount)
       if (res.success) {
         setCancelResult({
           success: true,
@@ -188,16 +178,6 @@ export default function BookingActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {paymentStatus === 'unpaid' && (
-        <button
-          disabled={isPending}
-          onClick={() => run(() => markAsPaid(bookingId))}
-          className="rounded-full bg-espresso/10 px-3 py-1 text-xs text-espresso hover:bg-espresso/20 disabled:opacity-50"
-        >
-          Mark as paid
-        </button>
-      )}
-
       {canCheckOut && (
         <button
           disabled={isPending}
@@ -234,11 +214,32 @@ export default function BookingActions({
         open={pendingCancel !== null}
         title="Cancel booking"
         message={
-          pendingCancel?.feeApplies
-            ? `Cancelling now is within 24 hours of check-in. A cancellation fee of ₦${pendingCancel.feeAmount.toLocaleString()} will be charged to this guest's saved card. Continue?`
-            : 'Are you sure you want to cancel this booking?'
+          hasCardOnFile ? (
+            <div>
+              <p>Policy suggestion: {pendingCancel?.reason}</p>
+              <label className="mt-3 block text-xs tracking-widest text-charcoal/60 uppercase">
+                Fee to charge (₦)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={cancelFeeInput}
+                onChange={(e) => setCancelFeeInput(e.target.value)}
+                className="mt-1 w-full rounded-sm border border-charcoal/20 px-2 py-1.5 text-sm text-charcoal"
+              />
+              <p className="mt-1 text-[11px] text-charcoal/40">Set to 0 to waive the fee.</p>
+            </div>
+          ) : (
+            'No card is on file for this booking, so there is nothing to charge.'
+          )
         }
-        confirmLabel={pendingCancel?.feeApplies ? 'Charge fee & cancel' : 'Cancel booking'}
+        cancelLabel="Back"
+        confirmLabel={
+          hasCardOnFile && Number(cancelFeeInput) > 0
+            ? `Cancel and charge ₦${Math.round(Number(cancelFeeInput)).toLocaleString()}`
+            : 'Cancel without fee'
+        }
         onConfirm={handleConfirmCancel}
         onCancel={() => setPendingCancel(null)}
       />

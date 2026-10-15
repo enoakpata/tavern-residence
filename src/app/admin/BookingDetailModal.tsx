@@ -1,19 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getBookingDetail } from './bookings/actions'
+import { getBookingDetail, type GetBookingDetailResult } from './bookings/actions'
 import BookingActions from './bookings/BookingActions'
+import PaymentsSection from './bookings/PaymentsSection'
+import { resolveTotalAmount, isBookingLocked } from '@/lib/bookingStatus'
+import { formatLagosDateTime } from '@/lib/dateUtils'
 import { STATUS_STYLES, STATUS_LABELS, PAYMENT_STYLES } from '@/lib/statusStyles'
 import { displayRoomCategory, displayRoomName } from '@/lib/roomTypeContent'
-
-type BookingDetail = Awaited<ReturnType<typeof getBookingDetail>>
-
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
-}
 
 export default function BookingDetailModal({
   bookingId,
@@ -22,7 +16,7 @@ export default function BookingDetailModal({
   bookingId: string | null
   onClose: () => void
 }) {
-  const [booking, setBooking] = useState<BookingDetail>(null)
+  const [result, setResult] = useState<GetBookingDetailResult | null>(null)
   const [bookingIdForData, setBookingIdForData] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -30,7 +24,7 @@ export default function BookingDetailModal({
   // immediately when a different booking is requested, so we never flash
   // the previous booking's details while the new one is still loading.
   if (bookingId !== bookingIdForData) {
-    setBooking(null)
+    setResult(null)
     setLoading(Boolean(bookingId))
     setBookingIdForData(bookingId)
   }
@@ -38,9 +32,9 @@ export default function BookingDetailModal({
   useEffect(() => {
     if (!bookingId) return
     let cancelled = false
-    getBookingDetail(bookingId).then((result) => {
+    getBookingDetail(bookingId).then((res) => {
       if (cancelled) return
-      setBooking(result)
+      setResult(res)
       setLoading(false)
     })
     return () => {
@@ -50,8 +44,8 @@ export default function BookingDetailModal({
 
   function refetch() {
     if (!bookingId) return
-    getBookingDetail(bookingId).then((result) => {
-      if (bookingId) setBooking(result)
+    getBookingDetail(bookingId).then((res) => {
+      if (bookingId) setResult(res)
     })
   }
 
@@ -66,7 +60,14 @@ export default function BookingDetailModal({
 
   if (!bookingId) return null
 
-  const room = booking?.Rooms ?? null
+  const booking = result?.status === 'ok' ? result.booking : null
+
+  // Bookings -> Rooms is many-to-one; PostgREST returns a single embedded
+  // object at runtime, but without generated schema types supabase-js
+  // infers it as an array for this explicit-column select shape.
+  const room = booking ? (Array.isArray(booking.Rooms) ? booking.Rooms[0] : booking.Rooms) ?? null : null
+  const totalAmount = booking ? resolveTotalAmount(booking, room) : 0
+  const locked = booking ? isBookingLocked(booking) : false
 
   return (
     <div
@@ -97,10 +98,21 @@ export default function BookingDetailModal({
 
         {loading && !booking ? (
           <p className="mt-6 text-sm text-charcoal/50">Loading…</p>
-        ) : !booking ? (
+        ) : result?.status === 'not_found' ? (
           <p className="mt-6 text-sm text-clay">
-            Couldn&apos;t load this booking. It may have been removed.
+            Couldn&apos;t find this booking. It may have been removed.
           </p>
+        ) : result?.status === 'error' || !booking ? (
+          <div className="mt-6 text-sm text-clay">
+            <p>Something went wrong loading this booking.</p>
+            <button
+              type="button"
+              onClick={refetch}
+              className="mt-2 text-xs underline underline-offset-2"
+            >
+              Try again
+            </button>
+          </div>
         ) : (
           <div className="mt-4 space-y-5">
             <div className="flex flex-wrap items-center gap-2">
@@ -115,6 +127,15 @@ export default function BookingDetailModal({
                 {booking.payment_status.replace('_', ' ')}
               </span>
             </div>
+
+            {locked && (
+              <div className="rounded-sm border border-clay/30 bg-clay/5 p-3 text-xs text-charcoal/70">
+                <p>This booking is cancelled — nothing on this page can be changed.</p>
+                {booking.cancelled_at && (
+                  <p className="mt-1">Cancelled {formatLagosDateTime(booking.cancelled_at)}.</p>
+                )}
+              </div>
+            )}
 
             <div>
               <p className="font-display text-lg text-charcoal">{booking.guest_name}</p>
@@ -149,15 +170,11 @@ export default function BookingDetailModal({
               </div>
               <div>
                 <dt className="text-charcoal/50">Booked</dt>
-                <dd className="mt-1 text-charcoal">{formatDateTime(booking.created_at)}</dd>
-              </div>
-              <div>
-                <dt className="text-charcoal/50">Payment method</dt>
-                <dd className="mt-1 text-charcoal capitalize">{booking.payment_method}</dd>
+                <dd className="mt-1 text-charcoal">{formatLagosDateTime(booking.created_at)}</dd>
               </div>
               <div>
                 <dt className="text-charcoal/50">Card on file</dt>
-                <dd className="mt-1 text-charcoal">{booking.payment_token ? 'Yes' : 'No'}</dd>
+                <dd className="mt-1 text-charcoal">{booking.has_card_on_file ? 'Yes' : 'No'}</dd>
               </div>
               {booking.charge_type && (
                 <div>
@@ -188,24 +205,34 @@ export default function BookingDetailModal({
               </div>
             )}
 
-            <div>
-              <p className="text-xs tracking-widest text-charcoal/50 uppercase">Actions</p>
-              <div className="mt-3">
-                <BookingActions
-                  bookingId={booking.id}
-                  status={booking.status}
-                  checkIn={booking.check_in}
-                  checkOut={booking.check_out}
-                  createdAt={booking.created_at}
-                  guestName={booking.guest_name}
-                  roomNumber={room?.room_number ?? ''}
-                  paymentStatus={booking.payment_status}
-                  paymentToken={booking.payment_token}
-                  pricePerNight={room?.price_per_night ?? 0}
-                  onActionComplete={refetch}
-                />
+            <PaymentsSection
+              bookingId={booking.id}
+              totalAmount={totalAmount}
+              amountPaid={booking.amount_paid}
+              paymentStatus={booking.payment_status}
+              locked={locked}
+              onActionComplete={refetch}
+            />
+
+            {!locked && (
+              <div>
+                <p className="text-xs tracking-widest text-charcoal/50 uppercase">Actions</p>
+                <div className="mt-3">
+                  <BookingActions
+                    bookingId={booking.id}
+                    status={booking.status}
+                    checkIn={booking.check_in}
+                    checkOut={booking.check_out}
+                    createdAt={booking.created_at}
+                    guestName={booking.guest_name}
+                    roomNumber={room?.room_number ?? ''}
+                    hasCardOnFile={booking.card_chargeable}
+                    pricePerNight={room?.price_per_night ?? 0}
+                    onActionComplete={refetch}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>

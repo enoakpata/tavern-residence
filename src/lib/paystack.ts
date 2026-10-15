@@ -10,10 +10,17 @@ type VerifyResult =
       authorizationCode: string
       last4: string
       cardType: string
+      expMonth: string
+      expYear: string
+      reusable: boolean
       amountKobo: number
       transactionId: number
     }
-  | { success: false; error: string }
+  // transactionId is still included on a "not reusable" failure (the
+  // charge itself succeeded — a valid card can still be non-reusable) so
+  // the caller can refund it; it's null when the transaction never
+  // actually went through, since there's nothing to refund.
+  | { success: false; error: string; transactionId: number | null }
 
 /**
  * Confirms a Paystack transaction actually succeeded, and pulls out the
@@ -32,15 +39,21 @@ export async function verifyTransaction(reference: string): Promise<VerifyResult
   const json = await res.json()
 
   if (!res.ok || !json.status || json.data?.status !== 'success') {
-    return { success: false, error: 'Card verification failed. Please try again.' }
+    return { success: false, error: 'Card verification failed. Please try again.', transactionId: null }
   }
 
   const auth = json.data.authorization
+  const transactionId = json.data.id
 
   if (!auth?.authorization_code || !auth?.reusable) {
+    // The transaction itself succeeded (checked above) — a valid card can
+    // still come back non-reusable, so the ₦100 was genuinely charged and
+    // must be refunded even though we can't save this card. transactionId
+    // is passed back specifically so the caller can do that.
     return {
       success: false,
-      error: 'This card cannot be saved for future charges. Please try a different card.',
+      error: "This card can't be saved. Please use a different card.",
+      transactionId,
     }
   }
 
@@ -49,8 +62,11 @@ export async function verifyTransaction(reference: string): Promise<VerifyResult
     authorizationCode: auth.authorization_code,
     last4: auth.last4,
     cardType: auth.card_type,
+    expMonth: auth.exp_month,
+    expYear: auth.exp_year,
+    reusable: auth.reusable,
     amountKobo: json.data.amount,
-    transactionId: json.data.id,
+    transactionId,
   }
 }
 
@@ -74,8 +90,10 @@ export async function refundTransaction(transactionId: number) {
   if (!res.ok || !json.status) {
     // Don't block the booking on this — log it so you can manually refund
     // if Paystack's refund call itself fails, but the card token is still
-    // valid and the booking should still go through.
-    console.error('Refund failed for transaction', transactionId, json)
+    // valid and the booking should still go through. Only the message is
+    // logged, not the full response body, which can echo back
+    // card/authorization details.
+    console.error('Refund failed for transaction', transactionId, json.message)
     return { success: false }
   }
 
@@ -107,7 +125,6 @@ export async function chargeAuthorization(
   })
 
   const json = await res.json()
-  console.log('Paystack charge response:', JSON.stringify(json, null, 2))
 
   if (!res.ok || !json.status) {
     return { success: false, error: json.data?.gateway_response || json.message || 'Charge failed.' }

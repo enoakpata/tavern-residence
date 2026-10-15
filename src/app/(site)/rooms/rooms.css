@@ -13,13 +13,11 @@
 
 /* Same bar, same component, same .hero-availability overlay technique
    as the homepage hero (guest.css) — reused here as-is for identical
-   width/position/styling. Below 599px it drops out of the overlay
-   entirely (see that breakpoint below): the hero copy here is
-   vertically centered rather than bottom-anchored like the homepage's,
-   and the bar's own stacked mobile height (4 full-width rows) is tall
-   enough to reach up into — and cover — the "Explore the collection"
-   button. Moving the bar (not the button) at that one breakpoint, per
-   the brief. */
+   width/position/styling/glass look, at every breakpoint including
+   mobile. No rooms-specific override of the bar itself below — the
+   hero's own height and the headline's position (further down this
+   file) are what make room for it instead, same relationship as the
+   homepage's tall hero + bottom-anchored bar. */
 .rooms-hero-availability { }
 
 .rooms-search-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 15px 30px; border-block: 1px solid #e5e7df; padding-block: 18px; margin: 70px auto 0; width: min(100% - 112px, 1150px); max-width: 1120px; font-size: 13px; color: var(--stone); }
@@ -88,24 +86,6 @@
   .rooms-hero-kicker { font-size: 9px; }
   .rooms-hero-copy > p:not(.rooms-hero-kicker) { font-size: 15px; }
   .rooms-hero-location { right: 7%; bottom: 20px; font-size: 10px; }
-  /* Move the bar, not the button (see the comment above
-     .rooms-hero-availability): off the hero overlay and placed as a
-     normal block directly below it instead. Since it's no longer over a
-     photo here, the glass/light-text treatment (guest.css, scoped to
-     .hero-availability generally) is reset back to the site's normal
-     solid/dark-text look — white text and a translucent gold button
-     would both read poorly against the plain page background. */
-  .rooms-hero-availability { position: static; inset: auto; width: calc(100% - 44px); margin: 20px auto 0; }
-  .rooms-hero-availability .availability-bar { background: var(--paper); backdrop-filter: none; -webkit-backdrop-filter: none; border-color: var(--line); }
-  .rooms-hero-availability .availability-bar p,
-  .rooms-hero-availability .availability-bar span,
-  .rooms-hero-availability .availability-bar button:not(.availability-submit) { color: var(--charcoal); text-shadow: none; }
-  .rooms-hero-availability .availability-bar svg { color: var(--espresso); }
-  .rooms-hero-availability .availability-bar > p { color: #973f2c; }
-  .rooms-hero-availability .availability-bar > div > div,
-  .rooms-hero-availability .availability-bar > div > div:nth-child(3) { border-color: var(--line); }
-  .rooms-hero-availability .availability-submit { background: var(--primary); border-color: var(--primary); color: var(--on-primary); text-shadow: none; }
-  .rooms-hero-availability .availability-submit:hover { background: var(--primary-hover); }
   .room-rows, .rooms-search-summary { width: calc(100% - 44px); }
   .room-row { padding-block: 35px; }
   .room-row-carousel-arrow { width: 36px; height: 36px; }
@@ -125,4 +105,23 @@
 .rooms-hero-copy h1 { font-size: clamp(52px, 6vw, 78px); line-height: 1; }
 .rooms-hero-copy > p:not(.rooms-hero-kicker) { font-size: 13px; }
 .rooms-hero-location { display: none; }
-@media (max-width: 599px) { .guest-site .rooms-page-hero { margin-inline: 10px; min-height: 430px; height: 430px; } .rooms-hero-copy { inset: 50% 20px auto; } .rooms-hero-copy h1 { font-size: 54px; } }
+/* Mobile needs its own, taller hero rather than the centered-copy
+   "masthead" shape above: the headline sits near the top (like the
+   homepage's hero-headline, just without its tall full-viewport hero to
+   float in) and the glass availability bar — same component, same
+   .hero-availability bottom-anchoring, no rooms-specific override of it
+   — needs its own reserved room below, since its mobile stacked height
+   (3 fields + button) is much taller than the desktop single row. */
+@media (max-width: 599px) {
+  /* margin-top: 0, not the base block's -44px (line 83) — that negative
+     pull was calibrated to tuck the hero under the page's normal 45px
+     main padding-top, which the glass header experiment (guest.css)
+     already zeroes out for this page via :has(.header--glass). Left as
+     -44px, it doubles up and drags the hero (and this top-anchored
+     headline) up behind the fixed header instead of below it. */
+  .guest-site .rooms-page-hero { margin: 0 10px; height: 640px; min-height: 640px; }
+  /* 60px clears the mobile header's own height (guest.css,
+     .guest-header-row at this breakpoint) plus a little breathing room. */
+  .rooms-hero-copy { inset: 84px 7% auto; transform: none; }
+  .rooms-hero-copy h1 { font-size: 46px; }
+}

@@ -11,13 +11,15 @@ export default function CancelBookingButton({
   checkIn,
   createdAt,
   pricePerNight,
-  paymentToken,
+  hasCardOnFile,
 }: {
   bookingId: string
   checkIn: string
   createdAt: string
   pricePerNight: number
-  paymentToken: string | null
+  // Derived server-side — never the actual card token. See
+  // src/app/(site)/booking/[id]/page.tsx.
+  hasCardOnFile: boolean
 }) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
@@ -26,19 +28,18 @@ export default function CancelBookingButton({
     null
   )
 
-  const { free, feeAmount } = getCancellationOutcome({
+  const { feeApplies, reason } = getCancellationOutcome({
     createdAt,
     checkIn,
     pricePerNight,
   })
-  // No actual chargeable token on file (e.g. paid by transfer, or a
-  // walk-in who paid by POS card with no Paystack token recorded) — the
-  // server cancels this for free in that case, so the preview shouldn't
-  // tell the guest a card is about to be charged.
-  const feeApplies = !free && Boolean(paymentToken)
+  const feeMayApply = feeApplies && hasCardOnFile
 
-  const message = feeApplies
-    ? `Cancelling now is within 24 hours of check-in. A cancellation fee of ₦${feeAmount.toLocaleString()} will be charged to your card. Continue?`
+  // Cancellation itself never charges a card automatically — a fee
+  // outside the free window only applies if our team follows up and
+  // applies it manually, per policy.
+  const message = feeMayApply
+    ? `Per our cancellation policy: ${reason} Our team will follow up about this — continue?`
     : 'Cancel this booking? This is a free cancellation.'
 
   function handleConfirm() {
@@ -48,8 +49,8 @@ export default function CancelBookingButton({
       if (res.success) {
         setResult({
           type: 'success',
-          message: res.feeCharged
-            ? `Your booking has been cancelled. A cancellation fee of ₦${res.feeAmount.toLocaleString()} was charged to your card.`
+          message: res.feeMayApply
+            ? `Your booking has been cancelled. A ₦${res.feeAmount.toLocaleString()} cancellation fee may apply per our policy — we'll be in touch.`
             : 'Your booking has been cancelled — no charge.',
         })
         router.refresh()
@@ -80,7 +81,7 @@ export default function CancelBookingButton({
         open={modalOpen}
         title="Cancel booking"
         message={message}
-        confirmLabel={feeApplies ? 'Charge fee & cancel' : 'Cancel booking'}
+        confirmLabel="Cancel booking"
         cancelLabel="Keep booking"
         onConfirm={handleConfirm}
         onCancel={() => setModalOpen(false)}

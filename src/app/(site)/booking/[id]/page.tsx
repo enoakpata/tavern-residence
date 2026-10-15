@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { getChargeableAuthCode } from '@/lib/bookings'
+import { CANCELLATION_POLICY_BULLETS } from '@/lib/cancellationPolicy'
 import { HOTEL_NAME, HOTEL_PHONE_DISPLAY } from '@/lib/siteConfig'
 import { STATUS_LABELS } from '@/lib/statusStyles'
 import { displayRoomName } from '@/lib/roomTypeContent'
@@ -60,9 +62,11 @@ export default async function ManageBookingPage({
   }
 
   const room = booking.Rooms
-  const totalAmount = room
-    ? room.price_per_night * nightsBetween(booking.check_in, booking.check_out)
-    : 0
+  // Prefer the stored total_amount (authoritative for any booking made
+  // after the card-hold migration) — fall back to nights × current
+  // price_per_night only for older bookings that predate that column.
+  const totalAmount =
+    booking.total_amount ?? (room ? room.price_per_night * nightsBetween(booking.check_in, booking.check_out) : 0)
   const canCancel = !NON_CANCELLABLE_STATUSES.includes(booking.status)
 
   return (
@@ -103,6 +107,17 @@ export default async function ManageBookingPage({
         </dl>
       </div>
 
+      {canCancel && (
+        <div className="mt-8 rounded-sm bg-charcoal/5 p-5 text-xs text-charcoal/60">
+          <p className="text-xs tracking-widest text-charcoal/50 uppercase">Cancellation policy</p>
+          <ul className="mt-2 list-disc space-y-1.5 pl-4">
+            {CANCELLATION_POLICY_BULLETS.map((bullet) => (
+              <li key={bullet}>{bullet}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {canCancel ? (
         <div className="mt-8">
           <CancelBookingButton
@@ -110,7 +125,7 @@ export default async function ManageBookingPage({
             checkIn={booking.check_in}
             createdAt={booking.created_at}
             pricePerNight={room?.price_per_night ?? 0}
-            paymentToken={booking.payment_token}
+            hasCardOnFile={Boolean(getChargeableAuthCode(booking)) && booking.card_reusable !== false}
           />
         </div>
       ) : (

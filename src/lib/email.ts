@@ -1,13 +1,17 @@
 import { Resend } from 'resend'
-import {
-  SITE_URL,
-  HOTEL_ADDRESS,
-  HOTEL_NAME,
-  HOTEL_PHONE_DISPLAY,
-  HOTEL_EMAIL,
-  CANCELLATION_FEE_FRACTION,
-} from './siteConfig'
+import { SITE_URL, HOTEL_ADDRESS, HOTEL_NAME, HOTEL_PHONE_DISPLAY, HOTEL_EMAIL } from './siteConfig'
 import { formatLagosTime } from './dateUtils'
+import { CANCELLATION_POLICY_BULLETS } from './cancellationPolicy'
+
+// Exact policy wording (see cancellationPolicy.ts) as an HTML list —
+// shared by the guest confirmation email below and anywhere else an
+// email needs to state the policy.
+const CANCELLATION_POLICY_HTML = `
+  <p><strong>Cancellation Policy</strong></p>
+  <ul>
+    ${CANCELLATION_POLICY_BULLETS.map((bullet) => `<li>${bullet}</li>`).join('\n    ')}
+  </ul>
+`
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY!
 // TODO: replace with buyer's verified sending domain
@@ -49,6 +53,8 @@ export function buildGuestConfirmationEmail({
   bookingId,
   createdAt,
   isSameDayBooking = false,
+  totalAmount,
+  cardLast4,
 }: {
   guestName: string
   roomName: string
@@ -57,6 +63,11 @@ export function buildGuestConfirmationEmail({
   bookingId: string
   createdAt?: string
   isSameDayBooking?: boolean
+  // Only present for the online booking flow (BookingForm.tsx), which is
+  // the only caller that captures a card — manual (walk-in/phone)
+  // bookings created from the admin dashboard have neither.
+  totalAmount?: number
+  cardLast4?: string
 }) {
   const manageUrl = `${SITE_URL}/booking/${bookingId}`
 
@@ -72,6 +83,17 @@ export function buildGuestConfirmationEmail({
       )} (1 hour after booking).`
     : ''
 
+  // Never claims payment was received — it wasn't; the stay is paid
+  // directly to the hotel (transfer, cash, or card on arrival). The
+  // ₦100 Paystack charge mentioned here is a verification charge only,
+  // already refunded by the time this email sends.
+  const paymentNotice = totalAmount
+    ? `<p>Your total for this stay is ₦${totalAmount.toLocaleString()}, payable directly to us — by bank transfer, cash, or card on arrival. This isn't paid online.</p>`
+    : ''
+  const cardHoldNotice = cardLast4
+    ? `<p>We verified and securely hold a card ending ${cardLast4} to cover a cancellation or no-show fee only, per our cancellation policy below — it will never be charged for the stay itself.</p>`
+    : ''
+
   const html = `
     <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
       <p>Hi ${guestName},</p>
@@ -85,7 +107,11 @@ export function buildGuestConfirmationEmail({
 
       <p>Check-in time is 2:00 PM and check-out time is 12:00 PM. Early check-in or late check-out is available for a fee of 50% of the room's nightly rate, subject to availability.</p>
 
-      <p>Please note our cancellation policy: free cancellation up to 24 hours before check-in. Cancellations within 24 hours of check-in, or no-shows, are charged ${CANCELLATION_FEE_FRACTION * 100}% of the total booking value.${sameDayGraceNotice}</p>
+      ${paymentNotice}
+      ${cardHoldNotice}
+
+      ${CANCELLATION_POLICY_HTML}
+      ${sameDayGraceNotice ? `<p>${sameDayGraceNotice.trim()}</p>` : ''}
 
       <p>If you have any questions, reach us at ${HOTEL_PHONE_DISPLAY} or ${HOTEL_EMAIL}.</p>
 
@@ -182,6 +208,42 @@ export function buildHotelNotificationEmail({
   }
 }
 
+/**
+ * Receipt for a saved-card charge (cancellation/no-show/other fee) run
+ * from the admin dashboard — src/app/admin/bookings/actions.ts's
+ * chargeSavedCard sends this best-effort after a successful charge. Never
+ * includes the authorization code, only what the guest themselves already
+ * knows about their own card (last 4 digits).
+ */
+export function buildChargeReceiptEmail({
+  guestName,
+  amount,
+  reasonLabel,
+  cardLast4,
+}: {
+  guestName: string
+  amount: number
+  reasonLabel: string
+  cardLast4: string
+}) {
+  const html = `
+    <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
+      <p>Hi ${guestName},</p>
+
+      <p>This confirms a charge of <strong>₦${amount.toLocaleString()}</strong> (${reasonLabel.toLowerCase()}) to your card${cardLast4 ? ` ending ${cardLast4}` : ''}.</p>
+
+      <p>If you have any questions about this charge, reach us at ${HOTEL_PHONE_DISPLAY} or ${HOTEL_EMAIL}.</p>
+
+      <p>— ${HOTEL_NAME}</p>
+    </div>
+  `
+
+  return {
+    subject: `Receipt: ${reasonLabel} — ${HOTEL_NAME}`,
+    html,
+  }
+}
+
 export function buildCancellationNotificationEmail({
   guestName,
   roomNumber,
@@ -190,6 +252,11 @@ export function buildCancellationNotificationEmail({
   checkOut,
   feeCharged,
   feeAmount,
+  // Set when a GUEST cancelled their own booking outside the free window —
+  // the system never charges a fee automatically on that path, so this
+  // flags that staff may want to use "Charge saved card" manually, rather
+  // than claiming a fee was either charged or waived.
+  feePending = false,
 }: {
   guestName: string
   roomNumber: string
@@ -198,7 +265,14 @@ export function buildCancellationNotificationEmail({
   checkOut: string
   feeCharged: boolean
   feeAmount?: number
+  feePending?: boolean
 }) {
+  const feeLine = feePending
+    ? `Our policy suggests a ₦${(feeAmount ?? 0).toLocaleString()} cancellation fee for this booking, but nothing was charged automatically — use "Charge saved card" on the booking if you want to apply it.`
+    : feeCharged
+      ? `A cancellation fee of ₦${(feeAmount ?? 0).toLocaleString()} was charged to the guest's saved card.`
+      : 'No cancellation fee was charged.'
+
   const html = `
     <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
       <p>A booking has been cancelled:</p>
@@ -208,13 +282,7 @@ export function buildCancellationNotificationEmail({
         <strong>Original check-in:</strong> ${formatDate(checkIn)}<br />
         <strong>Original check-out:</strong> ${formatDate(checkOut)}
       </p>
-      <p>
-        ${
-          feeCharged
-            ? `A cancellation fee of ₦${(feeAmount ?? 0).toLocaleString()} was charged to the guest's saved card.`
-            : 'No cancellation fee was charged.'
-        }
-      </p>
+      <p>${feeLine}</p>
       <p>View details in the admin dashboard.</p>
     </div>
   `

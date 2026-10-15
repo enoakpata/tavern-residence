@@ -27,6 +27,7 @@ export const STATUS_LABELS: Record<string, string> = {
 // bookings list table and the booking detail panel.
 export const PAYMENT_STYLES: Record<string, string> = {
   unpaid: 'bg-charcoal/10 text-charcoal/60',
+  partial: 'bg-brass/20 text-brass',
   paid: 'bg-verdant/15 text-verdant',
   refunded: 'bg-charcoal/10 text-charcoal/60',
 }

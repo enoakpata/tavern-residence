@@ -6,14 +6,12 @@ import {
   HOTEL_EMAIL,
   HOTEL_ADDRESS_LOCALITY,
   HOTEL_ADDRESS_REGION,
-  CANCELLATION_FEE_FRACTION,
 } from '@/lib/siteConfig'
-
-const CANCELLATION_FEE_PERCENT = CANCELLATION_FEE_FRACTION * 100
+import { CANCELLATION_POLICY_BULLETS } from '@/lib/cancellationPolicy'
 
 export const metadata: Metadata = {
   title: `Policies | ${HOTEL_NAME}`,
-  description: `Check-in from 2:00 PM, check-out by 12:00 PM. Free cancellation up to 24 hours before check-in; a strictly non-smoking property in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION}.`,
+  description: `Check-in from 2:00 PM, check-out by 12:00 PM. Free cancellation up to 24 hours before check-in; no smoking in rooms, in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION}.`,
 }
 
 export default function PoliciesPage() {
@@ -46,37 +44,19 @@ export default function PoliciesPage() {
 
         <section className="border-t border-charcoal/10 pt-12">
           <h2 className="font-display text-2xl text-charcoal">
-            Cancellations &amp; no-shows
+            Cancellation Policy
           </h2>
-          <div className="mt-4 space-y-2 text-charcoal/70">
-            <p>
-              Free cancellation up to 24 hours before check-in — no charge.
-            </p>
-            <p>
-              Cancellations made within 24 hours of check-in are charged{' '}
-              {CANCELLATION_FEE_PERCENT}% of one night&apos;s rate.
-            </p>
-            <p>
-              No-shows are also charged {CANCELLATION_FEE_PERCENT}% of one
-              night&apos;s rate.
-            </p>
-            <p>
-              If you book for same-day check-in, you have 1 hour from the
-              time of booking to cancel for free, even if check-in is less
-              than 24 hours away. After that grace period, the standard
-              cancellation fee applies.
-            </p>
-          </div>
+          <ul className="mt-4 list-disc space-y-2 pl-5 text-charcoal/70">
+            {CANCELLATION_POLICY_BULLETS.map((bullet) => (
+              <li key={bullet}>{bullet}</li>
+            ))}
+          </ul>
         </section>
 
         <section className="border-t border-charcoal/10 pt-12">
           <h2 className="font-display text-2xl text-charcoal">Smoking</h2>
           <div className="mt-4 space-y-2 text-charcoal/70">
-            <p>{HOTEL_NAME} is a strictly non-smoking property.</p>
-            <p>
-              Guests found smoking in any room will be charged a cleaning
-              fee of ₦200,000.
-            </p>
+            <p>No smoking in rooms — a ₦200,000 fee applies if violated.</p>
           </div>
         </section>
 

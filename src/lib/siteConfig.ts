@@ -29,5 +29,13 @@ export const HOTEL_INSTAGRAM_URL = 'https://www.instagram.com/tavernresidencelek
 export const HOTEL_ADDRESS_LOCALITY = 'Lekki Phase 1'
 export const HOTEL_ADDRESS_REGION = 'Lagos'
 
-// Cancellation fee as a fraction of one night's rate (0.5 = 50%)
+// Cancellation/no-show fee as a fraction of the booking's TOTAL stay
+// amount (0.5 = 50%) — see src/lib/cancellationPolicy.ts for the full
+// rule (free windows, no-show handling).
 export const CANCELLATION_FEE_FRACTION = 0.5
+
+// Stamped onto card_consent_policy_version whenever a guest checks the
+// card-hold consent box at booking time (BookingForm.tsx) — bump this any
+// time the cancellation policy wording actually changes, so each
+// booking's consent record stays tied to the exact wording the guest saw.
+export const CANCELLATION_POLICY_VERSION = '2026-10-14-v2'
