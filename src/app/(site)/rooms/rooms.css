@@ -1,28 +1,20 @@
-/* Room collection presentation. Booking and availability data stay in the existing flow. */
-.guest-site .site-content > main.rooms-page { padding-top: 0; }
-.rooms-page-hero { position: relative; margin: -48px 16px 0; height: min(620px, 75svh); min-height: 510px; overflow: hidden; border-radius: 20px; isolation: isolate; background: #282b24; color: white; }
-.rooms-hero-photo { transform: scale(1.12) translateY(calc((var(--scene-progress) - .5) * 65px)); }
-.rooms-hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgb(12 15 10 / 70%), rgb(12 15 10 / 15%)), linear-gradient(0deg, rgb(12 15 10 / 30%), transparent 65%); }
-.rooms-hero-copy { position: absolute; inset: auto auto 60px 5%; max-width: 700px; }
-.rooms-hero-kicker { margin-bottom: 20px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: rgb(255 255 255 / 75%); }
-.rooms-hero-copy h1 { font-family: var(--font-primary), Georgia, serif; font-size: clamp(58px, 7vw, 100px); line-height: 1.08; letter-spacing: -.02em; font-weight: 400; }
-.rooms-hero-copy > p:not(.rooms-hero-kicker) { margin-top: 25px; font-size: 16px; line-height: 1.6; color: rgb(255 255 255 / 85%); }
-.guest-site .rooms-hero-link { margin-top: 25px; color: white; border-color: rgb(255 255 255 / 65%); padding-right: 18px; gap: 20px; }
-.guest-site .rooms-hero-link:hover { background: rgb(255 255 255 / 12%); }
-.rooms-hero-location { position: absolute; right: 5%; bottom: 36px; font-size: 11px; color: rgb(255 255 255 / 75%); }
-
-/* Same bar, same component, same .hero-availability overlay technique
-   as the homepage hero (guest.css) — reused here as-is for identical
-   width/position/styling/glass look, at every breakpoint including
-   mobile. No rooms-specific override of the bar itself below — the
-   hero's own height and the headline's position (further down this
-   file) are what make room for it instead, same relationship as the
-   homepage's tall hero + bottom-anchored bar. */
-.rooms-hero-availability { }
+/* Room collection presentation. Booking and availability data stay in the existing flow.
+   The hero itself has no /rooms-specific styles any more — PageHero.tsx
+   is shared with the homepage verbatim, styled entirely by .page-hero
+   and friends in guest.css. See that file for all of it. */
+@media (prefers-reduced-motion: reduce) {
+  .room-row-carousel-track { transition: none; }
+}
 
 .rooms-search-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 15px 30px; border-block: 1px solid #e5e7df; padding-block: 18px; margin: 70px auto 0; width: min(100% - 112px, 1150px); max-width: 1120px; font-size: 13px; color: var(--stone); }
 .rooms-search-summary > a { margin-left: auto; text-decoration: underline; text-underline-offset: 4px; color: var(--charcoal); }
 .rooms-empty-state { padding: 60px 0; color: var(--stone); text-align: center; }
+/* "For groups of N, please contact us..." — shown instead of (or
+   alongside, when dates are also set) the plain search summary above,
+   when no room type can ever hold the chosen party. Same warm warning
+   tint as .room-row-availability.is-unavailable below, for one
+   consistent "this won't work" color across the page. */
+.rooms-capacity-notice { margin: 24px auto 0; padding: 14px 22px; width: min(100% - 112px, 1150px); max-width: 1120px; border-radius: 4px; background: #fff0e9; color: #923d28; font-size: 13px; }
 
 /* Full-width alternating rows — image carousel one side, text the
    other, swapping each row (RoomTypeList.tsx's `index % 2`). No card
@@ -61,8 +53,12 @@
 .room-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; margin-top: 30px; }
 .room-row-book { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 12px 26px; border-radius: 999px; background: var(--primary); color: var(--on-primary); font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; transition: background .25s; }
 .room-row-book:hover { background: var(--primary-hover); }
-.room-row-more { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; color: var(--espresso); text-decoration: underline; text-underline-offset: 4px; }
-.room-row-more:hover { color: var(--charcoal); }
+/* Sold out / too small for the chosen party — the room stays listed
+   (never hidden), just visibly dimmed, with Book now disabled rather
+   than linking anywhere. */
+.room-row-disabled { opacity: .55; }
+.room-row-book-disabled { cursor: not-allowed; background: var(--line); color: var(--stone); }
+.room-row-book-disabled:hover { background: var(--line); }
 
 @media (max-width: 1100px) {
   .room-rows { width: calc(100% - 72px); }
@@ -80,48 +76,9 @@
   .room-row-name { font-size: 30px; }
 }
 @media (max-width: 599px) {
-  .rooms-page-hero { margin: -44px 12px 0; min-height: 530px; height: 75svh; border-radius: 15px; }
-  .rooms-hero-copy { left: 7%; bottom: 55px; right: 7%; }
-  .rooms-hero-copy h1 { font-size: clamp(52px, 13vw, 75px); }
-  .rooms-hero-kicker { font-size: 9px; }
-  .rooms-hero-copy > p:not(.rooms-hero-kicker) { font-size: 15px; }
-  .rooms-hero-location { right: 7%; bottom: 20px; font-size: 10px; }
   .room-rows, .rooms-search-summary { width: calc(100% - 44px); }
   .room-row { padding-block: 35px; }
   .room-row-carousel-arrow { width: 36px; height: 36px; }
   .rooms-search-summary { gap: 10px; flex-direction: column; align-items: start; margin-top: 35px; }
   .rooms-search-summary > a { margin-left: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .rooms-hero-photo { transform: none; }
-  .room-row-carousel-track { transition: none; }
-}
-
-/* Align the room collection with the reference masthead and editorial styling. */
-.guest-site .rooms-page-hero { margin: 0 20px; border-radius: 4px; height: clamp(440px, 45vw, 620px); min-height: 440px; }
-.rooms-hero-photo { transform: none; }
-.rooms-hero-shade { background: rgb(25 20 13 / 38%); }
-.rooms-hero-copy { inset: 50% 25px auto; transform: translateY(-50%); text-align: center; max-width: none; }
-.rooms-hero-copy h1 { font-size: clamp(52px, 6vw, 78px); line-height: 1; }
-.rooms-hero-copy > p:not(.rooms-hero-kicker) { font-size: 13px; }
-.rooms-hero-location { display: none; }
-/* Mobile needs its own, taller hero rather than the centered-copy
-   "masthead" shape above: the headline sits near the top (like the
-   homepage's hero-headline, just without its tall full-viewport hero to
-   float in) and the glass availability bar — same component, same
-   .hero-availability bottom-anchoring, no rooms-specific override of it
-   — needs its own reserved room below, since its mobile stacked height
-   (3 fields + button) is much taller than the desktop single row. */
-@media (max-width: 599px) {
-  /* margin-top: 0, not the base block's -44px (line 83) — that negative
-     pull was calibrated to tuck the hero under the page's normal 45px
-     main padding-top, which the glass header experiment (guest.css)
-     already zeroes out for this page via :has(.header--glass). Left as
-     -44px, it doubles up and drags the hero (and this top-anchored
-     headline) up behind the fixed header instead of below it. */
-  .guest-site .rooms-page-hero { margin: 0 10px; height: 640px; min-height: 640px; }
-  /* 60px clears the mobile header's own height (guest.css,
-     .guest-header-row at this breakpoint) plus a little breathing room. */
-  .rooms-hero-copy { inset: 84px 7% auto; transform: none; }
-  .rooms-hero-copy h1 { font-size: 46px; }
 }

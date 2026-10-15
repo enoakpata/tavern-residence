@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { recordPayment, voidPayment, getBookingPayments } from './actions'
+import { recordPayment, voidPayment, getBookingPayments, getGuestCreditBalance, applyGuestCredit } from './actions'
 import ConfirmModal from '@/components/ConfirmModal'
 import DateRangePicker from '@/components/DateRangePicker'
 import MoneyInput from '@/components/MoneyInput'
@@ -13,7 +13,7 @@ import type { BookingPayment, BookingPaymentMethod } from '@/lib/types'
 
 // Only these two are offered now — see recordPayment's own
 // RECORDABLE_METHODS in actions.ts, which enforces the same restriction
-// server-side. Historical rows (cash/card/other) still display fine in
+// server-side. Historical rows (card/other) still display fine in
 // the History table below; this only limits what a NEW entry can use.
 const PAYMENT_METHOD_OPTIONS: DropdownOption<BookingPaymentMethod>[] = [
   { value: 'transfer', label: 'Transfer' },
@@ -26,6 +26,8 @@ export default function PaymentsSection({
   amountPaid,
   paymentStatus,
   locked,
+  guestEmail,
+  guestPhone,
   onActionComplete,
 }: {
   bookingId: string
@@ -35,6 +37,11 @@ export default function PaymentsSection({
   // Derived from isBookingLocked(booking) by the parent — true once the
   // booking is cancelled, at which point every action here is disabled.
   locked: boolean
+  // Used only to look up a held credit balance (guest_credits) — see
+  // "Apply credit" below. Matches on either field, same as
+  // getGuestCreditBalance itself.
+  guestEmail: string | null
+  guestPhone: string
   onActionComplete?: () => void
 }) {
   const [isPending, startTransition] = useTransition()
@@ -58,6 +65,50 @@ export default function PaymentsSection({
     refetchPayments()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId])
+
+  // --- Guest credit (section 7) ---
+  const [creditBalance, setCreditBalance] = useState(0)
+
+  function refetchCreditBalance() {
+    getGuestCreditBalance(guestEmail, guestPhone).then(({ balance: b }) => setCreditBalance(b))
+  }
+
+  useEffect(() => {
+    refetchCreditBalance()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guestEmail, guestPhone])
+
+  const [showApplyCredit, setShowApplyCredit] = useState(false)
+  const [creditAmount, setCreditAmount] = useState('')
+  const [creditNote, setCreditNote] = useState('')
+  const [creditError, setCreditError] = useState('')
+
+  function openApplyCredit() {
+    setCreditAmount('')
+    setCreditNote('')
+    setCreditError('')
+    setShowApplyCredit(true)
+  }
+
+  function submitApplyCredit() {
+    const amountNaira = Number(creditAmount)
+    if (!(amountNaira > 0)) {
+      setCreditError('Enter an amount greater than zero.')
+      return
+    }
+    setCreditError('')
+    startTransition(async () => {
+      const res = await applyGuestCredit(bookingId, amountNaira, creditNote)
+      if (res.success) {
+        setShowApplyCredit(false)
+        refetchPayments()
+        refetchCreditBalance()
+        onActionComplete?.()
+      } else {
+        setCreditError(res.error)
+      }
+    })
+  }
 
   const balance = totalAmount != null ? totalAmount - amountPaid : null
   const overpaidBy = totalAmount != null ? overpaidAmount(amountPaid, totalAmount) : null
@@ -175,6 +226,12 @@ export default function PaymentsSection({
         </p>
       )}
 
+      {creditBalance > 0 && (
+        <p className="mt-3 text-xs text-charcoal/60">
+          Guest credit available: <span className="text-charcoal">₦{creditBalance.toLocaleString()}</span>
+        </p>
+      )}
+
       {!locked && (
         <div className="mt-4 flex flex-wrap gap-2">
           <button
@@ -185,6 +242,50 @@ export default function PaymentsSection({
           >
             Record payment
           </button>
+          {creditBalance > 0 && (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => (showApplyCredit ? setShowApplyCredit(false) : openApplyCredit())}
+              className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
+            >
+              Apply credit
+            </button>
+          )}
+        </div>
+      )}
+
+      {showApplyCredit && !locked && (
+        <div className="mt-3 space-y-2 rounded-sm border border-charcoal/10 p-3">
+          <p className="text-xs text-charcoal/50">
+            Up to ₦{creditBalance.toLocaleString()} available.
+          </p>
+          <MoneyInput value={creditAmount} onChange={setCreditAmount} />
+          <input
+            type="text"
+            placeholder="Note (optional)"
+            value={creditNote}
+            onChange={(e) => setCreditNote(e.target.value)}
+            className="w-full rounded-sm border border-charcoal/20 px-2 py-1.5 text-sm"
+          />
+          {creditError && <p className="text-xs text-clay">{creditError}</p>}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={submitApplyCredit}
+              className="rounded-full bg-espresso px-3 py-1.5 text-xs text-ivory hover:bg-espresso/90 disabled:opacity-50"
+            >
+              Apply credit
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowApplyCredit(false)}
+              className="rounded-full border border-charcoal/20 px-3 py-1.5 text-xs text-charcoal/70 hover:bg-charcoal/5"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 

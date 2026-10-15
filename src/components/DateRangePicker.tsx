@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Calendar } from 'lucide-react'
 import {
   addMonths,
@@ -113,6 +114,11 @@ export default function DateRangePicker({
   )
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  // Only set when the popover is portaled to document.body (see
+  // tabletSheetPortal below) — click-outside detection below also has to
+  // check this, since portaled content is no longer a DOM descendant of
+  // containerRef even though it's still the same logical component.
+  const portalRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const dragStartX = useRef(0)
   // Only used when anchor === 'viewport' — the trigger's own live
@@ -120,14 +126,42 @@ export default function DateRangePicker({
   // positioned from via position:fixed instead of position:absolute.
   const [viewportPos, setViewportPos] = useState<{ top: number; left: number } | null>(null)
 
+  // Tablet-only (600px–1099px) fix for the guest availability bar
+  // specifically (.hero-availability): .availability-bar has its own
+  // backdrop-filter (the glass look), and Chromium treats a
+  // backdrop-filter ancestor as establishing the containing block for
+  // position:fixed descendants — so the CSS sheet rule in guest.css
+  // (position:fixed; inset:auto 16px 16px 16px) was computing "16px from
+  // the viewport edge" relative to the BAR's own box, not the true
+  // viewport. Invisible on the homepage's full-viewport-height hero (the
+  // bar's own bottom edge sits close enough to the true viewport bottom
+  // that the difference doesn't show) but very visible on /rooms'
+  // shorter masthead hero, where the 500px-tall calendar ended up
+  // cut off above the viewport entirely. A portal to document.body
+  // sidesteps the quirk by escaping the backdrop-filter ancestor, scoped
+  // strictly to this one context and width range so desktop and mobile
+  // (which still render inline, exactly as before) are untouched.
+  const [isHeroTabletSheet, setIsHeroTabletSheet] = useState(false)
+  useEffect(() => {
+    if (!containerRef.current?.closest('.hero-availability')) return
+    const mq = window.matchMedia('(min-width: 600px) and (max-width: 1099px)')
+    function update() {
+      setIsHeroTabletSheet(mq.matches)
+    }
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+      const target = e.target as Node
+      if (containerRef.current?.contains(target)) return
+      if (portalRef.current?.contains(target)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -257,52 +291,40 @@ export default function DateRangePicker({
           ? `${formatShort(checkIn)} — Select check-out`
           : 'Select dates'
 
-  return (
-    <div className="relative" ref={containerRef}>
-      {!inline && <button
-        type="button"
-        ref={triggerRef}
-        onClick={() => (open ? setOpen(false) : openPopover())}
-        className={`flex w-full items-center gap-2 text-left focus:outline-none ${
-          bare
-            ? ''
-            : `rounded-sm border ${
-                isDark ? 'border-ivory/40 focus:border-brass' : 'border-charcoal/20 focus:border-espresso'
-              } ${isLarge ? 'px-6 py-5 text-base' : 'px-4 py-3 text-sm'}`
-        }`}
-      >
-        <Calendar
-          size={isLarge ? 16 : 14}
-          className={`shrink-0 ${isDark ? 'text-brass' : 'text-espresso'}`}
-        />
-        <span
-          className={
-            isDark
-              ? checkIn
-                ? 'text-ivory'
-                : 'text-ivory/50'
-              : checkIn
-                ? 'text-charcoal'
-                : 'text-charcoal/40'
-          }
-        >
-          {displayLabel}
-        </span>
-      </button>}
-
-      {(open || inline) && (
+  // Backdrop + popover as one value, rendered either inline (desktop,
+  // mobile, every other caller) or — tablet only, guest bar only — via a
+  // portal to document.body (see isHeroTabletSheet above for why).
+  const popoverBody = (open || inline) ? (
+    <>
+      {open && !inline && (
         <div
-          className={`${inline ? 'inline-calendar relative w-full p-4' : `date-picker-popover z-20 rounded-sm border border-charcoal/10 bg-white shadow-xl ${isViewportAnchored ? 'fixed' : 'absolute mt-2'}`} ${!inline ? (
-            isLarge
-              ? 'w-[min(300px,calc(100vw-2rem))] p-4'
-              : isCompact
-                ? 'w-[260px] p-2'
-                : 'w-[min(260px,calc(100vw-2rem))] p-3'
-          ) : ''}`}
-          style={!inline && isViewportAnchored && viewportPos ? { top: viewportPos.top, left: viewportPos.left } : undefined}
-        >
+          className={`popover-mobile-backdrop ${isHeroTabletSheet ? 'tablet-sheet' : ''}`}
+          onClick={() => setOpen(false)}
+        />
+      )}
+      <div
+        ref={portalRef}
+        className={`${inline ? 'inline-calendar relative w-full p-4' : `date-picker-popover z-20 rounded-sm border border-charcoal/10 bg-white shadow-xl ${isViewportAnchored ? 'fixed' : 'absolute mt-2'} ${isHeroTabletSheet ? 'tablet-sheet' : ''}`} ${!inline ? (
+          isLarge
+            ? 'w-[min(300px,calc(100vw-2rem))] p-4'
+            : isCompact
+              ? 'w-[260px] p-2'
+              : 'w-[min(260px,calc(100vw-2rem))] p-3'
+        ) : ''}`}
+        style={!inline && isViewportAnchored && viewportPos ? { top: viewportPos.top, left: viewportPos.left } : undefined}
+      >
+        {!inline && (
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Close"
+              className={`popover-mobile-close ${isHeroTabletSheet ? 'tablet-sheet' : ''}`}
+            >
+              ×
+            </button>
+          )}
           <div
-            className={`flex select-none touch-pan-y items-center justify-between ${
+            className={`month-nav flex select-none touch-pan-y items-center justify-between ${
               isDragging ? 'cursor-grabbing' : 'cursor-grab'
             }`}
             onPointerDown={handleCalendarPointerDown}
@@ -319,7 +341,7 @@ export default function DateRangePicker({
             >
               ←
             </button>
-            <p className={`font-display text-charcoal ${isLarge ? 'text-sm' : isCompact ? 'text-[11px]' : 'text-xs'}`}>
+            <p className={`month-label font-display text-charcoal ${isLarge ? 'text-sm' : isCompact ? 'text-[11px]' : 'text-xs'}`}>
               {monthLabel}
             </p>
             <button
@@ -334,7 +356,7 @@ export default function DateRangePicker({
           </div>
 
           <div
-            className={`mt-2 grid grid-cols-7 justify-items-center gap-y-1 text-center tracking-wide text-charcoal/40 uppercase ${
+            className={`weekday-row mt-2 grid grid-cols-7 justify-items-center gap-y-1 text-center tracking-wide text-charcoal/40 uppercase ${
               isLarge ? 'text-[11px]' : isCompact ? 'text-[8px]' : 'text-[10px]'
             }`}
           >
@@ -344,7 +366,7 @@ export default function DateRangePicker({
           </div>
 
           <div
-            className={`mt-1 grid grid-cols-7 justify-items-center ${isLarge ? 'gap-y-1' : 'gap-y-0.5'}`}
+            className={`day-grid mt-1 grid grid-cols-7 justify-items-center ${isLarge ? 'gap-y-1' : 'gap-y-0.5'}`}
           >
             {grid.map(({ date, inMonth }, i) => {
               const disabled =
@@ -418,7 +440,47 @@ export default function DateRangePicker({
             )}
           </div>
         </div>
+      </>
+    ) : null
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {!inline && (
+        <button
+          type="button"
+          ref={triggerRef}
+          onClick={() => (open ? setOpen(false) : openPopover())}
+          className={`flex w-full items-center gap-2 text-left focus:outline-none ${
+            bare
+              ? ''
+              : `rounded-sm border ${
+                  isDark ? 'border-ivory/40 focus:border-brass' : 'border-charcoal/20 focus:border-espresso'
+                } ${isLarge ? 'px-6 py-5 text-base' : 'px-4 py-3 text-sm'}`
+          }`}
+        >
+          <Calendar
+            size={isLarge ? 16 : 14}
+            className={`shrink-0 ${isDark ? 'text-brass' : 'text-espresso'}`}
+          />
+          <span
+            className={
+              isDark
+                ? checkIn
+                  ? 'text-ivory'
+                  : 'text-ivory/50'
+                : checkIn
+                  ? 'text-charcoal'
+                  : 'text-charcoal/40'
+            }
+          >
+            {displayLabel}
+          </span>
+        </button>
       )}
+
+      {isHeroTabletSheet && open && !inline
+        ? createPortal(popoverBody, document.body)
+        : popoverBody}
     </div>
   )
 }

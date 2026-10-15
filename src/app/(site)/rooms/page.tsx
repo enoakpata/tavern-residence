@@ -1,7 +1,4 @@
 import Link from 'next/link'
-import Image from 'next/image'
-import { ArrowDown } from 'lucide-react'
-import ScrollScene from '@/components/ScrollScene'
 import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
 import { isAnyRoomAvailable } from '@/lib/bookings'
@@ -10,7 +7,7 @@ import { getRoomCoverImage, getRoomGallery, getGalleryImages } from '@/lib/roomI
 import { HOTEL_NAME, HOTEL_ADDRESS_LOCALITY, HOTEL_ADDRESS_REGION } from '@/lib/siteConfig'
 import { todayInLagos } from '@/lib/dateUtils'
 import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER, type RoomTypeKey } from '@/lib/roomTypeContent'
-import HomeAvailabilityCheck from '../HomeAvailabilityCheck'
+import PageHero from '../PageHero'
 import RoomTypeList, { type RoomTypeRowData } from './RoomTypeList'
 import './rooms.css'
 
@@ -33,9 +30,8 @@ export default async function RoomsPage({
   const rawCheckIn = typeof params.checkin === 'string' ? params.checkin : ''
   const rawCheckOut = typeof params.checkout === 'string' ? params.checkout : ''
   // Carried along from the availability bar (HomeAvailabilityCheck, both
-  // here and on the homepage) purely so Book Now/Book This Room can pass
-  // them on to /rooms/[id] — nothing on this page filters by them, same
-  // as before this was wired up.
+  // here and on the homepage) so Book Now/Book This Room can pass them on
+  // to /rooms/[id], and — below — so this page itself can filter by them.
   const adults = typeof params.adults === 'string' ? params.adults : null
   // Named childrenCount, not children — "children" is a reserved React
   // prop name (the JSX content between tags), and ESLint flags passing it
@@ -50,6 +46,17 @@ export default async function RoomsPage({
     ISO_DATE_PATTERN.test(rawCheckOut) &&
     rawCheckOut > rawCheckIn &&
     rawCheckIn >= todayInLagos()
+
+  // The availability bar always submits adults alongside children (never
+  // just one), so adults present is enough to treat this as "a guest
+  // count was actually chosen" — independent of hasDates, since capacity
+  // doesn't depend on which dates are picked, only on how many people.
+  const DIGITS_PATTERN = /^\d+$/
+  const adultsNum = adults !== null && DIGITS_PATTERN.test(adults) ? parseInt(adults, 10) : null
+  const childrenNum =
+    childrenCount !== null && DIGITS_PATTERN.test(childrenCount) ? parseInt(childrenCount, 10) : null
+  const hasGuests = adultsNum !== null
+  const requestedGuests = hasGuests ? (adultsNum ?? 0) + (childrenNum ?? 0) : null
 
   const { data: rooms, error } = await supabase
     .from('Rooms')
@@ -115,9 +122,18 @@ export default async function RoomsPage({
         maxOccupancy: representative.max_occupancy,
         bedType: representative.bed_type,
         isAvailable,
+        // Capacity is independent of dates — every physical room sharing
+        // this type has the same max_occupancy, so the representative's
+        // value speaks for the whole type.
+        isTooSmall: hasGuests && requestedGuests! > representative.max_occupancy,
       }
     })
   )
+
+  // True only once a guest count was actually chosen and it's larger
+  // than every room type's own capacity — i.e. no type, regardless of
+  // dates, could ever hold that many people.
+  const noRoomFitsGuestCount = hasGuests && rows.length > 0 && rows.every((row) => row.isTooSmall)
 
   // Use a bedroom photo distinct from the homepage's lounge photo.
   const galleryImages = getGalleryImages()
@@ -125,46 +141,24 @@ export default async function RoomsPage({
 
   return (
     <main className="rooms-page">
-      <ScrollScene className="rooms-page-hero">
-        {heroImage && (
-          <Image
-            src={heroImage}
-            alt={`${HOTEL_NAME}, rooms and suites in Lekki Phase 1, Lagos`}
-            fill
-            priority
-            sizes="100vw"
-            className="rooms-hero-photo object-cover"
-          />
-        )}
-        <div className="rooms-hero-shade" />
-        <div className="rooms-hero-copy">
-          <h1>Rooms and Suites</h1>
-          <Link href="#rooms" className="outline-pill rooms-hero-link">
-            Explore the collection <ArrowDown size={16} aria-hidden="true" />
-          </Link>
-        </div>
-        <span className="rooms-hero-location">Lekki Phase 1, Lagos</span>
-
-        {/* The exact homepage availability bar (HomeAvailabilityCheck's
-            default "bar" variant, same DateRangePicker/GuestPicker) —
-            reused as-is, not rebuilt, overlaid on the hero the same way
-            the homepage's own hero-availability sits on its hero. The
-            hero's own image/headline/button above are untouched; this is
-            purely an added sibling. */}
-        <div id="availability" className="hero-availability rooms-hero-availability">
-          <HomeAvailabilityCheck
-            key={`${rawCheckIn}-${rawCheckOut}`}
-            initialCheckIn={hasDates ? rawCheckIn : null}
-            initialCheckOut={hasDates ? rawCheckOut : null}
-          />
-        </div>
-      </ScrollScene>
+      <PageHero
+        image={heroImage ? { src: heroImage, alt: `${HOTEL_NAME}, rooms and suites in Lekki Phase 1, Lagos` } : null}
+        title="Rooms and Suites"
+        action={{ label: 'Explore the collection', href: '#rooms' }}
+        initialCheckIn={hasDates ? rawCheckIn : null}
+        initialCheckOut={hasDates ? rawCheckOut : null}
+      />
 
       {hasDates && (
         <div className="rooms-search-summary" role="status">
           <span>Availability for your selected dates</span>
           <span>{rawCheckIn} &ndash; {rawCheckOut}</span>
           <Link href="/rooms">Clear dates</Link>
+        </div>
+      )}
+      {noRoomFitsGuestCount && (
+        <div className="rooms-capacity-notice" role="status">
+          For groups of {requestedGuests}, please contact us or book more than one room.
         </div>
       )}
       {rows.length === 0 ? (

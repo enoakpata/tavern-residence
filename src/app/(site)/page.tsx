@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { getFeaturedRoomPhotos, getGalleryImages, getRoomCoverImage } from '@/lib/roomImages'
 import {
@@ -10,7 +9,7 @@ import {
   HOTEL_PHONE_TEL,
 } from '@/lib/siteConfig'
 import { FacilitiesSection, GettingHereSection, BookingInvitation } from './GuestHomeSections'
-import HomeAvailabilityCheck from './HomeAvailabilityCheck'
+import PageHero from './PageHero'
 import OurRooms, { type RoomCardData } from './OurRooms'
 import AroundTheResidence from './AroundTheResidence'
 import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER } from '@/lib/roomTypeContent'
@@ -96,12 +95,11 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(hotelJsonLd) }}
       />
       <main>
-        <section className="home-hero">
-          {heroImage && <Image src={heroImage} alt={`${HOTEL_NAME}, a private hotel apartment in Lekki Phase 1, Lagos`} fill priority sizes="100vw" className="hero-photo object-cover" />}
-          <div className="hero-shade" />
-          <div className="hero-headline"><h1>Welcome to Tavern Residence</h1><p>A stay to remember</p></div>
-          <div className="hero-availability"><HomeAvailabilityCheck /></div>
-        </section>
+        <PageHero
+          image={heroImage ? { src: heroImage, alt: `${HOTEL_NAME}, a private hotel apartment in Lekki Phase 1, Lagos` } : null}
+          title="Welcome to Tavern Residence"
+          subtitle="A stay to remember"
+        />
         <OurRooms rooms={ourRooms} />
 
         <FacilitiesSection />

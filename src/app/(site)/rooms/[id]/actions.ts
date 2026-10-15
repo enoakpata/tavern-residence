@@ -49,6 +49,16 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   // this is displayed later (e.g. BookingDetailModal.tsx).
   const specialRequestsRaw = (formData.get('special_requests') as string | null)?.trim()
   const specialRequests = specialRequestsRaw ? specialRequestsRaw : null
+  // Optional — only present when the guest arrived via the availability
+  // bar's guest picker (see BookingForm.tsx's hidden inputs). Used only
+  // to re-validate against this room's capacity below; never stored
+  // (there's no guest-count column on Bookings).
+  const adultsRaw = formData.get('adults') as string | null
+  const childrenRaw = formData.get('children') as string | null
+  const DIGITS_PATTERN = /^\d+$/
+  const adultsNum = adultsRaw && DIGITS_PATTERN.test(adultsRaw) ? parseInt(adultsRaw, 10) : null
+  const childrenNum = childrenRaw && DIGITS_PATTERN.test(childrenRaw) ? parseInt(childrenRaw, 10) : null
+  const requestedGuests = adultsNum !== null ? adultsNum + (childrenNum ?? 0) : null
 
   // guest_email is now required — Paystack needs it to run the card
   // verification charge, whereas before it was optional
@@ -66,6 +76,25 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
 
   if (checkOut <= checkIn) {
     return { success: false, error: 'Check-out must be after check-in.' }
+  }
+
+  // Fetched once, early — used for the capacity re-check right below and
+  // reused further down (totalAmount) instead of querying Rooms twice.
+  const { data: bookedRoom } = await supabase
+    .from('Rooms')
+    .select('price_per_night, max_occupancy')
+    .eq('id', roomId)
+    .single()
+
+  // Re-validated server-side, not just trusted from the URL/hidden field
+  // — a guest count large enough to exceed this room's own capacity
+  // (e.g. a tampered room_id/adults combination) is refused here exactly
+  // like an unavailable date range is, below.
+  if (requestedGuests !== null && bookedRoom?.max_occupancy != null && requestedGuests > bookedRoom.max_occupancy) {
+    return {
+      success: false,
+      error: `This room sleeps up to ${bookedRoom.max_occupancy} guests, which isn't enough for a party of ${requestedGuests}.`,
+    }
   }
 
   // Re-check availability on the server, right before we touch payment or
@@ -93,7 +122,7 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   // the reusable authorization_code — this is the "saved card" we hold
   // ONLY for a later cancellation/no-show fee (see
   // src/app/admin/bookings/actions.ts's chargeSavedCard) — never for the
-  // stay itself, which guests now pay us directly (transfer/cash/POS).
+  // stay itself, which guests now pay us directly (transfer/POS).
   const verification = await verifyTransaction(paystackReference)
   if (!verification.success) {
     // The transaction can still have actually charged the guest even
@@ -125,11 +154,6 @@ const nights = Math.max(
   )
 )
 
-const { data: bookedRoom } = await supabase
-  .from('Rooms')
-  .select('price_per_night')
-  .eq('id', roomId)
-  .single()
 const totalAmount = (bookedRoom?.price_per_night ?? 0) * nights
 
 const { error } = await supabase.from('Bookings').insert({
@@ -145,7 +169,7 @@ const { error } = await supabase.from('Bookings').insert({
   // Still 'card' — a card genuinely was collected (for the fee-only
   // hold); it's just no longer charged for the stay. The actual method
   // used to pay the stay is tracked per-payment in booking_payments.method
-  // once the guest actually pays (transfer/cash/POS), not here.
+  // once the guest actually pays (transfer/POS), not here.
   payment_method: 'card',
   payment_status: 'unpaid',
   total_amount: totalAmount,

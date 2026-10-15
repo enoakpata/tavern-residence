@@ -6,9 +6,14 @@ import {
   updateBookingStatus,
   editBookingDates,
   getRoomBlockedRangesForEdit,
+  getRoomOptionsForChange,
+  changeBookingRoom,
+  earlyCheckout,
+  type RoomChangeOption,
 } from './actions'
 import ConfirmModal from '@/components/ConfirmModal'
 import DateRangePicker from '@/components/DateRangePicker'
+import MoneyDispositionChoice, { type MoneyDisposition } from '@/components/MoneyDispositionChoice'
 import { getCancellationOutcome } from '@/lib/cancellationPolicy'
 import { parseISODate, toISODate, type BlockedRange } from '@/lib/dateUtils'
 
@@ -24,6 +29,10 @@ type BookingActionsProps = {
   // which must never reach the client. See that function's own comment.
   hasCardOnFile: boolean
   pricePerNight: number
+  // Already paid toward this stay — drives both the cancel dialog (no
+  // fee/card charge once anything's been paid, section 8) and whether
+  // "Early checkout" needs to ask about an overpayment (section 7).
+  amountPaid: number
   // Called after any action succeeds — lets a parent that's showing its
   // own snapshot of this booking (the detail modal, which fetches once
   // when opened) know to refetch, since revalidatePath only refreshes the
@@ -33,6 +42,7 @@ type BookingActionsProps = {
 
 const CANCELLABLE_STATUSES = ['pending', 'confirmed']
 const EDITABLE_DATE_STATUSES = ['confirmed', 'checked_in']
+const ROOM_CHANGE_LOCKED_STATUSES = ['cancelled', 'checked_out']
 
 // The earliest sensible check-out for a given check-in — the day after,
 // since a checkout on the same day as check-in isn't a real stay.
@@ -42,12 +52,26 @@ function dayAfter(date: string): string {
   return toISODate(d)
 }
 
+// The latest sensible early-checkout date — strictly before the
+// original check-out (an early checkout on the same day as the original
+// check-out isn't "early").
+function dayBefore(date: string): string {
+  const d = parseISODate(date)
+  d.setDate(d.getDate() - 1)
+  return toISODate(d)
+}
+
 function formatDate(iso: string): string {
   return parseISODate(iso).toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
   })
+}
+
+function nightsBetween(checkIn: string, checkOut: string): number {
+  const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
+  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
 }
 
 export default function BookingActions({
@@ -60,6 +84,7 @@ export default function BookingActions({
   roomNumber,
   hasCardOnFile,
   pricePerNight,
+  amountPaid,
   onActionComplete,
 }: BookingActionsProps) {
   const [isPending, startTransition] = useTransition()
@@ -70,6 +95,12 @@ export default function BookingActions({
   // automatically.
   const [pendingCancel, setPendingCancel] = useState<null | { reason: string }>(null)
   const [cancelFeeInput, setCancelFeeInput] = useState('0')
+  // Only relevant once amountPaid > 0 — the dialog switches from "fee to
+  // charge the card" to "what happens to what's already paid" (section
+  // 8), reusing the exact same choice/component as earlyCheckout below.
+  const [cancelDisposition, setCancelDisposition] = useState<MoneyDisposition>('hold_credit')
+  const [cancelRefundMethod, setCancelRefundMethod] = useState<'transfer' | 'pos'>('transfer')
+  const [cancelDispositionNote, setCancelDispositionNote] = useState('')
   const [pendingCheckout, setPendingCheckout] = useState(false)
   const [cancelResult, setCancelResult] = useState<null | { success: boolean; message: string }>(
     null
@@ -82,6 +113,32 @@ export default function BookingActions({
     null | { success: boolean; message: string }
   >(null)
   const [editDatesBlockedRanges, setEditDatesBlockedRanges] = useState<BlockedRange[]>([])
+
+  // --- Change room (section 6) ---
+  const [pendingChangeRoom, setPendingChangeRoom] = useState(false)
+  const [roomOptions, setRoomOptions] = useState<RoomChangeOption[]>([])
+  const [currentTotal, setCurrentTotal] = useState(0)
+  const [selectedRoomId, setSelectedRoomId] = useState('')
+  const [totalChoice, setTotalChoice] = useState<'keep_original' | 'update_to_new_rate'>(
+    'keep_original'
+  )
+  const [changeRoomReason, setChangeRoomReason] = useState('')
+  const [notifyGuest, setNotifyGuest] = useState(false)
+  const [changeRoomError, setChangeRoomError] = useState('')
+  const [changeRoomResult, setChangeRoomResult] = useState<
+    null | { success: boolean; message: string }
+  >(null)
+
+  // --- Early checkout (section 7) ---
+  const [pendingEarlyCheckout, setPendingEarlyCheckout] = useState(false)
+  const [earlyCheckoutDate, setEarlyCheckoutDate] = useState('')
+  const [earlyDisposition, setEarlyDisposition] = useState<MoneyDisposition>('hold_credit')
+  const [earlyRefundMethod, setEarlyRefundMethod] = useState<'transfer' | 'pos'>('transfer')
+  const [earlyNote, setEarlyNote] = useState('')
+  const [earlyCheckoutError, setEarlyCheckoutError] = useState('')
+  const [earlyCheckoutResult, setEarlyCheckoutResult] = useState<
+    null | { success: boolean; message: string }
+  >(null)
 
   function run(
     action: () => Promise<{ success: boolean; error?: string }>,
@@ -105,14 +162,25 @@ export default function BookingActions({
   // stays editable at that point — a confirmed booking (not yet arrived)
   // can still have both moved.
   const canEditCheckIn = status === 'confirmed'
+  const canChangeRoom = !ROOM_CHANGE_LOCKED_STATUSES.includes(status)
+  // Only a currently checked-in guest can leave early — a confirmed
+  // booking hasn't arrived yet (that's "edit dates"), and anything past
+  // checked_in has already ended one way or another.
+  const canEarlyCheckout = status === 'checked_in'
+  const hasAmountPaid = amountPaid > 0
 
   function handleCancelClick() {
     // feeAmount/reason are the policy's suggestion, shown for reference —
     // the admin can edit or zero the amount in the dialog before
-    // confirming; nothing here decides or charges automatically.
+    // confirming; nothing here decides or charges automatically. Only
+    // relevant when nothing's been paid yet — once amountPaid > 0 the
+    // dialog shows the money-disposition choice instead (section 8).
     const { feeAmount, reason } = getCancellationOutcome({ createdAt, checkIn, pricePerNight })
     setPendingCancel({ reason })
     setCancelFeeInput(String(feeAmount))
+    setCancelDisposition('hold_credit')
+    setCancelRefundMethod('transfer')
+    setCancelDispositionNote('')
   }
 
   function handleConfirmCancel() {
@@ -120,13 +188,33 @@ export default function BookingActions({
     setPendingCancel(null)
     setError('')
     startTransition(async () => {
-      const res = await cancelBookingByStaff(bookingId, feeAmount)
+      const res = await cancelBookingByStaff(
+        bookingId,
+        feeAmount,
+        hasAmountPaid
+          ? {
+              disposition: cancelDisposition,
+              refundMethod: cancelRefundMethod,
+              note: cancelDispositionNote,
+            }
+          : undefined
+      )
       if (res.success) {
+        const dispositionLabel =
+          res.moneyDisposition === 'hold_credit'
+            ? `₦${amountPaid.toLocaleString()} held as credit for the guest.`
+            : res.moneyDisposition === 'refund'
+              ? `₦${amountPaid.toLocaleString()} recorded as refunded.`
+              : res.moneyDisposition === 'keep'
+                ? `₦${amountPaid.toLocaleString()} kept — no refund.`
+                : null
         setCancelResult({
           success: true,
-          message: res.feeCharged
-            ? `Booking cancelled. A cancellation fee of ₦${res.feeAmount.toLocaleString()} was charged to the guest's card.`
-            : 'Booking cancelled — no fee charged.',
+          message: dispositionLabel
+            ? `Booking cancelled. ${dispositionLabel}`
+            : res.feeCharged
+              ? `Booking cancelled. A cancellation fee of ₦${res.feeAmount.toLocaleString()} was charged to the guest's card.`
+              : 'Booking cancelled — no fee charged.',
         })
         onActionComplete?.()
       } else {
@@ -176,6 +264,103 @@ export default function BookingActions({
     })
   }
 
+  function handleChangeRoomClick() {
+    setChangeRoomError('')
+    setChangeRoomReason('')
+    setNotifyGuest(false)
+    setTotalChoice('keep_original')
+    setSelectedRoomId('')
+    setRoomOptions([])
+    setPendingChangeRoom(true)
+    startTransition(async () => {
+      const res = await getRoomOptionsForChange(bookingId)
+      if (res.success) {
+        setRoomOptions(res.options)
+        setCurrentTotal(res.currentTotal)
+      } else {
+        setChangeRoomError(res.error)
+      }
+    })
+  }
+
+  function handleConfirmChangeRoom() {
+    if (!selectedRoomId) {
+      setChangeRoomError('Choose a room.')
+      return
+    }
+    if (!changeRoomReason.trim()) {
+      setChangeRoomError('A reason is required.')
+      return
+    }
+    setPendingChangeRoom(false)
+    startTransition(async () => {
+      const res = await changeBookingRoom(bookingId, selectedRoomId, totalChoice, changeRoomReason, notifyGuest)
+      if (res.success) {
+        const toRoom = roomOptions.find((r) => r.id === selectedRoomId)
+        setChangeRoomResult({
+          success: true,
+          message: `Room changed to ${toRoom?.roomNumber ?? ''} — ${toRoom?.typeName ?? ''}.`,
+        })
+        onActionComplete?.()
+      } else {
+        setChangeRoomResult({ success: false, message: res.error })
+      }
+    })
+  }
+
+  function handleEarlyCheckoutClick() {
+    setEarlyCheckoutError('')
+    setEarlyCheckoutDate('')
+    setEarlyDisposition('hold_credit')
+    setEarlyRefundMethod('transfer')
+    setEarlyNote('')
+    setPendingEarlyCheckout(true)
+  }
+
+  function handleConfirmEarlyCheckout() {
+    if (!earlyCheckoutDate) {
+      setEarlyCheckoutError('Choose a departure date.')
+      return
+    }
+    if (!(earlyCheckoutDate > checkIn) || !(earlyCheckoutDate < checkOut)) {
+      setEarlyCheckoutError('Choose a date between check-in and the original check-out.')
+      return
+    }
+    setPendingEarlyCheckout(false)
+    startTransition(async () => {
+      const res = await earlyCheckout(bookingId, earlyCheckoutDate, earlyDisposition, earlyRefundMethod, earlyNote)
+      if (res.success) {
+        setEarlyCheckoutResult({
+          success: true,
+          message:
+            res.overpaid > 0
+              ? `Checked out early. ₦${res.overpaid.toLocaleString()} overpayment — ${
+                  earlyDisposition === 'hold_credit'
+                    ? 'held as credit.'
+                    : earlyDisposition === 'refund'
+                      ? 'recorded as refunded.'
+                      : 'kept, no refund.'
+                }`
+              : 'Checked out early.',
+        })
+        onActionComplete?.()
+      } else {
+        setEarlyCheckoutResult({ success: false, message: res.error })
+      }
+    })
+  }
+
+  const originalNights = nightsBetween(checkIn, checkOut)
+  const newNightsPreview =
+    earlyCheckoutDate && earlyCheckoutDate > checkIn
+      ? Math.round(
+          (parseISODate(earlyCheckoutDate).getTime() - parseISODate(checkIn).getTime()) / (1000 * 60 * 60 * 24)
+        )
+      : 0
+  const unusedNightsPreview = newNightsPreview > 0 ? Math.max(0, originalNights - newNightsPreview) : 0
+  const newTotalPreview = newNightsPreview * pricePerNight
+  const overpaidPreview = Math.max(0, amountPaid - newTotalPreview)
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {canCheckOut && (
@@ -208,13 +393,49 @@ export default function BookingActions({
         </button>
       )}
 
+      {canChangeRoom && (
+        <button
+          disabled={isPending}
+          onClick={handleChangeRoomClick}
+          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
+        >
+          Change room
+        </button>
+      )}
+
+      {canEarlyCheckout && (
+        <button
+          disabled={isPending}
+          onClick={handleEarlyCheckoutClick}
+          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
+        >
+          Early checkout
+        </button>
+      )}
+
       {error && <p className="w-full text-xs text-clay">{error}</p>}
 
       <ConfirmModal
         open={pendingCancel !== null}
         title="Cancel booking"
         message={
-          hasCardOnFile ? (
+          hasAmountPaid ? (
+            <div>
+              <p>
+                Guest has paid ₦{amountPaid.toLocaleString()}, so no cancellation fee is charged —
+                the saved card won&apos;t be touched.
+              </p>
+              <MoneyDispositionChoice
+                amount={amountPaid}
+                disposition={cancelDisposition}
+                onDispositionChange={setCancelDisposition}
+                refundMethod={cancelRefundMethod}
+                onRefundMethodChange={setCancelRefundMethod}
+                note={cancelDispositionNote}
+                onNoteChange={setCancelDispositionNote}
+              />
+            </div>
+          ) : hasCardOnFile ? (
             <div>
               <p>Policy suggestion: {pendingCancel?.reason}</p>
               <label className="mt-3 block text-xs tracking-widest text-charcoal/60 uppercase">
@@ -236,9 +457,11 @@ export default function BookingActions({
         }
         cancelLabel="Back"
         confirmLabel={
-          hasCardOnFile && Number(cancelFeeInput) > 0
-            ? `Cancel and charge ₦${Math.round(Number(cancelFeeInput)).toLocaleString()}`
-            : 'Cancel without fee'
+          hasAmountPaid
+            ? 'Cancel booking'
+            : hasCardOnFile && Number(cancelFeeInput) > 0
+              ? `Cancel and charge ₦${Math.round(Number(cancelFeeInput)).toLocaleString()}`
+              : 'Cancel without fee'
         }
         onConfirm={handleConfirmCancel}
         onCancel={() => setPendingCancel(null)}
@@ -328,6 +551,172 @@ export default function BookingActions({
         hideCancel
         onConfirm={() => setEditDatesResult(null)}
         onCancel={() => setEditDatesResult(null)}
+      />
+
+      <ConfirmModal
+        open={pendingChangeRoom}
+        title="Change room"
+        message={
+          <div>
+            <p>Move {guestName}&apos;s stay to a different room.</p>
+            {changeRoomError && <p className="mt-2 text-xs text-clay">{changeRoomError}</p>}
+            <div className="mt-3 max-h-56 space-y-1.5 overflow-y-auto">
+              {roomOptions.length === 0 && !changeRoomError && (
+                <p className="text-xs text-charcoal/50">Loading rooms…</p>
+              )}
+              {roomOptions.map((opt) => (
+                <label
+                  key={opt.id}
+                  className={`flex items-center justify-between gap-2 rounded-sm border px-3 py-2 text-sm ${
+                    !opt.isFree ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
+                  } ${selectedRoomId === opt.id ? 'border-espresso bg-espresso/5' : 'border-charcoal/15'}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="change-room"
+                      disabled={!opt.isFree}
+                      checked={selectedRoomId === opt.id}
+                      onChange={() => setSelectedRoomId(opt.id)}
+                    />
+                    <span>
+                      {opt.roomNumber} · {opt.typeName}
+                      {opt.isCurrent ? ' (current)' : ''}
+                      {!opt.isFree ? ' — booked these dates' : ''}
+                    </span>
+                  </span>
+                  <span className="text-charcoal/50">₦{opt.pricePerNight.toLocaleString()}/night</span>
+                </label>
+              ))}
+            </div>
+
+            {(() => {
+              const selected = roomOptions.find((r) => r.id === selectedRoomId)
+              if (!selected || selected.isCurrent) return null
+              const nights = nightsBetween(checkIn, checkOut)
+              const newRateTotal = selected.pricePerNight * nights
+              return (
+                <div className="mt-3 space-y-2 rounded-sm bg-charcoal/5 p-3 text-xs text-charcoal/70">
+                  <p>Current total: ₦{currentTotal.toLocaleString()}</p>
+                  <p>Total at the new rate: ₦{newRateTotal.toLocaleString()}</p>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="total-choice"
+                      checked={totalChoice === 'keep_original'}
+                      onChange={() => setTotalChoice('keep_original')}
+                    />
+                    Keep original total (₦{currentTotal.toLocaleString()})
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="total-choice"
+                      checked={totalChoice === 'update_to_new_rate'}
+                      onChange={() => setTotalChoice('update_to_new_rate')}
+                    />
+                    Update total to the new rate (₦{newRateTotal.toLocaleString()})
+                  </label>
+                </div>
+              )
+            })()}
+
+            <label className="mt-3 block text-xs tracking-widest text-charcoal/60 uppercase">
+              Reason
+            </label>
+            <input
+              value={changeRoomReason}
+              onChange={(e) => setChangeRoomReason(e.target.value)}
+              placeholder="e.g. guest request"
+              className="mt-1 w-full rounded-sm border border-charcoal/20 px-2 py-1.5 text-sm text-charcoal"
+            />
+
+            <label className="mt-3 flex items-center gap-2 text-xs text-charcoal/70">
+              <input type="checkbox" checked={notifyGuest} onChange={(e) => setNotifyGuest(e.target.checked)} />
+              Notify guest by email (room type only — never a room number)
+            </label>
+          </div>
+        }
+        confirmLabel="Change room"
+        onConfirm={handleConfirmChangeRoom}
+        onCancel={() => setPendingChangeRoom(false)}
+      />
+
+      <ConfirmModal
+        open={changeRoomResult !== null}
+        title={changeRoomResult?.success ? 'Room changed' : 'Change room failed'}
+        message={changeRoomResult?.message ?? ''}
+        confirmLabel="OK"
+        hideCancel
+        onConfirm={() => setChangeRoomResult(null)}
+        onCancel={() => setChangeRoomResult(null)}
+      />
+
+      <ConfirmModal
+        open={pendingEarlyCheckout}
+        title="Early checkout"
+        message={
+          <div>
+            <p>
+              {guestName} is checking out early, before the original check-out of{' '}
+              {formatDate(checkOut)}.
+            </p>
+            <label className="mt-3 block text-xs tracking-widest text-charcoal/60 uppercase">
+              Actual departure date
+            </label>
+            <div className="mt-1">
+              <DateRangePicker
+                mode="single"
+                blockedRanges={[]}
+                minDate={dayAfter(checkIn)}
+                maxDate={dayBefore(checkOut)}
+                allowPast
+                initialCheckIn={earlyCheckoutDate || null}
+                onChange={(newDate) => {
+                  setEarlyCheckoutDate(newDate ?? '')
+                  setEarlyCheckoutError('')
+                }}
+              />
+            </div>
+
+            {earlyCheckoutDate && newNightsPreview > 0 && (
+              <div className="mt-3 space-y-1 rounded-sm bg-charcoal/5 p-3 text-xs text-charcoal/70">
+                <p>Nights stayed: {newNightsPreview}</p>
+                <p>Nights unused: {unusedNightsPreview}</p>
+                <p>New total: ₦{newTotalPreview.toLocaleString()}</p>
+                <p>Already paid: ₦{amountPaid.toLocaleString()}</p>
+                {overpaidPreview > 0 && <p>Overpayment: ₦{overpaidPreview.toLocaleString()}</p>}
+              </div>
+            )}
+
+            {overpaidPreview > 0 && (
+              <MoneyDispositionChoice
+                amount={overpaidPreview}
+                disposition={earlyDisposition}
+                onDispositionChange={setEarlyDisposition}
+                refundMethod={earlyRefundMethod}
+                onRefundMethodChange={setEarlyRefundMethod}
+                note={earlyNote}
+                onNoteChange={setEarlyNote}
+              />
+            )}
+
+            {earlyCheckoutError && <p className="mt-2 text-xs text-clay">{earlyCheckoutError}</p>}
+          </div>
+        }
+        confirmLabel="Check out early"
+        onConfirm={handleConfirmEarlyCheckout}
+        onCancel={() => setPendingEarlyCheckout(false)}
+      />
+
+      <ConfirmModal
+        open={earlyCheckoutResult !== null}
+        title={earlyCheckoutResult?.success ? 'Checked out' : 'Early checkout failed'}
+        message={earlyCheckoutResult?.message ?? ''}
+        confirmLabel="OK"
+        hideCancel
+        onConfirm={() => setEarlyCheckoutResult(null)}
+        onCancel={() => setEarlyCheckoutResult(null)}
       />
     </div>
   )

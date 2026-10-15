@@ -41,34 +41,63 @@ html:has(.guest-site) { scroll-behavior: smooth; }
 .skip-link:focus { top: 4px; z-index: 60; }
 .mobile-menu-panel { display: none; }
 
-/* Hero and existing availability controls. */
-.guest-site .home-hero { position: relative; isolation: isolate; width: 100%; max-width: none; margin: 0; height: calc(100svh - 65px); background: #393529; border-radius: 0; color: white; }
+/* The one shared hero — both the homepage and /rooms render
+   PageHero.tsx (one markup tree, props-driven: image/title/subtitle/
+   action), styled ENTIRELY by the rules below with no page-specific
+   variant of any of them. The homepage's own look is the reference —
+   full-bleed, a fixed height, headline and bar absolutely overlaid on
+   the photo — and /rooms uses the exact same rules, at every size,
+   with zero exceptions. The only thing that differs between the pages
+   is content inside .hero-subline (below the <h1>, inside
+   .hero-headline): the homepage renders a <p> subtitle there, /rooms
+   renders a .hero-action-link button instead — same box, same
+   position, so whichever one a page has sits exactly where the other
+   page's would. .hero-subline is positioned out of flow precisely so
+   that it can't affect .hero-headline's own height — .hero-headline's
+   top:38%/translateY(-50%) centering is driven by the <h1> alone, so
+   the title sits at the same vertical position on both pages no matter
+   which sibling (subtitle text vs. a taller pill button) follows it.
+   (An earlier version of this file gave /rooms its own .has-action
+   variant of the hero/headline/bar — flex instead of absolute, a
+   narrower max-width on the bar, text-align: center inherited down
+   into the bar's fields. That's exactly what caused the two heroes to
+   visibly diverge, so none of it exists any more.) */
+.guest-site .page-hero { position: relative; isolation: isolate; width: 100%; max-width: none; margin: 0; height: calc(100svh - 65px); background: #393529; border-radius: 0; color: white; }
 .hero-photo { border-radius: 0; }
 .hero-shade { position: absolute; inset: 0; border-radius: 0; background: linear-gradient(rgb(25 20 13 / 28%),rgb(25 20 13 / 40%)); }
 /* Extra darkening specifically behind the now-transparent availability
-   bar — a safety net for whichever hero photo happens to be in rotation
-   (getGalleryImages()/the homepage's own pick) being too bright for the
-   glass bar's white text on its own, without having to make the bar
-   itself less transparent. Sits below the bar's own z-index:5 so the
-   bar renders on top of it; clipped to each hero's own border-radius
-   automatically via that hero's overflow:hidden (/rooms) or square
-   corners (homepage, full-bleed). Shared by both .home-hero and
-   .rooms-page-hero (defined in rooms.css) rather than duplicated. */
-.guest-site .home-hero::after, .rooms-page-hero::after { content: ''; position: absolute; inset: auto 0 0 0; height: 45%; max-height: 220px; background: linear-gradient(to bottom, transparent, rgb(10 8 5 / 55%)); pointer-events: none; z-index: 4; }
+   bar — a safety net for whichever hero photo happens to be in
+   rotation (getGalleryImages()) being too bright for the glass bar's
+   white text on its own, without having to make the bar itself less
+   transparent. Sits below the content's own z-index:5 so the headline/
+   bar render on top of it. */
+.guest-site .page-hero::after { content: ''; position: absolute; inset: auto 0 0 0; height: 45%; max-height: 220px; background: linear-gradient(to bottom, transparent, rgb(10 8 5 / 55%)); pointer-events: none; z-index: 4; }
 .hero-headline { position: absolute; top: 38%; left: 24px; right: 24px; transform: translateY(-50%); text-align: center; }
-.hero-headline h1 { font-size: clamp(40px, 4.7vw, 68px); line-height: 1.04; color: #fff; text-wrap: balance; }
-.hero-headline p { margin-top: 20px; font-size: 12px; color: #f5f0e5; line-height: 1.6; }
+.hero-headline h1 { font-family: var(--font-primary), Georgia, serif; font-weight: 400; font-size: clamp(40px, 4.7vw, 68px); line-height: 1.04; color: #fff; text-wrap: balance; }
+/* Out of flow (not static/relative) so it never contributes to
+   .hero-headline's own box height — see the comment above .hero-
+   headline. top: calc(100% + 20px) reproduces the same 20px gap a
+   margin-top would, measured from the <h1>'s own bottom edge (which,
+   with .hero-subline out of flow, is .hero-headline's bottom edge too). */
+.hero-subline { position: absolute; top: calc(100% + 20px); left: 0; right: 0; }
+.hero-headline p { font-size: 12px; color: #f5f0e5; line-height: 1.6; }
+/* /rooms' "Explore the collection" — takes the same spot a subtitle
+   <p> would (same .hero-subline box above), styled like .outline-pill
+   (guest.css) everywhere else but readable over a photo: white
+   text/border instead of the pill's normal dark-on-light default, a
+   translucent hover fill. */
+.guest-site .hero-action-link { color: white; border-color: rgb(255 255 255 / 65%); padding-right: 18px; gap: 20px; }
+.guest-site .hero-action-link:hover { background: rgb(255 255 255 / 12%); }
 .hero-availability { position: absolute; z-index: 5; bottom: 26px; left: 28px; right: 28px; }
 /* Same glass look on both the homepage hero and /rooms — the hero photo
    shows through (see the .availability-bar base rule below), so every
    label/value/icon/divider inside needs to switch to light text instead
    of its normal dark default — the next block does that, scoped to
    .hero-availability so it only affects the bar while it's actually
-   sitting over a photo (the /rooms mobile fallback, where the bar drops
-   out of the hero entirely, resets all of this back to dark — see
-   rooms.css). A soft dark gradient at the base of each hero (further
-   down this file, on .home-hero/.rooms-page-hero) backs this up in case
-   a given hero photo is too bright on its own.
+   sitting inside the (one, shared) hero, at every width on both pages.
+   A soft dark gradient at the base of the hero (.page-hero::after,
+   above) backs this up in case a given hero photo is too bright on its
+   own.
 
    The :not() exclusions below matter: DateRangePicker's and GuestPicker's
    popovers render as DOM children of .availability-bar (not a portal),
@@ -87,15 +116,9 @@ html:has(.guest-site) { scroll-behavior: smooth; }
 .hero-availability .availability-bar button:not(.date-picker-popover *, .guest-picker-popover *) { color: #fff; text-shadow: 0 1px 3px rgb(0 0 0 / 35%); }
 .hero-availability .availability-bar svg:not(.date-picker-popover *, .guest-picker-popover *) { color: rgb(255 255 255 / 90%); }
 .hero-availability .availability-bar > p { color: #ffe3c2; }
-/* Opens upward instead of downward while inside the bar — the bar now
-   lives INSIDE the hero (bottom-anchored, overlaid), and /rooms' hero
-   specifically has overflow:hidden (for its own rounded photo corners,
-   untouched) which would otherwise clip a downward-opening popover
-   against the hero's own bottom edge. Opening upward lands it in the
-   hero's own open space above the bar instead, where there's room on
-   both heroes regardless of overflow — no change to the homepage's
-   hero (no overflow:hidden there either way), just a consistently
-   better-fitting direction for a bottom-anchored trigger generally. */
+/* Opens upward instead of downward — the bar sits bottom: 26px
+   absolute in a tall hero on both pages alike, so there's reliably
+   more open space above it than below. */
 .hero-availability .date-picker-popover, .hero-availability .guest-picker-popover {
   top: auto; bottom: 100%; margin-top: 0; margin-bottom: 10px;
 }
@@ -115,6 +138,49 @@ html:has(.guest-site) { scroll-behavior: smooth; }
 .availability-submit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 24px; border-radius: 3px; background: rgb(243 221 160 / 62%); border: 1px solid rgb(243 221 160 / 80%); color: #fff; text-shadow: 0 1px 3px rgb(0 0 0 / 35%); font-family: var(--font-secondary), Arial, sans-serif; font-size: 13px; font-weight: 500; letter-spacing: normal; text-transform: none; transition: background .2s, border-color .2s; }
 .availability-submit:hover { background: rgb(243 221 160 / 88%); }
 .availability-submit:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Tablet-only bar layout (600px–1099px): Check-in/Check-out/Guests in
+   one 3-column row, Check Availability full-width in its own row below
+   — entirely via CSS on the SAME markup HomeAvailabilityCheck.tsx
+   already renders at every width (no extra wrapper element, no JSX
+   change), so desktop (1100px+, the component's own sm:flex Tailwind
+   classes, unmodified) and mobile (below 600px, the component's own
+   grid-cols-1 default) are completely untouched by this block. Below
+   1100px the component's sm:flex (Tailwind's 640px breakpoint) would
+   otherwise take over at 640–1099 and stack below 640 — flex-wrap here
+   overrides that for the whole 600–1099 range so the tablet layout
+   starts exactly at 600px, not 640px. !important for the same reason as
+   the popover-clamp rule above: needs to reliably beat the component's
+   own Tailwind utility classes regardless of cascade/build order. */
+@media (min-width: 600px) and (max-width: 1099px) {
+  .hero-availability .availability-bar > div {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: stretch;
+    gap: 0 !important;
+  }
+  .hero-availability .availability-bar > div > div {
+    flex: 1 1 33.3333% !important;
+    padding: 10px 8px !important;
+    border-left: 1px solid rgb(255 255 255 / 25%);
+  }
+  .hero-availability .availability-bar > div > div:first-child {
+    border-left: none;
+  }
+  .hero-availability .availability-bar > div > div p:first-child {
+    font-size: 9px;
+  }
+  .hero-availability .availability-bar > div > div:last-child {
+    flex: 1 1 100% !important;
+    padding: 12px 0 0 !important;
+    border-left: none;
+  }
+  .hero-availability .availability-bar > div > div:last-child .availability-submit {
+    width: 100%;
+  }
+}
+
 .guest-site .welcome-section { margin-top: 80px; margin-bottom: 0; }
 .guest-site .welcome-section h2 { font-size: clamp(36px, 3.8vw, 52px); }
 .guest-site .welcome-section > p:not(.eyebrow) { max-width: 880px; }
@@ -270,11 +336,11 @@ html:has(.guest-site) { scroll-behavior: smooth; }
 .guest-footer a:hover { text-decoration: underline; text-underline-offset: 4px; }
 
 /* Consistent guest page styling without changing form behaviour. */
-.guest-site .site-content > main:not(:has(.home-hero)) { padding-top: 45px; }
+.guest-site .site-content > main:not(:has(.page-hero)) { padding-top: 45px; }
 .guest-site .site-content > main > section:first-child.relative.-mt-14 { margin: -45px 20px 0; border-radius: 4px; }
-.guest-site .site-content > main:not(:has(.home-hero)) .rounded-sm { border-radius: 4px; }
-.guest-site .site-content > main:not(:has(.home-hero)) .shadow-2xl { box-shadow: 0 8px 30px rgb(45 39 24 / 8%); }
-.guest-site .site-content > main:not(:has(.home-hero)) .tracking-widest { letter-spacing: .08em; }
+.guest-site .site-content > main:not(:has(.page-hero)) .rounded-sm { border-radius: 4px; }
+.guest-site .site-content > main:not(:has(.page-hero)) .shadow-2xl { box-shadow: 0 8px 30px rgb(45 39 24 / 8%); }
+.guest-site .site-content > main:not(:has(.page-hero)) .tracking-widest { letter-spacing: .08em; }
 .guest-site input, .guest-site select, .guest-site textarea { border-radius: 3px; }
 .guest-site .outline-pill { display: inline-flex; align-items: center; gap: 10px; padding: 12px 22px; min-height: 44px; border: 1px solid #b7b29f; border-radius: 3px; font-size: 12px; }
 .guest-site .outline-pill:hover { background: var(--paper); }
@@ -306,8 +372,6 @@ html:has(.guest-site) { scroll-behavior: smooth; }
   .mobile-booking-link { display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; background: var(--primary); color: var(--on-primary); }
   .mobile-menu-footer p { text-align: center; font-size: 11px; color: var(--stone); margin-top: 15px; }
   .guest-site .home-section, .guest-footer { width: calc(100% - 56px); margin-top: 75px; }
-  .hero-availability { left: 18px; right: 18px; bottom: 20px; }
-  .hero-availability .availability-bar > div > div { padding-inline: 12px; }
   .story-photo { height: 100%; }
   .story-secondary { height: 330px; margin-top: 70px; }
   .story-third { height: 330px; }
@@ -333,11 +397,11 @@ html:has(.guest-site) { scroll-behavior: smooth; }
   .guest-wordmark { font-size: 23px; }
   .header-booking { padding: 9px 13px; font-size: 10px; }
   .guest-header-actions { gap: 4px; }
-  .guest-site .home-hero { height: calc(100svh - 61px); }
+  .guest-site .page-hero { height: calc(100svh - 61px); }
   .hero-headline { top: 27%; left: 18px; right: 18px; }
   .hero-headline h1 { font-size: clamp(36px, 9vw, 50px); line-height: 1.03; }
   .hero-headline h1 br { display: none; }
-  .hero-headline p { font-size: 11px; padding-inline: 10px; margin-top: 20px; }
+  .hero-headline p { font-size: 11px; padding-inline: 10px; }
   .hero-availability { left: 12px; right: 12px; bottom: 16px; }
   .hero-availability .availability-bar { padding: 10px; }
   .hero-availability .availability-bar > div { gap: 8px; }
@@ -458,6 +522,135 @@ html:has(.guest-site) { scroll-behavior: smooth; }
   }
 }
 
+/* Hidden everywhere by default (including every admin screen, which
+   reuses both DateRangePicker/GuestPicker) — only shown by the
+   tablet-scoped rule below. */
+.popover-mobile-backdrop, .popover-mobile-close { display: none; }
+
+/* Tablet-only (600px–1099px): the same fixed bottom-sheet treatment as
+   the mobile rule above, PLUS a dimmed backdrop and close button
+   (DateRangePicker.tsx/GuestPicker.tsx's own .popover-mobile-backdrop/
+   .popover-mobile-close, invisible everywhere else by default) — this
+   is the "centered modal/bottom sheet" the brief asks for, scoped
+   strictly to the tablet range. Desktop (1100px+) keeps the normal
+   popover; mobile (below 600px) keeps the plain sheet above, unchanged,
+   with no backdrop/close button.
+
+   Targeted by a `.tablet-sheet` class the components add themselves
+   (only inside .hero-availability, only in this width range — see
+   DateRangePicker.tsx's isHeroTabletSheet), not by `.hero-availability`
+   ancestry: .availability-bar has its own backdrop-filter, and Chromium
+   treats a backdrop-filter ancestor as establishing the containing
+   block for position:fixed descendants, so these elements are portaled
+   to document.body in this one case to escape it — meaning they're no
+   longer DOM descendants of .hero-availability by the time this CSS
+   needs to find them.
+
+   width/max-width are capped to a true compact panel, NOT `width: auto`
+   (the mobile rule's own value, meant for a genuinely narrow screen
+   where spanning viewport-minus-32px is the right call). At tablet
+   widths that same `auto` resolved to 900px+ wide, and the day-number
+   buttons below (aspect-square + w-full, stretching to fill whatever
+   7-column grid they're given) turned into ~120px squares inside it —
+   this is what was actually making the sheet "fill almost the whole
+   screen": the sheet itself was fine, its CONTENT was being stretched
+   to match. Centered via top/left 50% + transform rather than the
+   mobile rule's edge-inset bottom-sheet, per "centered modal". */
+@media (min-width: 600px) and (max-width: 1099px) {
+  .date-picker-popover.tablet-sheet:not(.inline-calendar),
+  .guest-picker-popover.tablet-sheet {
+    position: fixed !important;
+    inset: auto !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    margin: 0 !important;
+    width: min(380px, calc(100vw - 32px)) !important;
+    max-width: min(380px, calc(100vw - 32px)) !important;
+    max-height: calc(100vh - 48px) !important;
+    overflow-y: auto;
+    z-index: 200;
+  }
+  .popover-mobile-backdrop.tablet-sheet {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+    background: rgb(20 16 10 / 55%);
+  }
+  /* The Guests popover's own content (GuestPicker.tsx) starts an Adults
+     row right at its top-right corner — the same corner this button
+     sits in — so it needs the popover to reserve room above its normal
+     content rather than floating over it. The date popover's header row
+     (month label + prev/next arrows) doesn't reach that corner, so this
+     extra padding is scoped to .guest-picker-popover only. */
+  .guest-picker-popover.tablet-sheet { padding-top: 44px; }
+  .popover-mobile-close.tablet-sheet {
+    display: flex;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: var(--charcoal, #26241f);
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  /* The actual fix for the oversized day cells: fixed-height rows
+     instead of letting aspect-square (height = width) blow up to match
+     whatever width a 7-column grid gets inside the now-capped 380px
+     panel, and the column grid itself no longer needs to stretch either
+     — repeat(7, 40px) rather than repeat(7, 1fr), so cells stay a fixed
+     ~40px square regardless of the panel's own width (the 380px cap
+     above is already generous enough that this never overflows it).
+     Same desktop-ish type scale per the brief (month title / weekday
+     letters ~14-16px, day numbers ~14-15px) — bumped up from the
+     default compact/bare sizing, which read too small once the panel
+     is this much bigger than the trigger it's anchored from. */
+  .date-picker-popover.tablet-sheet .day-grid {
+    grid-template-columns: repeat(7, 40px) !important;
+    grid-auto-rows: 40px !important;
+    justify-content: center;
+    gap: 2px !important;
+  }
+  .date-picker-popover.tablet-sheet .day-grid button {
+    aspect-ratio: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    font-size: 14px !important;
+  }
+  .date-picker-popover.tablet-sheet .month-label {
+    font-size: 15px;
+  }
+  .date-picker-popover.tablet-sheet .weekday-row {
+    grid-template-columns: repeat(7, 40px) !important;
+    justify-content: center;
+    font-size: 13px;
+  }
+  .date-picker-popover.tablet-sheet .weekday-row span {
+    font-size: 13px;
+  }
+}
+
+/* Above the fixed glass header (z-index: 50, guest-header above) so the
+   calendar/guests popover always renders fully visible instead of
+   being visually cut by the header's own translucent background — the
+   bug this fixes: at tablet widths the popover opens upward (above) and
+   previously sat at z-20, underneath the header. Scoped to
+   .hero-availability only; every other DateRangePicker/GuestPicker
+   caller (the room booking form, the whole admin dashboard) keeps its
+   original z-20. */
+.hero-availability .date-picker-popover,
+.hero-availability .guest-picker-popover {
+  z-index: 200;
+}
+
 /* =====================================================================
    GLASS HEADER EXPERIMENT — self-contained, nothing above this point
    touched. Applied only on hero pages (Header.tsx: `hasHero`, matched by
@@ -471,10 +664,13 @@ html:has(.guest-site) { scroll-behavior: smooth; }
    Switches the header from its normal `position: sticky` (reserves
    64-65px of layout space above the hero) to `position: fixed` (floats
    over it, zero layout space) so the hero can reach the very top of the
-   viewport — which is why .home-hero's height and /rooms' <main>
-   top-padding are adjusted below, scoped with :has(.header--glass) so
-   removing this block (or the class) reverts those automatically too,
-   with no leftover gap or overlap. Text stays white throughout both
+   viewport — which is why .page-hero's height is adjusted below,
+   scoped with :has(.header--glass) so removing this block (or the
+   class) reverts it automatically too, with no leftover gap or overlap
+   (the <main> top-padding exclusion for hero pages, further up this
+   file, isn't conditional on this at all — a <main> containing
+   .page-hero never gets that padding in the first place, glass or not).
+   Text stays white throughout both
    states (transparent-over-photo, then more solid once scrolled) rather
    than swapping colors, which keeps the 200-300ms transition to a
    single property family (background/blur) instead of a color flip. */
@@ -507,11 +703,10 @@ html:has(.guest-site) { scroll-behavior: smooth; }
   border-bottom-color: rgb(255 255 255 / 12%);
 }
 
-/* Hero-height/main-padding compensation for the header no longer
-   occupying layout space — see the block comment above for why this is
-   scoped to :has(.header--glass) rather than applied unconditionally.
-   Not scoped to any breakpoint, so its (0,3,0) specificity also beats
-   the existing mobile-only .home-hero height rule above (0,2,0) at
-   every viewport, including the ones under 599px. */
-.guest-site:has(.header--glass) .home-hero { height: 100svh; }
-.guest-site:has(.header--glass) .site-content > main:has(.rooms-page-hero) { padding-top: 0; }
+/* Hero-height compensation for the header no longer occupying layout
+   space — see the block comment above for why this is scoped to
+   :has(.header--glass) rather than applied unconditionally. Not scoped
+   to any breakpoint, so its (0,3,0) specificity also beats the
+   mobile-only .page-hero height rule above (0,2,0) at every viewport,
+   including the ones under 599px. */
+.guest-site:has(.header--glass) .page-hero { height: 100svh; }

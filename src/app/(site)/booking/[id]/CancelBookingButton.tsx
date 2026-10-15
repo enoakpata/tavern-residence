@@ -4,6 +4,11 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import ConfirmModal from '@/components/ConfirmModal'
 import { getCancellationOutcome } from '@/lib/cancellationPolicy'
+import {
+  MANAGE_BOOKING_MESSAGES,
+  cancellationPreviewMessage,
+  cancellationSuccessMessage,
+} from '@/lib/manageBookingMessages'
 import { cancelBooking } from './actions'
 
 export default function CancelBookingButton({
@@ -12,6 +17,7 @@ export default function CancelBookingButton({
   createdAt,
   pricePerNight,
   hasCardOnFile,
+  amountPaid,
 }: {
   bookingId: string
   checkIn: string
@@ -20,6 +26,7 @@ export default function CancelBookingButton({
   // Derived server-side — never the actual card token. See
   // src/app/(site)/booking/[id]/page.tsx.
   hasCardOnFile: boolean
+  amountPaid: number
 }) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
@@ -33,14 +40,14 @@ export default function CancelBookingButton({
     checkIn,
     pricePerNight,
   })
-  const feeMayApply = feeApplies && hasCardOnFile
+  const alreadyPaid = amountPaid > 0
+  const feeMayApply = feeApplies && hasCardOnFile && !alreadyPaid
 
   // Cancellation itself never charges a card automatically — a fee
   // outside the free window only applies if our team follows up and
-  // applies it manually, per policy.
-  const message = feeMayApply
-    ? `Per our cancellation policy: ${reason} Our team will follow up about this — continue?`
-    : 'Cancel this booking? This is a free cancellation.'
+  // applies it manually, per policy (and never if the stay's already
+  // been paid for — see cancellationPreviewMessage).
+  const message = cancellationPreviewMessage({ feeMayApply, reason, alreadyPaid })
 
   function handleConfirm() {
     setModalOpen(false)
@@ -49,19 +56,21 @@ export default function CancelBookingButton({
       if (res.success) {
         setResult({
           type: 'success',
-          message: res.feeMayApply
-            ? `Your booking has been cancelled. A ₦${res.feeAmount.toLocaleString()} cancellation fee may apply per our policy — we'll be in touch.`
-            : 'Your booking has been cancelled — no charge.',
+          message: cancellationSuccessMessage(res),
         })
         router.refresh()
       } else {
-        setResult({ type: 'error', message: res.error })
+        setResult({ type: 'error', message: MANAGE_BOOKING_MESSAGES[res.code] })
       }
     })
   }
 
   if (result?.type === 'success') {
-    return <p className="text-sm text-verdant">{result.message}</p>
+    return (
+      <p role="status" className="text-sm text-verdant">
+        {result.message}
+      </p>
+    )
   }
 
   return (
@@ -75,7 +84,11 @@ export default function CancelBookingButton({
         {isPending ? 'Cancelling…' : 'Cancel booking'}
       </button>
 
-      {result?.type === 'error' && <p className="mt-3 text-sm text-clay">{result.message}</p>}
+      {result?.type === 'error' && (
+        <p role="alert" className="mt-3 text-sm text-clay">
+          {result.message}
+        </p>
+      )}
 
       <ConfirmModal
         open={modalOpen}

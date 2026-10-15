@@ -7,8 +7,7 @@ const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 /**
  * Resolves a room TYPE (+ optional dates) — carried here from /rooms's
- * row list (RoomTypeList.tsx's "Book Now") or the type-detail modal's
- * "Book This Room" (RoomTypeModal.tsx) — into one specific physical room,
+ * row list (RoomTypeList.tsx's "Book Now") — into one specific physical room,
  * entirely server-side, then redirects into the existing, unmodified
  * per-room booking page and its whole flow (rooms/[id]/page.tsx,
  * BookingForm.tsx, createBooking()). The guest never sees or picks a room
@@ -77,11 +76,29 @@ export default async function BookRoomTypePage({
 
   const { data: rooms } = await supabase
     .from('Rooms')
-    .select('id, room_number')
+    .select('id, room_number, max_occupancy')
     .eq('name', type)
     .order('room_number', { ascending: true })
 
   const roomIds = (rooms ?? []).map((room) => room.id as string)
+
+  // Guest count is capped server-side here too — not just the listing
+  // page's own display logic — so a tampered URL (e.g. a type that can
+  // only sleep 3 with ?adults=10) can never resolve through to a
+  // bookable room. Every physical room sharing a type has the same
+  // max_occupancy, so the first row speaks for all of them.
+  const DIGITS_PATTERN = /^\d+$/
+  const adultsNum = DIGITS_PATTERN.test(adults) ? parseInt(adults, 10) : null
+  const childrenNum = DIGITS_PATTERN.test(children) ? parseInt(children, 10) : null
+  const requestedGuests = adultsNum !== null ? adultsNum + (childrenNum ?? 0) : null
+  const typeMaxOccupancy = rooms?.[0]?.max_occupancy as number | undefined
+  if (requestedGuests !== null && typeMaxOccupancy !== undefined && requestedGuests > typeMaxOccupancy) {
+    // Too many people for this type regardless of dates — back to the
+    // listing, which will itself show every type as "Sleeps up to N" /
+    // the "please contact us" notice for this party size.
+    const query = guestParams.toString()
+    redirect(query ? `/rooms?${query}` : '/rooms')
+  }
 
   const hasValidDates =
     ISO_DATE_PATTERN.test(checkIn) &&

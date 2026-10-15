@@ -52,7 +52,7 @@ export type Booking = {
   // honor manually when assigning the physical room. See
   // supabase/migrations/20260923_add_special_requests_to_bookings.sql.
   special_requests: string | null
-  // Payment is manual (transfer/cash/POS) now — total_amount/amount_paid
+  // Payment is manual (transfer/POS) now — total_amount/amount_paid
   // drive the admin payment ledger (booking_payments) rather than a
   // single online charge. See
   // supabase/migrations/20261014_manual_payment_and_card_hold.sql.
@@ -73,7 +73,11 @@ export type Booking = {
   card_email: string | null
 }
 
-export type BookingPaymentMethod = 'transfer' | 'cash' | 'pos' | 'card' | 'other'
+// 'credit' is admin-only — applying a guest's held credit (see
+// src/lib/guestCredits.ts) as a payment. Never offered in the normal
+// Record Payment dropdown (Transfer/POS only); only the dedicated
+// "Apply credit" action inserts it.
+export type BookingPaymentMethod = 'transfer' |'pos' | 'card' | 'other' | 'credit'
 export type BookingPaymentType = 'payment' | 'cancellation_fee' | 'refund'
 export type BookingPaymentRowStatus = 'success' | 'failed'
 

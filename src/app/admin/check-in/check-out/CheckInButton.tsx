@@ -4,7 +4,7 @@ import { useTransition } from 'react'
 import { updateBookingStatus } from '../../bookings/actions'
 import { useActionResult } from './ActionResultContext'
 
-// Payment is manual now (transfer/cash/POS), tracked via the Payments
+// Payment is manual now (transfer/POS), tracked via the Payments
 // ledger on the booking detail panel — check-in no longer charges
 // anything itself, it's just the status flip. See
 // src/app/admin/bookings/actions.ts (recordPayment/chargeSavedCard) for

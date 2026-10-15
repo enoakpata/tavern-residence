@@ -19,8 +19,8 @@ import { CANCELLATION_POLICY_BULLETS, CARD_HOLD_CONSENT_TEXT } from '@/lib/cance
 // text, which is still shown verbatim in the "View full policy" expansion
 // below.
 const POLICY_SUMMARY_ROWS = [
-  { label: 'Check-in / check-out', detail: 'From 2:00 PM, check-out by 12:00 PM' },
-  { label: 'Payment', detail: 'Pay the hotel directly on arrival (transfer, cash or card)' },
+  { label: 'Check-in / check-out', detail: 'check-in from 2:00 PM, check-out by 12:00 PM' },
+  { label: 'Payment', detail: 'Pay the hotel directly on arrival (transfer or card)' },
   { label: 'Cancellation', detail: 'Free up to 24 hours before check-in' },
   {
     label: 'Late cancellation or no-show',
@@ -70,11 +70,21 @@ export default function BookingForm({
   blockedRanges,
   initialCheckIn = null,
   initialCheckOut = null,
+  adults = null,
+  childrenCount = null,
 }: {
   room: Room
   blockedRanges: BlockedRange[]
   initialCheckIn?: string | null
   initialCheckOut?: string | null
+  // Carried through from the availability bar via the URL (/rooms/[id]
+  // already refused to render this form at all if this would exceed
+  // room.max_occupancy — see page.tsx) — passed on to createBooking as
+  // hidden fields purely so it can re-validate server-side too, same as
+  // every other value here. Not stored anywhere; there's no guest-count
+  // column on Bookings.
+  adults?: string | null
+  childrenCount?: string | null
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -346,6 +356,8 @@ export default function BookingForm({
         ) : (
           <form action={handleSubmit} noValidate className="space-y-5">
             <input type="hidden" name="room_id" value={room.id} />
+            {adults != null && <input type="hidden" name="adults" value={adults} />}
+            {childrenCount != null && <input type="hidden" name="children" value={childrenCount} />}
             <div>
               <label className="text-xs tracking-widest text-charcoal/60 uppercase">
                 Dates
@@ -452,8 +464,8 @@ export default function BookingForm({
             </div>
 
             <div className="rounded-sm bg-charcoal/5 p-4 text-xs text-charcoal/60">
-              Payment for your stay is made directly to us — by transfer,
-              cash, or card on arrival. A refundable ₦100 card verification
+              Payment for your stay is made directly to us — by transfer
+              or card on arrival. A refundable ₦100 card verification
               charge will be made and immediately refunded, so we can
               securely hold a card on file. That card is only ever charged
               for a cancellation or no-show fee under our cancellation

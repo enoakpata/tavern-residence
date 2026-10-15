@@ -6,12 +6,15 @@ import { calculateCancellationOutcome, getChargeableAuthCode } from '@/lib/booki
 import { sendEmail, buildCancellationNotificationEmail } from '@/lib/email'
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
 import { displayRoomName } from '@/lib/roomTypeContent'
+import type { ManageBookingErrorCode } from '@/lib/manageBookingMessages'
 
 const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
 
+// An error code, never raw text — see findBookings in
+// manage-booking/actions.ts for the same pattern and why.
 export type CancelBookingResult =
-  | { success: true; feeMayApply: boolean; feeAmount: number }
-  | { success: false; error: string }
+  | { success: true; feeMayApply: boolean; feeAmount: number; alreadyPaid: boolean }
+  | { success: false; code: ManageBookingErrorCode }
 
 /**
  * Notifies the hotel a guest cancelled their own booking (email + an
@@ -79,23 +82,37 @@ export async function cancelBooking(bookingId: string): Promise<CancelBookingRes
     .single()
 
   if (fetchError || !booking) {
-    return { success: false, error: 'Booking not found.' }
+    if (fetchError) console.error('cancelBooking fetch failed:', fetchError)
+    return { success: false, code: 'not_found' }
   }
 
+  if (booking.status === 'cancelled') {
+    return { success: false, code: 'already_cancelled' }
+  }
   if (NON_CANCELLABLE_STATUSES.includes(booking.status)) {
-    return { success: false, error: 'This booking can no longer be cancelled.' }
+    return { success: false, code: 'cancel_locked' }
   }
 
   const { feeApplies, feeAmount } = calculateCancellationOutcome(booking, booking.Rooms)
   const hasCardOnFile = Boolean(getChargeableAuthCode(booking)) && booking.card_reusable !== false
-  const feeMayApply = feeApplies && hasCardOnFile
+  // Already paid: no cancellation fee applies regardless of timing —
+  // same rule as the admin-side cancellation (section 8), extended to
+  // the guest's own flow. There was never an automatic charge here
+  // either way (see this function's own doc comment); this only
+  // changes what the guest is told, so it doesn't claim a fee applies
+  // when staff wouldn't actually apply one.
+  const alreadyPaid = Number(booking.amount_paid ?? 0) > 0
+  const feeMayApply = feeApplies && hasCardOnFile && !alreadyPaid
 
   const { error } = await supabaseAdmin
     .from('Bookings')
     .update({ status: 'cancelled' })
     .eq('id', bookingId)
 
-  if (error) return { success: false, error: 'Something went wrong. Please try again.' }
+  if (error) {
+    console.error('cancelBooking update failed:', error)
+    return { success: false, code: 'server_error' }
+  }
 
   await notifyCancellation(bookingId, booking, feeMayApply, feeAmount)
 
@@ -105,5 +122,5 @@ export async function cancelBooking(bookingId: string): Promise<CancelBookingRes
   revalidatePath('/admin/bookings')
   revalidatePath('/admin/check-in/check-out')
   revalidatePath('/admin/calendar')
-  return { success: true, feeMayApply, feeAmount }
+  return { success: true, feeMayApply, feeAmount, alreadyPaid }
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { getBookingDetail, type GetBookingDetailResult } from './bookings/actions'
 import BookingActions from './bookings/BookingActions'
 import PaymentsSection from './bookings/PaymentsSection'
+import BookingAuditHistory from './bookings/BookingAuditHistory'
 import { resolveTotalAmount, isBookingLocked } from '@/lib/bookingStatus'
 import { formatLagosDateTime } from '@/lib/dateUtils'
 import { STATUS_STYLES, STATUS_LABELS, PAYMENT_STYLES } from '@/lib/statusStyles'
@@ -19,6 +20,10 @@ export default function BookingDetailModal({
   const [result, setResult] = useState<GetBookingDetailResult | null>(null)
   const [bookingIdForData, setBookingIdForData] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  // Bumped on every refetch() — BookingAuditHistory watches this to
+  // refresh itself after a room change/early checkout/paid cancellation,
+  // none of which otherwise touch its own independently-fetched state.
+  const [historyRefreshSignal, setHistoryRefreshSignal] = useState(0)
 
   // Adjusting state during render (React's documented pattern) — reset
   // immediately when a different booking is requested, so we never flash
@@ -47,6 +52,7 @@ export default function BookingDetailModal({
     getBookingDetail(bookingId).then((res) => {
       if (bookingId) setResult(res)
     })
+    setHistoryRefreshSignal((n) => n + 1)
   }
 
   useEffect(() => {
@@ -211,6 +217,8 @@ export default function BookingDetailModal({
               amountPaid={booking.amount_paid}
               paymentStatus={booking.payment_status}
               locked={locked}
+              guestEmail={booking.guest_email}
+              guestPhone={booking.guest_phone}
               onActionComplete={refetch}
             />
 
@@ -228,11 +236,14 @@ export default function BookingDetailModal({
                     roomNumber={room?.room_number ?? ''}
                     hasCardOnFile={booking.card_chargeable}
                     pricePerNight={room?.price_per_night ?? 0}
+                    amountPaid={booking.amount_paid}
                     onActionComplete={refetch}
                   />
                 </div>
               </div>
             )}
+
+            <BookingAuditHistory bookingId={booking.id} refreshSignal={historyRefreshSignal} />
           </div>
         )}
       </div>

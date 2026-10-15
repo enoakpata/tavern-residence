@@ -80,7 +80,6 @@ export default function PoliciesPage() {
           <div className="mt-4 space-y-2 text-charcoal/70">
             <p>Free on-site parking is available for all guests.</p>
             <p>Pets are not permitted.</p>
-            <p>Maximum occupancy is 2 guests per room, across all room types.</p>
           </div>
         </section>
       </div>

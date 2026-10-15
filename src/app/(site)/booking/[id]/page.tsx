@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { getChargeableAuthCode } from '@/lib/bookings'
 import { CANCELLATION_POLICY_BULLETS } from '@/lib/cancellationPolicy'
-import { HOTEL_NAME, HOTEL_PHONE_DISPLAY } from '@/lib/siteConfig'
+import { HOTEL_NAME } from '@/lib/siteConfig'
 import { STATUS_LABELS } from '@/lib/statusStyles'
 import { displayRoomName } from '@/lib/roomTypeContent'
+import { MANAGE_BOOKING_MESSAGES } from '@/lib/manageBookingMessages'
 import CancelBookingButton from './CancelBookingButton'
 
 // Unindexed — possession of the unguessable booking ID is the only
@@ -37,10 +39,17 @@ export default async function ManageBookingPage({
 }) {
   const { id } = await params
 
+  // A checked-out booking is excluded at the query level — same as the
+  // search list in manage-booking/actions.ts — so it falls into the
+  // !booking branch below and gets the identical generic "not found"
+  // message a bad/unknown ID would, with nothing that leaks it exists.
+  // Cancelled bookings aren't excluded here; they still load and show
+  // their own "This booking is cancelled" read-only state further down.
   const { data: booking } = await supabaseAdmin
     .from('Bookings')
     .select('*, Rooms(name, price_per_night)')
     .eq('id', id)
+    .neq('status', 'checked_out')
     .single()
 
   if (!booking) {
@@ -52,11 +61,15 @@ export default async function ManageBookingPage({
         <h1 className="mt-3 font-display text-3xl text-charcoal">
           Booking not found
         </h1>
-        <p className="mt-4 text-charcoal/70">
-          We couldn&apos;t find a booking matching this link. Double-check the
-          link from your confirmation email, or reach us at {HOTEL_PHONE_DISPLAY} if
-          you need help.
+        <p role="alert" className="mt-4 text-charcoal/70">
+          {MANAGE_BOOKING_MESSAGES.link_not_found}
         </p>
+        <Link
+          href="/manage-booking"
+          className="mt-6 inline-block text-sm text-espresso underline underline-offset-4"
+        >
+          Look up your booking
+        </Link>
       </main>
     )
   }
@@ -126,11 +139,14 @@ export default async function ManageBookingPage({
             createdAt={booking.created_at}
             pricePerNight={room?.price_per_night ?? 0}
             hasCardOnFile={Boolean(getChargeableAuthCode(booking)) && booking.card_reusable !== false}
+            amountPaid={booking.amount_paid ?? 0}
           />
         </div>
       ) : (
-        <p className="mt-8 text-sm text-charcoal/60">
-          This booking is {(STATUS_LABELS[booking.status] ?? booking.status).toLowerCase()}
+        <p role="status" className="mt-8 text-sm text-charcoal/60">
+          {booking.status === 'cancelled'
+            ? MANAGE_BOOKING_MESSAGES.already_cancelled
+            : MANAGE_BOOKING_MESSAGES.cancel_locked}
         </p>
       )}
     </main>

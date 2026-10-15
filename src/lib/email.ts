@@ -84,15 +84,15 @@ export function buildGuestConfirmationEmail({
     : ''
 
   // Never claims payment was received — it wasn't; the stay is paid
-  // directly to the hotel (transfer, cash, or card on arrival). The
+  // directly to the hotel (transfer or card on arrival). The
   // ₦100 Paystack charge mentioned here is a verification charge only,
   // already refunded by the time this email sends.
   const paymentNotice = totalAmount
-    ? `<p>Your total for this stay is ₦${totalAmount.toLocaleString()}, payable directly to us — by bank transfer, cash, or card on arrival. This isn't paid online.</p>`
+    ? `<p>Your total for this stay is ₦${totalAmount.toLocaleString()}, payable directly to us — by bank transfer or card on arrival. This isn't paid online.</p>`
     : ''
-  const cardHoldNotice = cardLast4
-    ? `<p>We verified and securely hold a card ending ${cardLast4} to cover a cancellation or no-show fee only, per our cancellation policy below — it will never be charged for the stay itself.</p>`
-    : ''
+  // const cardHoldNotice = cardLast4
+  //   ? `<p>We verified and securely hold a card ending ${cardLast4} to cover a cancellation or no-show fee only, per our cancellation policy below — it will never be charged for the stay itself.</p>`
+  //   : ''
 
   const html = `
     <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
@@ -108,7 +108,6 @@ export function buildGuestConfirmationEmail({
       <p>Check-in time is 2:00 PM and check-out time is 12:00 PM. Early check-in or late check-out is available for a fee of 50% of the room's nightly rate, subject to availability.</p>
 
       ${paymentNotice}
-      ${cardHoldNotice}
 
       ${CANCELLATION_POLICY_HTML}
       ${sameDayGraceNotice ? `<p>${sameDayGraceNotice.trim()}</p>` : ''}
@@ -289,6 +288,54 @@ export function buildCancellationNotificationEmail({
 
   return {
     subject: `Booking cancelled: ${guestName} — Room ${roomNumber}`,
+    html,
+  }
+}
+
+/**
+ * Sent to the guest when admin moves their booking to a different room
+ * TYPE (src/app/admin/bookings/actions.ts's changeBookingRoom, optional
+ * "Notify guest" checkbox). Deliberately takes only room type names
+ * (e.g. "Studio"), never a room number — guests never see a room number
+ * anywhere, including here.
+ */
+export function buildRoomChangeNotificationEmail({
+  guestName,
+  checkIn,
+  checkOut,
+  fromRoomType,
+  toRoomType,
+  newTotal,
+  totalChanged,
+}: {
+  guestName: string
+  checkIn: string
+  checkOut: string
+  fromRoomType: string
+  toRoomType: string
+  newTotal: number
+  totalChanged: boolean
+}) {
+  const totalLine = totalChanged
+    ? `Your total for this stay is now ₦${newTotal.toLocaleString()}.`
+    : `Your total for this stay is unchanged at ₦${newTotal.toLocaleString()}.`
+
+  const html = `
+    <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
+      <p>Hi ${guestName},</p>
+
+      <p>We've moved your upcoming stay (${formatDate(checkIn)} – ${formatDate(checkOut)}) from a ${fromRoomType} to a ${toRoomType}.</p>
+
+      <p>${totalLine}</p>
+
+      <p>If you have any questions, reach us at ${HOTEL_PHONE_DISPLAY} or ${HOTEL_EMAIL}.</p>
+
+      <p>— ${HOTEL_NAME}</p>
+    </div>
+  `
+
+  return {
+    subject: `Your room has changed — ${HOTEL_NAME}`,
     html,
   }
 }

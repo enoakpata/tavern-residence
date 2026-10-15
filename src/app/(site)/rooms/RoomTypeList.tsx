@@ -1,12 +1,10 @@
 'use client'
 
-import { useState } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import Reveal from '@/components/Reveal'
-import type { RoomTypeContent, RoomTypeKey } from '@/lib/roomTypeContent'
+import type { RoomTypeContent } from '@/lib/roomTypeContent'
 import { AMENITY_ICONS } from '@/lib/amenityIcons'
 import RoomRowCarousel from './RoomRowCarousel'
-import RoomTypeModal from './RoomTypeModal'
 
 export type RoomTypeRowData = {
   content: RoomTypeContent
@@ -19,6 +17,10 @@ export type RoomTypeRowData = {
   bedType: string
   // Only meaningful when hasDates is true — see below.
   isAvailable: boolean
+  // Only meaningful when a guest count was actually chosen (see hasGuests
+  // below) — true when the chosen party is larger than this type's own
+  // max_occupancy, independent of whether the dates themselves are free.
+  isTooSmall: boolean
 }
 
 // Full-width alternating rows (image carousel / text), rather than a
@@ -43,14 +45,19 @@ export default function RoomTypeList({
   // prop name and ESLint flags passing it as an ordinary prop.
   childrenCount: string | null
 }) {
-  const [openKey, setOpenKey] = useState<RoomTypeKey | null>(null)
-  const openRow = rows.find((r) => r.content.key === openKey) ?? null
-
   return (
-    <>
-      <div id="rooms" className="room-rows">
+    <div id="rooms" className="room-rows">
         {rows.map((row, index) => {
+          // Too-small takes priority — whether or not the type is also
+          // sold out for these dates, the real blocker for this guest is
+          // that it can never fit their party, regardless of dates.
           const isUnavailable = hasDates && !row.isAvailable
+          const status: 'too-small' | 'sold-out' | 'available' = row.isTooSmall
+            ? 'too-small'
+            : isUnavailable
+              ? 'sold-out'
+              : 'available'
+          const isBookable = status === 'available'
           const images = row.galleryImages.length > 0 ? row.galleryImages : row.coverImage ? [row.coverImage] : []
 
           const bookParams = new URLSearchParams({ type: row.content.dbName })
@@ -60,13 +67,24 @@ export default function RoomTypeList({
           if (childrenCount) bookParams.set('children', childrenCount)
 
           return (
-            <Reveal key={row.content.key} className={`room-row ${index % 2 === 1 ? 'room-row-reverse' : ''}`}>
+            <Reveal
+              key={row.content.key}
+              className={`room-row ${index % 2 === 1 ? 'room-row-reverse' : ''} ${!isBookable ? 'room-row-disabled' : ''}`}
+            >
               <div className="room-row-media">
                 <RoomRowCarousel images={images} roomName={row.content.label} />
-                {hasDates && (
-                  <span className={`room-row-availability ${isUnavailable ? 'is-unavailable' : ''}`}>
-                    {isUnavailable ? 'Unavailable for these dates' : 'Available for your dates'}
+                {status === 'too-small' && (
+                  <span className="room-row-availability is-unavailable">
+                    Not available for no of guests
                   </span>
+                )}
+                {status === 'sold-out' && (
+                  <span className="room-row-availability is-unavailable">
+                    Not available for these dates
+                  </span>
+                )}
+                {status === 'available' && hasDates && (
+                  <span className="room-row-availability">Available for your dates</span>
                 )}
               </div>
 
@@ -93,38 +111,22 @@ export default function RoomTypeList({
                   })}
                 </ul>
                 <div className="room-row-actions">
-                  {isUnavailable ? (
-                    <a href="#availability" className="room-row-book">Try other dates</a>
-                  ) : (
+                  {isBookable ? (
                     // Plain <a>, not next/link's <Link> — the existing server
                     // redirect (rooms/book/page.tsx) needs a full navigation.
                     <a href={`/rooms/book?${bookParams.toString()}`} className="room-row-book">
                       Book now <ArrowUpRight size={16} aria-hidden="true" />
                     </a>
+                  ) : (
+                    <button type="button" disabled className="room-row-book room-row-book-disabled">
+                      Book now
+                    </button>
                   )}
-                  <button type="button" onClick={() => setOpenKey(row.content.key)} className="room-row-more">
-                    More details
-                  </button>
                 </div>
               </div>
             </Reveal>
           )
         })}
-      </div>
-
-      {openRow && (
-        <RoomTypeModal
-          content={openRow.content}
-          images={openRow.galleryImages}
-          priceLabel={openRow.priceLabel}
-          checkIn={checkIn}
-          checkOut={checkOut}
-          adults={adults}
-          childrenCount={childrenCount}
-          isAvailable={!hasDates || openRow.isAvailable}
-          onClose={() => setOpenKey(null)}
-        />
-      )}
-    </>
+    </div>
   )
 }
