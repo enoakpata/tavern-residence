@@ -97,7 +97,6 @@ export default function RoomTypeList({
                 </p>
                 <ul className="room-row-facts">
                   <li>Up to {row.maxOccupancy} guest{row.maxOccupancy === 1 ? '' : 's'}</li>
-                  <li>{row.bedType} bed</li>
                 </ul>
                 <ul className="room-row-amenities">
                   {row.content.amenities.map((amenity) => {
