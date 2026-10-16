@@ -10,20 +10,32 @@ const TRANSITION_MS = 600
  * Drop-in replacement for next/image's <Image> wherever `src` changes
  * over time (a gallery's active photo, a carousel's current slide) —
  * crossfades between the old and new photo instead of just popping to
- * the new src. Used by RoomGallery.tsx, GalleryLightbox.tsx, and
- * AroundTheResidence.tsx, which all previously hand-rolled the same
- * fade-out-then-swap-then-fade-in approach (see each file's own history)
- * — sequential, not a true crossfade, so there was a brief fully-
- * transparent gap between photos.
+ * the new src. Used by RoomGallery.tsx and AroundTheResidence.tsx, which
+ * both previously hand-rolled the same fade-out-then-swap-then-fade-in
+ * approach (see each file's own history) — sequential, not a true
+ * crossfade, so there was a brief fully-transparent gap between photos.
  *
  * Two permanent <Image> layers are stacked (absolutely positioned, same
  * box) and cross-faded via opacity only (no layout-affecting property
  * ever animates, so there's no layout shift) — both layers keep a
  * stable `key` across every src change, so neither is ever unmounted/
- * remounted the way a `key={src}` swap would. The incoming photo is
- * preloaded and `decode()`d off-screen before either layer's opacity
- * moves, so the fade never has to wait on the network or a half-
- * decoded bitmap mid-transition.
+ * remounted the way a `key={src}` swap would.
+ *
+ * The fade is gated on that layer's own <Image onLoad>, not a separate
+ * manual preload: an earlier version pre-fetched/decoded `src` itself
+ * via `new window.Image()`, which — because `src` here is the plain,
+ * un-optimized file path (e.g. /images/gallery/7.jpg, multiple MB) —
+ * downloaded and decoded a completely different (much larger) resource
+ * than the one next/image actually renders from its srcset, AND did so
+ * a second time (next/image fetches its own optimized copy regardless).
+ * Real photos' raw files vary a lot in size, so that extra fetch's
+ * timing varied a lot too — in a multi-tile caller (AroundTheResidence's
+ * 3-tile layout) that showed up as the tiles visibly fading in at
+ * noticeably different times instead of together. Waiting on the real
+ * layer's own onLoad fixes the mismatch and removes the duplicate
+ * fetch; decode()ing that same already-loaded <img> element (not a new
+ * one) right before revealing it keeps the original's guarantee of
+ * never revealing a half-rasterized frame, without re-fetching anything.
  *
  * Reduced motion: deliberately not handled here in JS — every current
  * caller renders inside `.guest-site`, and guest.css already forces
@@ -40,55 +52,48 @@ export default function CrossfadeImage({
   const [layers, setLayers] = useState<[string, string]>([src, src])
   const [front, setFront] = useState<0 | 1>(0)
   const lastSrc = useRef(src)
+  // Which layer is currently loading `src` and should flip `front` once
+  // it's actually ready — checked by handleLoad so a layer that was
+  // reassigned again before its own load event arrived (a quick second
+  // swipe before the first photo finished loading) can't flip `front` to
+  // content that's no longer current.
+  const pendingLayer = useRef<0 | 1 | null>(null)
 
   useEffect(() => {
     if (src === lastSrc.current) return
     lastSrc.current = src
-    let cancelled = false
+    const incoming = front === 0 ? 1 : 0
 
-    async function run() {
-      // Decode off-screen first — decode() isn't supported everywhere,
-      // so a plain load/error event is the fallback.
-      try {
-        const img = new window.Image()
-        img.src = src
-        // `typeof` rather than the `in` operator — every HTMLImageElement
-        // in TS's own DOM lib declares decode() unconditionally, so `'decode'
-        // in img` type-narrows the fallback branch below to unreachable
-        // (`never`) even though real support for it is newer than this
-        // project's actual browser support matrix.
-        if (typeof img.decode === 'function') await img.decode()
-        else
-          await new Promise<void>((resolve, reject) => {
-            img.onload = () => resolve()
-            img.onerror = reject
-          })
-      } catch {
-        // Couldn't preload (offline, a bad URL, decode unsupported) —
-        // proceed anyway rather than getting stuck on this photo
-        // forever; the layer below will just load in as it goes.
-      }
-      if (cancelled) return
+    if (layers[incoming] === src) {
+      // The hidden layer already holds this exact src (a quick swipe
+      // back to a photo that was showing a moment ago) — nothing to
+      // load, just reveal it.
+      pendingLayer.current = null
+      setFront(incoming)
+      return
+    }
 
-      const incomingLayer = front === 0 ? 1 : 0
-      setLayers((prev) => {
-        const next = [...prev] as [string, string]
-        next[incomingLayer] = src
-        return next
-      })
-      // Next frame, so the browser commits the incoming layer's
-      // opacity-0 state first — flipping `front` in the same tick it's
-      // assigned a new src would give the transition nothing to
-      // animate *from*, and it'd just snap instead of fading.
-      requestAnimationFrame(() => {
-        if (!cancelled) setFront(incomingLayer)
-      })
-    }
-    run()
-    return () => {
-      cancelled = true
-    }
+    pendingLayer.current = incoming
+    setLayers((prev) => {
+      const next = [...prev] as [string, string]
+      next[incoming] = src
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, front])
+
+  function handleLoad(layerIndex: 0 | 1, img: HTMLImageElement) {
+    if (pendingLayer.current !== layerIndex) return // superseded by a newer src change
+    function reveal() {
+      if (pendingLayer.current !== layerIndex) return
+      pendingLayer.current = null
+      setFront(layerIndex)
+    }
+    // decode() isn't supported everywhere — a plain load is good enough
+    // then (the event that got us here in the first place).
+    if (typeof img.decode === 'function') img.decode().then(reveal).catch(reveal)
+    else reveal()
+  }
 
   return (
     <>
@@ -97,6 +102,7 @@ export default function CrossfadeImage({
           key={i}
           src={layerSrc}
           alt={alt}
+          onLoad={(e) => handleLoad(i as 0 | 1, e.currentTarget)}
           className={`${className} absolute inset-0 transition-opacity ease-in-out ${i === front ? 'opacity-100' : 'opacity-0'}`}
           style={{ transitionDuration: `${TRANSITION_MS}ms` }}
           {...imageProps}

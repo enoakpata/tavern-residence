@@ -288,10 +288,6 @@ export default function BookingActions({
       setChangeRoomError('Choose a room.')
       return
     }
-    if (!changeRoomReason.trim()) {
-      setChangeRoomError('A reason is required.')
-      return
-    }
     setPendingChangeRoom(false)
     startTransition(async () => {
       const res = await changeBookingRoom(bookingId, selectedRoomId, totalChoice, changeRoomReason, notifyGuest)
@@ -622,7 +618,7 @@ export default function BookingActions({
             })()}
 
             <label className="mt-3 block text-xs tracking-widest text-charcoal/60 uppercase">
-              Reason
+              Reason (optional)
             </label>
             <input
               value={changeRoomReason}

@@ -1196,9 +1196,7 @@ export async function changeBookingRoom(
   reason: string,
   notifyGuest: boolean
 ): Promise<ActionResult> {
-  if (!reason.trim()) {
-    return { success: false, error: 'A reason is required.' }
-  }
+  const trimmedReason = reason.trim() || null
 
   const supabase = await createClient()
   const {
@@ -1258,7 +1256,7 @@ export async function changeBookingRoom(
   await supabase.from('booking_audit_log').insert({
     booking_id: bookingId,
     event_type: 'room_change',
-    reason,
+    reason: trimmedReason,
     details: {
       from_room_number: fromRoom?.name ?? null,
       to_room_number: toRoom.room_number,

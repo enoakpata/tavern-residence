@@ -26,6 +26,7 @@ export default function PageHero({
   action,
   initialCheckIn = null,
   initialCheckOut = null,
+  scrollToRoomsOnComplete = false,
 }: {
   // null only if the gallery folder is genuinely empty (getGalleryImages
   // falls back through a couple of indices before giving up) — the hero
@@ -44,6 +45,10 @@ export default function PageHero({
   // search) — the homepage never has any.
   initialCheckIn?: string | null
   initialCheckOut?: string | null
+  // /rooms only — see HomeAvailabilityCheck.tsx's own prop doc. Left
+  // false for the homepage, whose bar keeps its existing click-the-button
+  // behavior untouched.
+  scrollToRoomsOnComplete?: boolean
 }) {
   return (
     <section className="page-hero">
@@ -78,6 +83,7 @@ export default function PageHero({
           key={`${initialCheckIn}-${initialCheckOut}`}
           initialCheckIn={initialCheckIn}
           initialCheckOut={initialCheckOut}
+          scrollToRoomsOnComplete={scrollToRoomsOnComplete}
         />
       </div>
     </section>

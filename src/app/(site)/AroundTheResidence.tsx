@@ -7,6 +7,16 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import GalleryLightbox from '@/components/GalleryLightbox'
 
 const DRAG_THRESHOLD = 50
+// How far the whole trio visually "gives" while dragging, in px — a
+// bounded, damped nudge (not a 1:1 follow all the way across) because
+// there's nothing to reveal off-screen: this is a fixed 3-tile window
+// whose photos crossfade in place, not a strip of adjacent slides, and
+// dragging it further than this would just expose empty space behind
+// it. Same role a rubber-band resistance limit plays in a real slide
+// track — real-time feedback that you're dragging, without implying
+// motion the layout can't actually show.
+const MAX_DRAG_NUDGE_PX = 28
+const SETTLE_MS = 300
 // Large tile + 2 small tiles, same staggered arrangement the former
 // "Our Story" section used (.residence-feature/-secondary/-third in
 // guest.css) — a fixed-position sliding window over `images`, not a
@@ -20,7 +30,21 @@ export default function AroundTheResidence({ images }: { images: string[] }) {
   const [current, setCurrent] = useState(0)
   const [openIndex, setOpenIndex] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  // Live visual feedback while dragging — see MAX_DRAG_NUDGE_PX above.
+  // 0 whenever not actively dragging; the trio's own transform reads
+  // straight off this, so drag, settle, and the plain "not dragging"
+  // rest state are all the same mechanism rather than separate paths.
+  const [dragOffsetPx, setDragOffsetPx] = useState(0)
   const dragStartX = useRef(0)
+  // Which tile (by its absolute image index) the pointer actually went
+  // down on — read in handlePointerDown, before setPointerCapture below
+  // retargets every later event on this gesture (pointerup's own
+  // e.target included) to the trio itself. Needed because that
+  // retargeting also hits the native `click` event the browser fires
+  // right after pointerup, so it never reaches a tile button's own
+  // onClick — see handlePointerUp for how this stands in for it on a
+  // tap/click (no real drag).
+  const pressedTileIndex = useRef<number | null>(null)
 
   if (!images.length) return null
 
@@ -37,21 +61,65 @@ export default function AroundTheResidence({ images }: { images: string[] }) {
   }
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const tile = (e.target as HTMLElement).closest<HTMLElement>('[data-absolute-index]')
+    pressedTileIndex.current = tile ? Number(tile.dataset.absoluteIndex) : null
     if (images.length < 2) return
     if (e.pointerType === 'mouse' && e.button !== 0) return
     dragStartX.current = e.clientX
     setIsDragging(true)
     e.currentTarget.setPointerCapture(e.pointerId)
   }
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!isDragging) return
+    const deltaX = e.clientX - dragStartX.current
+    // Damped, not 1:1 — see MAX_DRAG_NUDGE_PX. tanh gives it a soft
+    // rubber-band feel (near-linear for small movements, flattening out
+    // well short of the cap) instead of a hard clamp that would suddenly
+    // stop following the finger at all past the limit.
+    setDragOffsetPx(MAX_DRAG_NUDGE_PX * Math.tanh(deltaX / (MAX_DRAG_NUDGE_PX * 2)))
+  }
   function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
     if (!isDragging) return
     setIsDragging(false)
+    setDragOffsetPx(0)
+    // Releasing capture here (rather than leaving it held until the
+    // pointer naturally goes away) matters: with it still held, the
+    // click event this same gesture is about to produce — the browser
+    // always fires one right after pointerup/mouseup, even for a drag —
+    // gets retargeted to whichever element called setPointerCapture
+    // (this one) instead of hit-testing normally, so it never reaches a
+    // tile's own onClick a few levels down. That silently ate every tap
+    // on a photo, including plain clicks with no real drag at all.
+    e.currentTarget.releasePointerCapture(e.pointerId)
     const deltaX = e.clientX - dragStartX.current
-    if (deltaX > DRAG_THRESHOLD) prev()
-    else if (deltaX < -DRAG_THRESHOLD) next()
+    if (deltaX > DRAG_THRESHOLD) {
+      prev()
+    } else if (deltaX < -DRAG_THRESHOLD) {
+      next()
+    } else if (pressedTileIndex.current !== null) {
+      // Not a real drag — a tap/click. The native click event this
+      // gesture produces can't be trusted to reach the tile's own
+      // onClick (see pressedTileIndex's own comment), so this is what
+      // actually opens the lightbox for a pointer-driven tap; the
+      // button's onClick stays in place purely for keyboard activation
+      // (Enter/Space), which never goes through pointer capture at all.
+      setOpenIndex(pressedTileIndex.current)
+    }
   }
-  function handlePointerCancel() {
+  function handlePointerCancel(e: React.PointerEvent<HTMLDivElement>) {
     setIsDragging(false)
+    setDragOffsetPx(0)
+    e.currentTarget.releasePointerCapture(e.pointerId)
+  }
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (images.length < 2) return
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      prev()
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      next()
+    }
   }
 
   // Only the two images that would newly enter the window on the very
@@ -72,17 +140,23 @@ export default function AroundTheResidence({ images }: { images: string[] }) {
         aria-label="Residence photo gallery"
         tabIndex={images.length > 1 ? 0 : -1}
         onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onPointerLeave={handlePointerCancel}
+        onKeyDown={handleKeyDown}
+        style={{
+          transform: dragOffsetPx ? `translateX(${dragOffsetPx}px)` : undefined,
+          transition: isDragging ? 'none' : `transform ${SETTLE_MS}ms ease-out`,
+        }}
       >
         {window_.map((absoluteIndex, slotIndex) => {
           const image = <CrossfadeImage src={images[absoluteIndex]} alt={'Interior detail ' + (absoluteIndex + 1) + ' at Tavern Residence'} fill draggable={false} sizes={slotIndex === 0 ? '(min-width: 768px) 37vw, 90vw' : '30vw'} className="object-cover" />
           const label = 'Enlarge residence photo ' + (absoluteIndex + 1)
           if (slotIndex === 0) {
-            return <article className="residence-feature" key="feature"><button type="button" className="residence-feature-photo" onClick={() => setOpenIndex(absoluteIndex)} aria-label={label}>{image}</button></article>
+            return <article className="residence-feature" key="feature"><button type="button" className="residence-feature-photo" data-absolute-index={absoluteIndex} onClick={() => setOpenIndex(absoluteIndex)} aria-label={label}>{image}</button></article>
           }
-          return <button type="button" key={slotIndex === 1 ? 'secondary' : 'third'} className={slotIndex === 1 ? 'residence-secondary' : 'residence-third'} onClick={() => setOpenIndex(absoluteIndex)} aria-label={label}>{image}</button>
+          return <button type="button" key={slotIndex === 1 ? 'secondary' : 'third'} className={slotIndex === 1 ? 'residence-secondary' : 'residence-third'} data-absolute-index={absoluteIndex} onClick={() => setOpenIndex(absoluteIndex)} aria-label={label}>{image}</button>
         })}
       </div>
       {images.length > 1 && (

@@ -147,6 +147,7 @@ export default async function RoomsPage({
         action={{ label: 'Explore the collection', href: '#rooms' }}
         initialCheckIn={hasDates ? rawCheckIn : null}
         initialCheckOut={hasDates ? rawCheckOut : null}
+        scrollToRoomsOnComplete
       />
 
       {hasDates && (
