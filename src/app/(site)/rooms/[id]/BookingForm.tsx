@@ -8,7 +8,26 @@ import DateRangePicker from '@/components/DateRangePicker'
 import ConfirmModal from '@/components/ConfirmModal'
 import type { Room } from '@/lib/types'
 import { formatLagosTime, todayInLagos, type BlockedRange } from '@/lib/dateUtils'
-import { HOTEL_PHONE_DISPLAY, CANCELLATION_FEE_FRACTION } from '@/lib/siteConfig'
+import Link from 'next/link'
+import { HOTEL_PHONE_DISPLAY, CANCELLATION_FEE_FRACTION, CANCELLATION_POLICY_VERSION } from '@/lib/siteConfig'
+import { CANCELLATION_POLICY_BULLETS, CARD_HOLD_CONSENT_TEXT } from '@/lib/cancellationPolicy'
+
+// The compact "Before you book" summary (point 2 of the policy-step
+// redesign) — 5 short rows, no icons, kept in sync with
+// cancellationPolicy.ts's actual rule (the fee % is interpolated, not
+// hardcoded) rather than restating the full CANCELLATION_POLICY_BULLETS
+// text, which is still shown verbatim in the "View full policy" expansion
+// below.
+const POLICY_SUMMARY_ROWS = [
+  { label: 'Check-in / check-out', detail: 'check-in from 2:00 PM, check-out by 12:00 PM' },
+  { label: 'Payment', detail: 'Pay the hotel directly on arrival (transfer or card)' },
+  { label: 'Cancellation', detail: 'Free up to 24 hours before check-in' },
+  {
+    label: 'Late cancellation or no-show',
+    detail: `${CANCELLATION_FEE_FRACTION * 100}% of one night's rate, charged to your card`,
+  },
+  { label: 'House rules', detail: 'No pets; no smoking in rooms (₦200,000 fee if violated)' },
+]
 
 const FREE_CANCELLATION_GRACE_PERIOD_MS = 60 * 60 * 1000
 
@@ -51,11 +70,21 @@ export default function BookingForm({
   blockedRanges,
   initialCheckIn = null,
   initialCheckOut = null,
+  adults = null,
+  childrenCount = null,
 }: {
   room: Room
   blockedRanges: BlockedRange[]
   initialCheckIn?: string | null
   initialCheckOut?: string | null
+  // Carried through from the availability bar via the URL (/rooms/[id]
+  // already refused to render this form at all if this would exceed
+  // room.max_occupancy — see page.tsx) — passed on to createBooking as
+  // hidden fields purely so it can re-validate server-side too, same as
+  // every other value here. Not stored anywhere; there's no guest-count
+  // column on Bookings.
+  adults?: string | null
+  childrenCount?: string | null
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -66,6 +95,14 @@ export default function BookingForm({
   const [checkIn, setCheckIn] = useState<string | null>(initialCheckIn)
   const [checkOut, setCheckOut] = useState<string | null>(initialCheckOut)
   const [pendingFormData, setPendingFormData] = useState<FormData | null>(null)
+
+  // Required before the card step can proceed — reset every time the
+  // policy modal is (re)opened, so a guest can't check it once, cancel
+  // out, and have it silently still count on a later attempt.
+  const [consentChecked, setConsentChecked] = useState(false)
+  // The compact summary's "View full policy" accordion — collapsed by
+  // default each time the modal opens, not remembered across attempts.
+  const [showFullPolicy, setShowFullPolicy] = useState(false)
 
   // Set instead of the generic inline error whenever the room turns out to
   // have been booked by someone else in the gap between this guest's own
@@ -177,11 +214,15 @@ export default function BookingForm({
 
     // Before proceeding to the availability check and payment, the guest
     // must see and acknowledge a condensed summary of the policies.
+    setConsentChecked(false)
+    setShowFullPolicy(false)
     setPendingFormData(formData)
   }
 
   function handlePolicyCancel() {
     setPendingFormData(null)
+    setConsentChecked(false)
+    setShowFullPolicy(false)
   }
 
   function handleSeeOtherRooms() {
@@ -207,7 +248,9 @@ export default function BookingForm({
   function handlePolicyConfirm() {
     const formData = pendingFormData
     setPendingFormData(null)
-    if (!formData) return
+    if (!formData || !consentChecked) return
+
+    formData.append('card_consent_policy_version', CANCELLATION_POLICY_VERSION)
 
     // Read from formData rather than the checkIn/checkOut state — this
     // function runs from the policy modal's confirm button, a separate
@@ -313,6 +356,8 @@ export default function BookingForm({
         ) : (
           <form action={handleSubmit} noValidate className="space-y-5">
             <input type="hidden" name="room_id" value={room.id} />
+            {adults != null && <input type="hidden" name="adults" value={adults} />}
+            {childrenCount != null && <input type="hidden" name="children" value={childrenCount} />}
             <div>
               <label className="text-xs tracking-widest text-charcoal/60 uppercase">
                 Dates
@@ -419,10 +464,12 @@ export default function BookingForm({
             </div>
 
             <div className="rounded-sm bg-charcoal/5 p-4 text-xs text-charcoal/60">
-              A refundable ₦100 card verification charge will be made and
-              immediately refunded to confirm your card. Your card will only be
-              charged for your stay closer to check-in, or if our cancellation
-              policy applies.
+              Payment for your stay is made directly to us — by transfer
+              or card on arrival. A refundable ₦100 card verification
+              charge will be made and immediately refunded, so we can
+              securely hold a card on file. That card is only ever charged
+              for a cancellation or no-show fee under our cancellation
+              policy — never for the stay itself.
             </div>
 
             {step === 'error' && errorMessage && (
@@ -440,13 +487,16 @@ export default function BookingForm({
             {isSameDayBooking && (
               <p className="text-xs text-charcoal/50">
                 Since check-in is today, you&apos;ll have 1 hour after booking
-                to cancel for free. After that, cancelling incurs a {CANCELLATION_FEE_FRACTION * 100}% fee.
+                to cancel for free. After that, the standard cancellation policy applies.
               </p>
             )}
 
             <p className="text-xs text-charcoal/50">
-              Free cancellation up to 24 hours before check-in. Cancellations
-              within 24 hours or no-shows are charged {CANCELLATION_FEE_FRACTION * 100}% of the booking value.
+              By booking you agree to our{' '}
+              <Link href="/policies" target="_blank" className="underline underline-offset-2">
+                cancellation policy
+              </Link>
+              . You&apos;ll see a short summary before payment.
             </p>
           </form>
         )}
@@ -454,26 +504,56 @@ export default function BookingForm({
 
       <ConfirmModal
         open={pendingFormData !== null}
-        title="Before you continue"
+        title="Before you book"
         message={
-          <ul className="list-disc space-y-1.5 pl-4">
-            <li>Check-in from 2:00 PM, check-out by 12:00 PM.</li>
-            <li>Free cancellation up to 24 hours before check-in.</li>
-            <li>
-              Same-day bookings: You can cancel free of charge within 1 hour of booking.
-              After this period, cancellations and no-shows incur a {CANCELLATION_FEE_FRACTION * 100}% charge.
-            </li>
-            <li>
-              No pets allowed
-            </li>
-            <li>
-              <strong>Strictly non-smoking</strong> — a <strong>₦200,000</strong> fee applies if
-              violated.
-            </li>
-          </ul>
+          <div>
+            <div className="divide-y divide-charcoal/10 border-y border-charcoal/10">
+              {POLICY_SUMMARY_ROWS.map((row) => (
+                <div key={row.label} className="py-1.5 text-xs leading-snug">
+                  <p className="font-semibold text-charcoal">{row.label}</p>
+                  <p className="mt-0.5 text-charcoal/70">{row.detail}</p>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowFullPolicy((v) => !v)}
+              className="mt-3 text-xs text-charcoal/60 underline underline-offset-2"
+            >
+              {showFullPolicy ? 'Hide full policy' : 'View full policy'}
+            </button>
+
+            {showFullPolicy && (
+              <div className="mt-2 rounded-sm bg-charcoal/5 p-3 text-xs">
+                <ul className="list-disc space-y-1.5 pl-4 text-charcoal/70">
+                  {CANCELLATION_POLICY_BULLETS.map((bullet) => (
+                    <li key={bullet}>{bullet}</li>
+                  ))}
+                </ul>
+                <p className="mt-2">
+                  <Link href="/policies" target="_blank" className="underline underline-offset-2">
+                    Read the full policy page
+                  </Link>
+                  .
+                </p>
+              </div>
+            )}
+
+            <label className="mt-4 flex items-start gap-2 text-xs text-charcoal/70">
+              <input
+                type="checkbox"
+                checked={consentChecked}
+                onChange={(e) => setConsentChecked(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-espresso"
+              />
+              <span>{CARD_HOLD_CONSENT_TEXT}</span>
+            </label>
+          </div>
         }
-        confirmLabel="I understand, continue to payment"
+        confirmLabel="Continue"
         cancelLabel="Back"
+        confirmDisabled={!consentChecked}
         onConfirm={handlePolicyConfirm}
         onCancel={handlePolicyCancel}
       />

@@ -9,6 +9,7 @@ export default function ConfirmModal({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   hideCancel = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: {
@@ -21,6 +22,10 @@ export default function ConfirmModal({
   // result notice after an action already completed, where there's
   // nothing left to actually confirm or cancel.
   hideCancel?: boolean
+  // For a confirmation that's gated on something inside `message` itself
+  // (e.g. a required checkbox) — disables the confirm button without the
+  // caller needing to hide it or duplicate the dialog.
+  confirmDisabled?: boolean
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -46,14 +51,21 @@ export default function ConfirmModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-modal-title"
-        className="w-full max-w-sm rounded-sm border border-charcoal/10 bg-white p-6 shadow-xl"
+        className="flex max-h-[85vh] w-full max-w-sm flex-col rounded-sm border border-charcoal/10 bg-white shadow-xl"
       >
-        <p id="confirm-modal-title" className="font-display text-xl text-charcoal">
-          {title}
-        </p>
-        <div className="mt-2 text-sm text-charcoal/70">{message}</div>
+        {/* Only this part scrolls when content is taller than the
+            viewport allows (e.g. BookingForm.tsx's "View full policy"
+            expansion) — the buttons below stay pinned and reachable
+            instead of being pushed off-screen with no way to scroll to
+            them, which plain unbounded content would otherwise risk. */}
+        <div className="overflow-y-auto p-6">
+          <p id="confirm-modal-title" className="font-display text-xl text-charcoal">
+            {title}
+          </p>
+          <div className="mt-2 text-sm text-charcoal/70">{message}</div>
+        </div>
 
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="flex justify-end gap-3 p-6 pt-0">
           {!hideCancel && (
             <button
               type="button"
@@ -66,7 +78,8 @@ export default function ConfirmModal({
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-full bg-espresso px-4 py-2 text-sm text-ivory transition-colors hover:bg-espresso/90"
+            disabled={confirmDisabled}
+            className="rounded-full bg-espresso px-4 py-2 text-sm text-ivory transition-colors hover:bg-espresso/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {confirmLabel}
           </button>

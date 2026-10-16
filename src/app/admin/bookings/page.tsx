@@ -3,6 +3,7 @@ import { bookingsQuery } from '@/lib/adminBookings'
 import ViewBookingButton from './ViewBookingButton'
 import BookingFilters from './BookingFilters'
 import { STATUS_STYLES, PAYMENT_STYLES } from '@/lib/statusStyles'
+import { displayRoomCategory } from '@/lib/roomTypeContent'
 
 export default async function BookingsPage({
   searchParams,
@@ -122,7 +123,7 @@ export default async function BookingsPage({
                     <td className="px-4 py-3 text-charcoal">{b.guest_name}</td>
                     <td className="px-4 py-3 text-charcoal/80">
                       {b.Rooms
-                        ? `${b.Rooms.room_number} · ${b.Rooms.room_type}`
+                        ? `${b.Rooms.room_number} · ${displayRoomCategory(b.Rooms.room_type)}`
                         : '—'}
                     </td>
                     <td className="px-4 py-3 text-charcoal/80">{b.check_in}</td>

@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
@@ -7,6 +8,7 @@ import type { Room } from '@/lib/types'
 import { HOTEL_NAME } from '@/lib/siteConfig'
 import { todayInLagos } from '@/lib/dateUtils'
 import { ACTIVE_BOOKING_STATUSES } from '@/lib/bookings'
+import { displayRoomCategory, displayRoomName } from '@/lib/roomTypeContent'
 import BookingForm from './BookingForm'
 import RoomGallery from '@/components/RoomGallery'
 
@@ -40,6 +42,31 @@ function parseInitialDates(searchParams: { [key: string]: string | string[] | un
     checkIn >= todayInLagos()
 
   return valid ? { checkIn, checkOut } : { checkIn: null, checkOut: null }
+}
+
+const DIGITS_PATTERN = /^\d+$/
+
+/**
+ * Same adults+children parsing as the /rooms listing and the
+ * /rooms/book type resolver — kept independent of parseInitialDates
+ * since a guest count is meaningful on its own, dates or not. Returns
+ * nulls (not 0) when nothing valid was present, so "no guest count was
+ * chosen" stays distinguishable from "a party of 0".
+ */
+function parseGuestCount(searchParams: { [key: string]: string | string[] | undefined }): {
+  adults: string | null
+  childrenCount: string | null
+  requestedGuests: number | null
+} {
+  const adults = typeof searchParams.adults === 'string' ? searchParams.adults : ''
+  const childrenCount = typeof searchParams.children === 'string' ? searchParams.children : ''
+  const adultsNum = DIGITS_PATTERN.test(adults) ? parseInt(adults, 10) : null
+  const childrenNum = DIGITS_PATTERN.test(childrenCount) ? parseInt(childrenCount, 10) : null
+  return {
+    adults: adultsNum !== null ? adults : null,
+    childrenCount: childrenNum !== null ? childrenCount : null,
+    requestedGuests: adultsNum !== null ? adultsNum + (childrenNum ?? 0) : null,
+  }
 }
 
 function getRoomImages(roomNumber: string): string[] {
@@ -78,7 +105,7 @@ export async function generateMetadata({
   }
 
   const r = room as Room
-  const title = `${r.name} | ${HOTEL_NAME}`
+  const title = `${displayRoomName(r.name)} | ${HOTEL_NAME}`
   const description = truncateForMeta(r.description, META_DESCRIPTION_LENGTH)
   const coverImage = getRoomImages(r.room_number)[0]
 
@@ -101,9 +128,9 @@ export default async function RoomDetailPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const { id } = await params
-  const { checkIn: initialCheckIn, checkOut: initialCheckOut } = parseInitialDates(
-    await searchParams
-  )
+  const resolvedSearchParams = await searchParams
+  const { checkIn: initialCheckIn, checkOut: initialCheckOut } = parseInitialDates(resolvedSearchParams)
+  const { adults, childrenCount, requestedGuests } = parseGuestCount(resolvedSearchParams)
 
   const { data: room, error } = await supabase
     .from('Rooms')
@@ -154,15 +181,15 @@ export default async function RoomDetailPage({
     <main className="mx-auto max-w-6xl px-6 py-16 md:px-12 md:py-24">
       <div className="grid gap-12 lg:grid-cols-2">
         <div>
-          <RoomGallery images={images} roomName={r.name} />
+          <RoomGallery images={images} roomName={displayRoomName(r.name)} />
         </div>
 
         <div>
           <p className="text-xs tracking-widest text-brass uppercase">
-            {r.room_type} · {r.floor} floor
+            {displayRoomCategory(r.room_type)} · {r.floor} floor
           </p>
           <h1 className="mt-3 font-display text-4xl text-charcoal">
-            {r.name}
+            {displayRoomName(r.name)}
           </h1>
           <p className="mt-4 text-charcoal/70">{r.description}</p>
 
@@ -193,12 +220,29 @@ export default async function RoomDetailPage({
           </ul>
 
           <div className="mt-10">
-            <BookingForm
-              room={r}
-              blockedRanges={blockedRanges}
-              initialCheckIn={initialCheckIn}
-              initialCheckOut={initialCheckOut}
-            />
+            {requestedGuests !== null && requestedGuests > r.max_occupancy ? (
+              // Blocks the exact URL-tampering case the brief calls out:
+              // a direct/edited link to a specific room with more guests
+              // than it can hold. No form rendered at all — nothing to
+              // tamper with or submit past this point.
+              <div className="rounded-sm bg-charcoal/5 p-5 text-sm text-charcoal/70">
+                This room sleeps up to {r.max_occupancy} guest{r.max_occupancy === 1 ? '' : 's'}, which
+                isn&apos;t enough for a party of {requestedGuests}.{' '}
+                <Link href="/rooms" className="text-espresso underline underline-offset-4">
+                  See other rooms
+                </Link>{' '}
+                or contact us for groups larger than any single room.
+              </div>
+            ) : (
+              <BookingForm
+                room={r}
+                blockedRanges={blockedRanges}
+                initialCheckIn={initialCheckIn}
+                initialCheckOut={initialCheckOut}
+                adults={adults}
+                childrenCount={childrenCount}
+              />
+            )}
           </div>
         </div>
       </div>

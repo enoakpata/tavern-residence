@@ -12,6 +12,7 @@ import {
   buildHotelNotificationEmail,
 } from '@/lib/email'
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
+import { displayRoomName } from '@/lib/roomTypeContent'
 
 export async function checkAvailability(
   roomId: string,
@@ -48,6 +49,16 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   // this is displayed later (e.g. BookingDetailModal.tsx).
   const specialRequestsRaw = (formData.get('special_requests') as string | null)?.trim()
   const specialRequests = specialRequestsRaw ? specialRequestsRaw : null
+  // Optional — only present when the guest arrived via the availability
+  // bar's guest picker (see BookingForm.tsx's hidden inputs). Used only
+  // to re-validate against this room's capacity below; never stored
+  // (there's no guest-count column on Bookings).
+  const adultsRaw = formData.get('adults') as string | null
+  const childrenRaw = formData.get('children') as string | null
+  const DIGITS_PATTERN = /^\d+$/
+  const adultsNum = adultsRaw && DIGITS_PATTERN.test(adultsRaw) ? parseInt(adultsRaw, 10) : null
+  const childrenNum = childrenRaw && DIGITS_PATTERN.test(childrenRaw) ? parseInt(childrenRaw, 10) : null
+  const requestedGuests = adultsNum !== null ? adultsNum + (childrenNum ?? 0) : null
 
   // guest_email is now required — Paystack needs it to run the card
   // verification charge, whereas before it was optional
@@ -67,6 +78,25 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
     return { success: false, error: 'Check-out must be after check-in.' }
   }
 
+  // Fetched once, early — used for the capacity re-check right below and
+  // reused further down (totalAmount) instead of querying Rooms twice.
+  const { data: bookedRoom } = await supabase
+    .from('Rooms')
+    .select('price_per_night, max_occupancy')
+    .eq('id', roomId)
+    .single()
+
+  // Re-validated server-side, not just trusted from the URL/hidden field
+  // — a guest count large enough to exceed this room's own capacity
+  // (e.g. a tampered room_id/adults combination) is refused here exactly
+  // like an unavailable date range is, below.
+  if (requestedGuests !== null && bookedRoom?.max_occupancy != null && requestedGuests > bookedRoom.max_occupancy) {
+    return {
+      success: false,
+      error: `This room sleeps up to ${bookedRoom.max_occupancy} guests, which isn't enough for a party of ${requestedGuests}.`,
+    }
+  }
+
   // Re-check availability on the server, right before we touch payment or
   // insert anything — don't trust a client-side check alone, and don't
   // want to have charged/refunded a card only to find the room isn't
@@ -79,12 +109,29 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
     }
   }
 
+  // Card consent is required (BookingForm.tsx gates this client-side via
+  // a disabled confirm button) — re-checked here too, since this is the
+  // actual authorization that lets us charge a cancellation/no-show fee
+  // later, not just a UI nicety.
+  const cardConsentPolicyVersion = formData.get('card_consent_policy_version') as string | null
+  if (!cardConsentPolicyVersion) {
+    return { success: false, error: 'Please confirm the cancellation policy checkbox to continue.' }
+  }
+
   // Confirm the ₦100 verification charge actually succeeded, and pull out
-  // the reusable authorization_code — this is the "saved card" we'll use
-  // later for the real charge (full stay at check-in, or a no-show /
-  // late-cancellation fee), without the guest re-entering card details.
+  // the reusable authorization_code — this is the "saved card" we hold
+  // ONLY for a later cancellation/no-show fee (see
+  // src/app/admin/bookings/actions.ts's chargeSavedCard) — never for the
+  // stay itself, which guests now pay us directly (transfer/POS).
   const verification = await verifyTransaction(paystackReference)
   if (!verification.success) {
+    // The transaction can still have actually charged the guest even
+    // though verification failed (e.g. a valid but non-reusable card) —
+    // refund it whenever there's a transaction to refund, so the guest is
+    // never out ₦100 just because we couldn't save their card.
+    if (verification.transactionId != null) {
+      await refundTransaction(verification.transactionId)
+    }
     return { success: false, error: verification.error }
   }
 
@@ -100,6 +147,14 @@ const bookingId = crypto.randomUUID()
 // success screen's free-cancellation cutoff on same-day bookings.
 const createdAt = new Date().toISOString()
 const isSameDayBooking = checkIn === todayInLagos()
+const nights = Math.max(
+  1,
+  Math.round(
+    (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)
+  )
+)
+
+const totalAmount = (bookedRoom?.price_per_night ?? 0) * nights
 
 const { error } = await supabase.from('Bookings').insert({
   id: bookingId,
@@ -111,9 +166,23 @@ const { error } = await supabase.from('Bookings').insert({
   check_out: checkOut,
   status: 'confirmed', // card already verified via Paystack by this point
   source: 'online',
+  // Still 'card' — a card genuinely was collected (for the fee-only
+  // hold); it's just no longer charged for the stay. The actual method
+  // used to pay the stay is tracked per-payment in booking_payments.method
+  // once the guest actually pays (transfer/POS), not here.
   payment_method: 'card',
   payment_status: 'unpaid',
-  payment_token: verification.authorizationCode,
+  total_amount: totalAmount,
+  amount_paid: 0,
+  payment_token: verification.authorizationCode, // legacy field, kept for any code still reading it — see getChargeableAuthCode
+  card_authorization_code: verification.authorizationCode,
+  card_last4: verification.last4,
+  card_brand: verification.cardType,
+  card_exp: `${verification.expMonth}/${verification.expYear}`,
+  card_reusable: verification.reusable,
+  card_consent_at: createdAt,
+  card_consent_policy_version: cardConsentPolicyVersion,
+  card_email: guestEmail,
   created_at: createdAt,
   special_requests: specialRequests,
 })
@@ -132,7 +201,7 @@ const { data: roomData } = await supabase
   .select('name, room_number')
   .eq('id', roomId)
   .single()
-const roomName = roomData?.name ?? 'your room'
+const roomName = displayRoomName(roomData?.name, 'your room')
 const roomNumber = roomData?.room_number ?? ''
 
 const guestEmailContent = buildGuestConfirmationEmail({
@@ -143,6 +212,8 @@ const guestEmailContent = buildGuestConfirmationEmail({
   bookingId,
   createdAt,
   isSameDayBooking,
+  totalAmount,
+  cardLast4: verification.last4,
 })
 const hotelEmailContent = buildHotelNotificationEmail({
   guestName,

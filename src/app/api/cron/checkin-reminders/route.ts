@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { tomorrowInLagos } from '@/lib/dateUtils'
 import { sendEmail, buildCheckinReminderEmail } from '@/lib/email'
+import { displayRoomName } from '@/lib/roomTypeContent'
 
 /**
  * Runs once daily via Vercel Cron (see vercel.json). Emails every guest
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
         to: booking.guest_email,
         ...buildCheckinReminderEmail({
           guestName: booking.guest_name,
-          roomName: room?.name ?? 'your room',
+          roomName: displayRoomName(room?.name, 'your room'),
           checkIn: booking.check_in,
           bookingId: booking.id,
         }),

@@ -1,211 +1,173 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import Image from 'next/image'
-import Reveal from '@/components/Reveal'
+import CrossfadeImage from '@/components/CrossfadeImage'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import GalleryLightbox from '@/components/GalleryLightbox'
-import { GALLERY_IMAGE_GRADE } from '@/lib/galleryImageGrade'
 
-// Placeholder captions standing in for real ones — swap these (and the
-// images passed in from page.tsx) for the real, labeled shots whenever
-// they exist. Not shown anywhere as visible UI (see the hover tiles and
-// GalleryLightbox — no caption text renders in either); kept only as
-// `alt` text, since accessibility labeling and "no text overlay" are
-// separate concerns. Cycled with `%` against however many images
-// actually arrive, so nothing breaks if that count isn't a multiple of
-// this list's length.
-const CAPTIONS = ['Lobby', 'Lounge', 'Hallway', 'Rooftop', 'Courtyard', 'Reception', 'Garden']
-
-const PAGE_SIZE = 7
-
-// Bento spans for each tile, in DOM order, unprefixed so they apply at
-// every breakpoint — the grid itself goes from 2 columns (mobile) to 4
-// (md+, see the container below), and a span like "col-span-2" scales
-// with it automatically (half the grid on mobile, half on desktop too,
-// just more columns to divide). Paired with `grid-flow-dense`, the
-// browser packs each span into the next available gap on its own — one
-// large feature tile, one tall, one wide, the rest square — without
-// hand-placed grid-column/row coordinates that would break the moment a
-// page's photo count changes (e.g. a final, partial page).
-const TILE_SPANS = [
-  'col-span-2 row-span-2',
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-2',
-  'col-span-1 row-span-1',
-  'col-span-2 row-span-1',
-  'col-span-1 row-span-1',
-]
-
-// Swipe must clear this many px horizontally, and stay mostly horizontal
-// (not a vertical scroll gesture), to count as a page-change swipe rather
-// than the guest just scrolling the page past this section.
-const SWIPE_THRESHOLD_PX = 50
+const DRAG_THRESHOLD = 50
+// How far the whole trio visually "gives" while dragging, in px — a
+// bounded, damped nudge (not a 1:1 follow all the way across) because
+// there's nothing to reveal off-screen: this is a fixed 3-tile window
+// whose photos crossfade in place, not a strip of adjacent slides, and
+// dragging it further than this would just expose empty space behind
+// it. Same role a rubber-band resistance limit plays in a real slide
+// track — real-time feedback that you're dragging, without implying
+// motion the layout can't actually show.
+const MAX_DRAG_NUDGE_PX = 28
+const SETTLE_MS = 300
+// Large tile + 2 small tiles, same staggered arrangement the former
+// "Our Story" section used (.residence-feature/-secondary/-third in
+// guest.css) — a fixed-position sliding window over `images`, not a
+// scrollable track of pre-built groups: `current` is the large tile's
+// index, and the two small tiles always show current+1/current+2
+// (wrapping via modulo). Advancing moves `current` by exactly one, so
+// only the image data swaps — the tiles themselves never move.
+const VISIBLE_COUNT = 3
 
 export default function AroundTheResidence({ images }: { images: string[] }) {
-  const photos = images.map((src, i) => ({ src, caption: CAPTIONS[i % CAPTIONS.length] }))
-
-  const pageCount = Math.ceil(photos.length / PAGE_SIZE)
-  const [pageIndex, setPageIndex] = useState(0)
-
-  // Fade the current page out, swap its photos while invisible, fade the
-  // new page in — adjusting state during render (React's documented
-  // pattern for reacting to a prop/state change without an extra
-  // effect-triggered render) is the same approach BookingForm.tsx already
-  // uses for its own step-swap fade, and GalleryLightbox.tsx for its
-  // photo crossfade. Kept as a horizontal offset alongside the opacity
-  // fade (see the transform below) for a touch of the "slide" motion
-  // without an actual sliding animation — still one calm, deliberate
-  // fade, matching the rest of the site's motion.
-  const [displayedPage, setDisplayedPage] = useState(0)
-  const [contentVisible, setContentVisible] = useState(true)
-  const [swapPending, setSwapPending] = useState(false)
-  // Which edge the incoming page should feel like it's arriving from —
-  // only affects the brief translate-x during the fade, not layout.
-  const [swapDirection, setSwapDirection] = useState<1 | -1>(1)
-
-  if (pageIndex !== displayedPage && !swapPending) {
-    setContentVisible(false)
-    setSwapPending(true)
-  }
-
-  useEffect(() => {
-    if (!swapPending) return
-    const timeout = setTimeout(() => {
-      setDisplayedPage(pageIndex)
-      setContentVisible(true)
-      setSwapPending(false)
-    }, 200)
-    return () => clearTimeout(timeout)
-  }, [swapPending, pageIndex])
-
-  const touchStartX = useRef<number | null>(null)
+  const [current, setCurrent] = useState(0)
   const [openIndex, setOpenIndex] = useState<number | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  // Live visual feedback while dragging — see MAX_DRAG_NUDGE_PX above.
+  // 0 whenever not actively dragging; the trio's own transform reads
+  // straight off this, so drag, settle, and the plain "not dragging"
+  // rest state are all the same mechanism rather than separate paths.
+  const [dragOffsetPx, setDragOffsetPx] = useState(0)
+  const dragStartX = useRef(0)
+  // Which tile (by its absolute image index) the pointer actually went
+  // down on — read in handlePointerDown, before setPointerCapture below
+  // retargets every later event on this gesture (pointerup's own
+  // e.target included) to the trio itself. Needed because that
+  // retargeting also hits the native `click` event the browser fires
+  // right after pointerup, so it never reaches a tile button's own
+  // onClick — see handlePointerUp for how this stands in for it on a
+  // tap/click (no real drag).
+  const pressedTileIndex = useRef<number | null>(null)
 
-  if (photos.length === 0) return null
+  if (!images.length) return null
 
-  function goToPage(next: number) {
-    const clamped = Math.max(0, Math.min(pageCount - 1, next))
-    if (clamped === pageIndex) return
-    setSwapDirection(clamped > pageIndex ? 1 : -1)
-    setPageIndex(clamped)
+  const windowSize = Math.min(VISIBLE_COUNT, images.length)
+  // Capped at `windowSize` (not always 3) so a gallery with fewer than 3
+  // photos never repeats one in two tiles at once.
+  const window_ = Array.from({ length: windowSize }, (_, k) => (current + k) % images.length)
+
+  function next() {
+    setCurrent((c) => (c + 1) % images.length)
+  }
+  function prev() {
+    setCurrent((c) => (c - 1 + images.length) % images.length)
   }
 
-  function handleTouchStart(e: React.TouchEvent) {
-    touchStartX.current = e.touches[0].clientX
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const tile = (e.target as HTMLElement).closest<HTMLElement>('[data-absolute-index]')
+    pressedTileIndex.current = tile ? Number(tile.dataset.absoluteIndex) : null
+    if (images.length < 2) return
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    dragStartX.current = e.clientX
+    setIsDragging(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!isDragging) return
+    const deltaX = e.clientX - dragStartX.current
+    // Damped, not 1:1 — see MAX_DRAG_NUDGE_PX. tanh gives it a soft
+    // rubber-band feel (near-linear for small movements, flattening out
+    // well short of the cap) instead of a hard clamp that would suddenly
+    // stop following the finger at all past the limit.
+    setDragOffsetPx(MAX_DRAG_NUDGE_PX * Math.tanh(deltaX / (MAX_DRAG_NUDGE_PX * 2)))
+  }
+  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (!isDragging) return
+    setIsDragging(false)
+    setDragOffsetPx(0)
+    // Releasing capture here (rather than leaving it held until the
+    // pointer naturally goes away) matters: with it still held, the
+    // click event this same gesture is about to produce — the browser
+    // always fires one right after pointerup/mouseup, even for a drag —
+    // gets retargeted to whichever element called setPointerCapture
+    // (this one) instead of hit-testing normally, so it never reaches a
+    // tile's own onClick a few levels down. That silently ate every tap
+    // on a photo, including plain clicks with no real drag at all.
+    e.currentTarget.releasePointerCapture(e.pointerId)
+    const deltaX = e.clientX - dragStartX.current
+    if (deltaX > DRAG_THRESHOLD) {
+      prev()
+    } else if (deltaX < -DRAG_THRESHOLD) {
+      next()
+    } else if (pressedTileIndex.current !== null) {
+      // Not a real drag — a tap/click. The native click event this
+      // gesture produces can't be trusted to reach the tile's own
+      // onClick (see pressedTileIndex's own comment), so this is what
+      // actually opens the lightbox for a pointer-driven tap; the
+      // button's onClick stays in place purely for keyboard activation
+      // (Enter/Space), which never goes through pointer capture at all.
+      setOpenIndex(pressedTileIndex.current)
+    }
+  }
+  function handlePointerCancel(e: React.PointerEvent<HTMLDivElement>) {
+    setIsDragging(false)
+    setDragOffsetPx(0)
+    e.currentTarget.releasePointerCapture(e.pointerId)
+  }
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (images.length < 2) return
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      prev()
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      next()
+    }
   }
 
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null) return
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current
-    touchStartX.current = null
-    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX) return
-    // Swipe left (negative delta) moves forward, same direction a
-    // left-swipe carries content on any horizontally-paginated surface.
-    goToPage(deltaX < 0 ? pageIndex + 1 : pageIndex - 1)
-  }
+  // Only the two images that would newly enter the window on the very
+  // next step (either direction) are preloaded — not the whole gallery —
+  // same reasoning as RoomGallery.tsx's own single-next-photo preload:
+  // real next/image tags (hidden via CSS only, which doesn't affect the
+  // browser's own resource fetch) so they're already cached the instant
+  // they're needed.
+  const preloadForward = images[(current + windowSize) % images.length]
+  const preloadBackward = images[(current - 1 + images.length) % images.length]
 
-  const pagePhotos = photos.slice(displayedPage * PAGE_SIZE, displayedPage * PAGE_SIZE + PAGE_SIZE)
-  const isFirstPage = pageIndex === 0
-  const isLastPage = pageIndex === pageCount - 1
-
-  return (
-    <section className="section-py mx-auto max-w-6xl px-6 md:px-16">
-      <p className="text-center text-xs tracking-widest text-brass uppercase">
-        The Property
-      </p>
-      <h2 className="mt-3 text-center font-display text-3xl text-charcoal md:text-4xl">
-        Around the Residence
-      </h2>
-
-      <Reveal className="relative mt-12 md:mt-16">
-        {pageCount > 1 && (
-          <button
-            type="button"
-            onClick={() => goToPage(pageIndex - 1)}
-            aria-label="Previous photos"
-            disabled={isFirstPage}
-            className={`absolute left-0 top-1/2 z-10 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center text-charcoal/50 transition-opacity duration-base hover:text-charcoal ${
-              isFirstPage ? 'pointer-events-none opacity-0' : 'opacity-100'
-            }`}
-          >
-            <svg
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M15 5l-7 7 7 7" />
-            </svg>
-          </button>
-        )}
-
-        {pageCount > 1 && (
-          <button
-            type="button"
-            onClick={() => goToPage(pageIndex + 1)}
-            aria-label="Next photos"
-            disabled={isLastPage}
-            className={`absolute right-0 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 translate-x-1/2 items-center justify-center text-charcoal/50 transition-opacity duration-base hover:text-charcoal ${
-              isLastPage ? 'pointer-events-none opacity-0' : 'opacity-100'
-            }`}
-          >
-            <svg
-              width="26"
-              height="26"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        )}
-
-        <div
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          className={`grid grid-cols-2 auto-rows-[130px] grid-flow-dense gap-3 transition-[opacity,transform] duration-200 ease-out sm:auto-rows-[150px] md:grid-cols-4 md:auto-rows-[160px] md:gap-4 ${
-            contentVisible
-              ? 'translate-x-0 opacity-100'
-              : `opacity-0 ${swapDirection === 1 ? '-translate-x-3' : 'translate-x-3'}`
-          }`}
-        >
-          {pagePhotos.map((photo, index) => (
-            <button
-              key={photo.src}
-              type="button"
-              onClick={() => setOpenIndex(displayedPage * PAGE_SIZE + index)}
-              aria-label={`View photo ${displayedPage * PAGE_SIZE + index + 1} of ${photos.length}`}
-              className={`group relative overflow-hidden rounded-sm bg-espresso/10 ${TILE_SPANS[index % TILE_SPANS.length]}`}
-            >
-              <Image
-                src={photo.src}
-                alt={`${photo.caption} at Tavern Residence`}
-                fill
-                sizes="(min-width: 768px) 40vw, 75vw"
-                className={`object-cover transition-transform duration-700 ease-out group-hover:scale-105 ${GALLERY_IMAGE_GRADE}`}
-              />
-            </button>
-          ))}
-        </div>
-      </Reveal>
-
-      {openIndex !== null && (
-        <GalleryLightbox
-          photos={photos}
-          index={openIndex}
-          onClose={() => setOpenIndex(null)}
-          onNavigate={setOpenIndex}
-        />
+  return <section id="gallery" className="home-section residence-gallery-section">
+    <div className="editorial-heading"><p className="eyebrow">SPACE TO MAKE YOUR OWN</p><h2>Around the Residence</h2><p>Warm interiors, thoughtful details, and familiar comforts. Take a closer look at the spaces that make Tavern Residence a welcoming place for business trips, weekends away, and longer stays.</p><button className="quiet-button" onClick={() => setOpenIndex(current)}>Discover</button></div>
+    <div className="residence-carousel">
+      <div
+        className={`residence-trio ${images.length > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''} touch-pan-y select-none`}
+        role="group"
+        aria-label="Residence photo gallery"
+        tabIndex={images.length > 1 ? 0 : -1}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onPointerLeave={handlePointerCancel}
+        onKeyDown={handleKeyDown}
+        style={{
+          transform: dragOffsetPx ? `translateX(${dragOffsetPx}px)` : undefined,
+          transition: isDragging ? 'none' : `transform ${SETTLE_MS}ms ease-out`,
+        }}
+      >
+        {window_.map((absoluteIndex, slotIndex) => {
+          const image = <CrossfadeImage src={images[absoluteIndex]} alt={'Interior detail ' + (absoluteIndex + 1) + ' at Tavern Residence'} fill draggable={false} sizes={slotIndex === 0 ? '(min-width: 768px) 37vw, 90vw' : '30vw'} className="object-cover" />
+          const label = 'Enlarge residence photo ' + (absoluteIndex + 1)
+          if (slotIndex === 0) {
+            return <article className="residence-feature" key="feature"><button type="button" className="residence-feature-photo" data-absolute-index={absoluteIndex} onClick={() => setOpenIndex(absoluteIndex)} aria-label={label}>{image}</button></article>
+          }
+          return <button type="button" key={slotIndex === 1 ? 'secondary' : 'third'} className={slotIndex === 1 ? 'residence-secondary' : 'residence-third'} data-absolute-index={absoluteIndex} onClick={() => setOpenIndex(absoluteIndex)} aria-label={label}>{image}</button>
+        })}
+      </div>
+      {images.length > 1 && (
+        <>
+          <Image key={`preload-forward-${preloadForward}`} src={preloadForward} alt="" aria-hidden="true" fill priority sizes="30vw" className="hidden" />
+          <Image key={`preload-backward-${preloadBackward}`} src={preloadBackward} alt="" aria-hidden="true" fill priority sizes="30vw" className="hidden" />
+        </>
       )}
-    </section>
-  )
+      {images.length > 1 && <><button className="slider-arrow previous" onClick={prev} aria-label="Previous residence photo"><ChevronLeft size={20} /></button><button className="slider-arrow next" onClick={next} aria-label="Next residence photo"><ChevronRight size={20} /></button></>}
+    </div>
+    <div className="gallery-pagination"><span>{String(current + 1).padStart(2, '0')}</span><div className="gallery-progress"><span style={{ width: ((current + 1) / images.length) * 100 + '%' }} /></div><span>{String(images.length).padStart(2, '0')}</span></div>
+    {openIndex !== null && <GalleryLightbox photos={images.map(src => ({ src, caption: 'Residence interior' }))} index={openIndex} onClose={() => setOpenIndex(null)} onNavigate={setOpenIndex} />}
+  </section>
 }

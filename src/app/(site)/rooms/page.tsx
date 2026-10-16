@@ -1,21 +1,21 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
 import { isAnyRoomAvailable } from '@/lib/bookings'
 import type { Room } from '@/lib/types'
-import { getRoomCoverImage, getRoomGallery } from '@/lib/roomImages'
+import { getRoomCoverImage, getRoomGallery, getGalleryImages } from '@/lib/roomImages'
 import { HOTEL_NAME, HOTEL_ADDRESS_LOCALITY, HOTEL_ADDRESS_REGION } from '@/lib/siteConfig'
 import { todayInLagos } from '@/lib/dateUtils'
 import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER, type RoomTypeKey } from '@/lib/roomTypeContent'
-import HomeAvailabilityCheck from '../HomeAvailabilityCheck'
+import PageHero from '../PageHero'
 import RoomTypeList, { type RoomTypeRowData } from './RoomTypeList'
+import './rooms.css'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: `Rooms & Suites | ${HOTEL_NAME}`,
-  description: `Browse Studio, 1-Bedroom, and Standard rooms at ${HOTEL_NAME} in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION} — from ₦90,000 to ₦200,000 per night, each with a king bed and kitchenette.`,
+  description: `Browse Studio, 1-Bedroom, and Single rooms at ${HOTEL_NAME} in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION} — from ₦90,000 to ₦200,000 per night, each with a king bed and kitchenette.`,
 }
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -30,9 +30,8 @@ export default async function RoomsPage({
   const rawCheckIn = typeof params.checkin === 'string' ? params.checkin : ''
   const rawCheckOut = typeof params.checkout === 'string' ? params.checkout : ''
   // Carried along from the availability bar (HomeAvailabilityCheck, both
-  // here and on the homepage) purely so Book Now/Book This Room can pass
-  // them on to /rooms/[id] — nothing on this page filters by them, same
-  // as before this was wired up.
+  // here and on the homepage) so Book Now/Book This Room can pass them on
+  // to /rooms/[id], and — below — so this page itself can filter by them.
   const adults = typeof params.adults === 'string' ? params.adults : null
   // Named childrenCount, not children — "children" is a reserved React
   // prop name (the JSX content between tags), and ESLint flags passing it
@@ -47,6 +46,17 @@ export default async function RoomsPage({
     ISO_DATE_PATTERN.test(rawCheckOut) &&
     rawCheckOut > rawCheckIn &&
     rawCheckIn >= todayInLagos()
+
+  // The availability bar always submits adults alongside children (never
+  // just one), so adults present is enough to treat this as "a guest
+  // count was actually chosen" — independent of hasDates, since capacity
+  // doesn't depend on which dates are picked, only on how many people.
+  const DIGITS_PATTERN = /^\d+$/
+  const adultsNum = adults !== null && DIGITS_PATTERN.test(adults) ? parseInt(adults, 10) : null
+  const childrenNum =
+    childrenCount !== null && DIGITS_PATTERN.test(childrenCount) ? parseInt(childrenCount, 10) : null
+  const hasGuests = adultsNum !== null
+  const requestedGuests = hasGuests ? (adultsNum ?? 0) + (childrenNum ?? 0) : null
 
   const { data: rooms, error } = await supabase
     .from('Rooms')
@@ -86,8 +96,8 @@ export default async function RoomsPage({
       const content = ROOM_TYPE_CONTENT[key]
       const physicalRooms = roomsByTypeKey.get(key)!
       const roomIds = physicalRooms.map((r) => r.id)
-      // A representative physical room, only for its photos/price — its
-      // own room_number is never shown, only used to look up which
+      // A representative physical room, only for its photos/price/specs —
+      // its own room_number is never shown, only used to look up which
       // image folder (public/images/<room_number>/) belongs to this type.
       const representative =
         physicalRooms.find((r) => r.room_number === content.representativeRoomNumber) ??
@@ -108,108 +118,62 @@ export default async function RoomsPage({
           MODAL_GALLERY_MAX_PHOTOS
         ),
         priceLabel: `₦${representative.price_per_night.toLocaleString()}`,
-        // Real Rooms columns — never invented. (Every representative room
-        // currently has bed_type "King", already covered by the "King
-        // bed" entry in rowAmenities, so this is shown as a guest-count
-        // pairing only; see RoomTypeList.tsx.)
+        // Real Rooms columns — never invented.
         maxOccupancy: representative.max_occupancy,
         bedType: representative.bed_type,
         isAvailable,
+        // Capacity is independent of dates — every physical room sharing
+        // this type has the same max_occupancy, so the representative's
+        // value speaks for the whole type.
+        isTooSmall: hasGuests && requestedGuests! > representative.max_occupancy,
       }
     })
   )
 
-  // A specific, named shot (not homepage's own galleryImages[0]) so the
-  // two full-bleed heroes never coincidentally show the same photo — same
-  // treatment (full-bleed, object-cover, dark gradient overlay).
-  const heroImage = '/images/gallery/6.jpg'
+  // True only once a guest count was actually chosen and it's larger
+  // than every room type's own capacity — i.e. no type, regardless of
+  // dates, could ever hold that many people.
+  const noRoomFitsGuestCount = hasGuests && rows.length > 0 && rows.every((row) => row.isTooSmall)
+
+  // Use a bedroom photo distinct from the homepage's lounge photo.
+  const galleryImages = getGalleryImages()
+  const heroImage = galleryImages[19] ?? galleryImages[0] ?? null
 
   return (
-    <main>
-      {/* Hero — same full-bleed photo treatment as the homepage's
-          (page.tsx): dark gradient overlay for legibility. -mt-14/-mt-16
-          cancels the fixed header's own h-14/h-16 (see Header.tsx and
-          (site)/layout.tsx's matching pt-14/pt-16) so the photo reaches
-          the literal top of the viewport with no gap — Header.tsx's own
-          `hasHero` check now includes /rooms specifically so it floats
-          transparently over this, not just the homepage's. Shorter than
-          the homepage's full h-screen — this is a secondary page, not the
-          guest's first landing moment, so it doesn't need the same
-          full-viewport presence. Content sits lower-left (items-end),
-          not vertically centered. */}
-      <section className="relative -mt-14 flex h-[70vh] min-h-[480px] items-end overflow-hidden px-6 pb-14 text-white md:-mt-16 md:h-[75vh] md:px-16 md:pb-20">
-        <Image
-          src={heroImage}
-          alt={`${HOTEL_NAME} — rooms and suites in Lekki Phase 1, Lagos`}
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-charcoal/90 via-charcoal/30 to-transparent" />
+    <main className="rooms-page">
+      <PageHero
+        image={heroImage ? { src: heroImage, alt: `${HOTEL_NAME}, rooms and suites in Lekki Phase 1, Lagos` } : null}
+        title="Rooms and Suites"
+        action={{ label: 'Explore the collection', href: '#rooms' }}
+        initialCheckIn={hasDates ? rawCheckIn : null}
+        initialCheckOut={hasDates ? rawCheckOut : null}
+        scrollToRoomsOnComplete
+      />
 
-        <div className="relative max-w-xl">
-          <p className="text-xs tracking-widest text-brass uppercase">Accommodation</p>
-          {/* All-caps here is a deliberate exception to the site's usual
-              mixed-case Fraunces headlines (see Header.tsx's own wordmark
-              note) — matches the reference's exact "OUR ROOMS" treatment
-              as explicitly requested. */}
-          <h1 className="mt-4 font-display text-display-md uppercase leading-tight md:text-display-lg">
-            Our Rooms
-          </h1>
-          <p className="mt-5 text-sm text-white/70">
-            Considered comfort, in four distinct forms — from an intimate
-            studio to our most complete suite.
-          </p>
-          {/* Generic — not tied to a type, so this scrolls to the room
-              list below rather than the /rooms/book resolver, which
-              needs a specific type to do anything useful. Each row's own
-              Book Now (and the modal's) carries a real type. */}
-          <Link
-            href="#rooms"
-            className="mt-8 inline-block rounded-full border border-brass px-6 py-3 text-xs tracking-widest uppercase transition-colors duration-base hover:bg-brass/10"
-          >
-            Book Now
-          </Link>
+      {hasDates && (
+        <div className="rooms-search-summary" role="status">
+          <span>Availability for your selected dates</span>
+          <span>{rawCheckIn} &ndash; {rawCheckOut}</span>
+          <Link href="/rooms">Clear dates</Link>
         </div>
-      </section>
-
-      {/* Availability bar — a separate, minimal section, not layered
-          over the hero. Same exact Check-in/Check-out/Guests/Check
-          Availability component the homepage's own hero uses
-          (HomeAvailabilityCheck.tsx) — it already targets /rooms with
-          its results, so reusing it here just refreshes this same page's
-          own query params instead of navigating elsewhere. */}
-      <section className="mx-auto max-w-6xl px-6 py-8 md:px-12 md:py-10">
-        <HomeAvailabilityCheck
-          initialCheckIn={hasDates ? rawCheckIn : null}
-          initialCheckOut={hasDates ? rawCheckOut : null}
+      )}
+      {noRoomFitsGuestCount && (
+        <div className="rooms-capacity-notice" role="status">
+          For groups of {requestedGuests}, please contact us or book more than one room.
+        </div>
+      )}
+      {rows.length === 0 ? (
+        <p className="rooms-empty-state">No rooms are listed yet. Check back shortly.</p>
+      ) : (
+        <RoomTypeList
+          rows={rows}
+          hasDates={hasDates}
+          checkIn={hasDates ? rawCheckIn : null}
+          checkOut={hasDates ? rawCheckOut : null}
+          adults={adults}
+          childrenCount={childrenCount}
         />
-      </section>
-
-      <section id="rooms" className="mx-auto max-w-6xl scroll-mt-20 px-6 pb-16 md:px-12 md:pb-24">
-        <p className="text-center text-xs tracking-widest text-brass uppercase">
-          The Collection
-        </p>
-        <h2 className="mt-3 text-center font-display text-3xl text-charcoal md:text-4xl">
-          Every room, considered.
-        </h2>
-
-        {rows.length === 0 ? (
-          <p className="mt-16 text-charcoal/60">
-            No rooms are listed yet. Check back shortly.
-          </p>
-        ) : (
-          <RoomTypeList
-            rows={rows}
-            hasDates={hasDates}
-            checkIn={hasDates ? rawCheckIn : null}
-            checkOut={hasDates ? rawCheckOut : null}
-            adults={adults}
-            childrenCount={childrenCount}
-          />
-        )}
-      </section>
+      )}
     </main>
   )
 }

@@ -1,9 +1,20 @@
 'use client'
 
-import { useState, useTransition, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { findBookings, type BookingSearchResult } from './actions'
+import { MANAGE_BOOKING_MESSAGES, type ManageBookingErrorCode } from '@/lib/manageBookingMessages'
 import { STATUS_LABELS } from '@/lib/statusStyles'
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// A simple client-side throttle — this form has no account/session to
+// rate-limit server-side against, so "N attempts within a window, then
+// a short cooldown" lives here instead. Resets on page reload; that's
+// an accepted tradeoff for "a simple limit", not a security boundary.
+const MAX_ATTEMPTS = 5
+const ATTEMPT_WINDOW_MS = 2 * 60 * 1000
+const COOLDOWN_MS = 2 * 60 * 1000
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', {
@@ -15,17 +26,79 @@ function formatDate(iso: string): string {
 }
 
 export default function ManageBookingSearch() {
-  const [isPending, startTransition] = useTransition()
+  const [isPending, setIsPending] = useState(false)
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [results, setResults] = useState<BookingSearchResult[] | null>(null)
+  const [errorCode, setErrorCode] = useState<ManageBookingErrorCode | null>(null)
+  // Timestamps of recent submit attempts, oldest first — pruned to the
+  // current window on every submit.
+  const attemptTimestamps = useRef<number[]>([])
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null)
+
+  function clearError() {
+    setErrorCode(null)
+  }
+
+  function handlePhoneChange(value: string) {
+    setPhone(value)
+    clearError()
+  }
+
+  function handleEmailChange(value: string) {
+    setEmail(value)
+    clearError()
+  }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    startTransition(async () => {
-      const { bookings } = await findBookings(phone, email)
-      setResults(bookings)
-    })
+
+    const now = Date.now()
+    if (cooldownUntil && now < cooldownUntil) {
+      setErrorCode('rate_limited')
+      return
+    }
+
+    const trimmedPhone = phone.trim()
+    const trimmedEmail = email.trim()
+
+    if (!trimmedPhone || !trimmedEmail) {
+      setErrorCode('empty_fields')
+      return
+    }
+    if (!EMAIL_PATTERN.test(trimmedEmail)) {
+      setErrorCode('invalid_email')
+      return
+    }
+
+    attemptTimestamps.current = attemptTimestamps.current.filter(
+      (t) => now - t < ATTEMPT_WINDOW_MS
+    )
+    if (attemptTimestamps.current.length >= MAX_ATTEMPTS) {
+      setCooldownUntil(now + COOLDOWN_MS)
+      setErrorCode('rate_limited')
+      return
+    }
+    attemptTimestamps.current.push(now)
+
+    setErrorCode(null)
+    setResults(null)
+    setIsPending(true)
+    startSearch(trimmedPhone, trimmedEmail)
+  }
+
+  async function startSearch(trimmedPhone: string, trimmedEmail: string) {
+    const res = await findBookings(trimmedPhone, trimmedEmail)
+    setIsPending(false)
+    if (!res.success) {
+      setErrorCode(res.code)
+      return
+    }
+    if (res.bookings.length === 0) {
+      setErrorCode('not_found')
+      return
+    }
+    setResults(res.bookings)
   }
 
   return (
@@ -41,16 +114,15 @@ export default function ManageBookingSearch() {
         we&apos;ll pull up your reservation.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+      <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
         <div>
           <label className="text-xs tracking-widest text-charcoal/60 uppercase">
             Phone / WhatsApp
           </label>
           <input
             type="tel"
-            required
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => handlePhoneChange(e.target.value)}
             className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
           />
         </div>
@@ -60,12 +132,21 @@ export default function ManageBookingSearch() {
           </label>
           <input
             type="email"
-            required
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => handleEmailChange(e.target.value)}
             className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-3 text-sm focus:border-espresso focus:outline-none"
           />
         </div>
+
+        {errorCode && (
+          <p
+            role="alert"
+            className="rounded-sm border border-clay/30 bg-clay/5 px-4 py-3 text-sm text-clay"
+          >
+            {MANAGE_BOOKING_MESSAGES[errorCode]}
+          </p>
+        )}
+
         <button
           type="submit"
           disabled={isPending}
@@ -76,38 +157,27 @@ export default function ManageBookingSearch() {
       </form>
 
       {results !== null && (
-        <div className="mt-10">
-          {results.length === 0 ? (
-            <p className="text-sm text-charcoal/70">
-              No booking found with those details. Double-check your phone
-              number and email, or{' '}
-              <Link href="/contact" className="text-espresso hover:underline">
-                contact us
-              </Link>{' '}
-              for help.
-            </p>
-          ) : (
-            <ul className="space-y-4">
-              {results.map((b) => (
-                <li key={b.id}>
-                  <Link
-                    href={`/booking/${b.id}`}
-                    className="block rounded-sm border border-charcoal/10 bg-white p-5 transition-colors hover:border-espresso/40"
-                  >
-                    <p className="text-xs tracking-widest text-brass uppercase">
-                      {b.room_name}
-                    </p>
-                    <p className="mt-2 text-charcoal">
-                      {formatDate(b.check_in)} – {formatDate(b.check_out)}
-                    </p>
-                    <p className="mt-1 text-sm text-charcoal/60">
-                      {STATUS_LABELS[b.status] ?? b.status}
-                    </p>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="mt-10" role="status">
+          <ul className="space-y-4">
+            {results.map((b) => (
+              <li key={b.id}>
+                <Link
+                  href={`/booking/${b.id}`}
+                  className="block rounded-sm border border-charcoal/10 bg-white p-5 transition-colors hover:border-espresso/40"
+                >
+                  <p className="text-xs tracking-widest text-brass uppercase">
+                    {b.room_name}
+                  </p>
+                  <p className="mt-2 text-charcoal">
+                    {formatDate(b.check_in)} – {formatDate(b.check_out)}
+                  </p>
+                  <p className="mt-1 text-sm text-charcoal/60">
+                    {STATUS_LABELS[b.status] ?? b.status}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </main>

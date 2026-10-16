@@ -55,6 +55,35 @@ export function formatLagosTime(date: Date): string {
   }).format(date)
 }
 
+/**
+ * Formats an ISO timestamp explicitly in Africa/Lagos (WAT) time — for
+ * any guest/booking timestamp displayed in the admin dashboard, so it
+ * reads the same regardless of the viewer's browser timezone or the
+ * server's own clock (Vercel runs UTC). A bare toLocaleString() without
+ * an explicit timeZone would render in whichever timezone the code
+ * happens to run in instead.
+ */
+export function formatLagosDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-US', {
+    timeZone: 'Africa/Lagos',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
+/**
+ * The instant to store for a payment recorded against a chosen calendar
+ * date (not necessarily "now"): if that date is today (Lagos), the
+ * actual current moment is used; for a past date, midday Africa/Lagos on
+ * that date is used instead of midnight, so the stored instant can never
+ * display as the wrong calendar day — or an odd early-morning hour like
+ * 1:00 AM — once read back in Lagos time. 11:00 UTC = 12:00 (midday) WAT.
+ */
+export function paymentMomentForDate(dateIso: string): string {
+  if (dateIso === todayInLagos()) return new Date().toISOString()
+  return new Date(`${dateIso}T11:00:00Z`).toISOString()
+}
+
 export function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1)
 }

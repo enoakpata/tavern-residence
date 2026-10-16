@@ -70,7 +70,7 @@ export default function ContactPage() {
             className="mt-2 flex items-center gap-2 text-lg text-charcoal hover:text-espresso"
           >
             <FaInstagram size={18} className="text-espresso" />
-            @{HOTEL_INSTAGRAM_HANDLE}
+            {HOTEL_INSTAGRAM_HANDLE}
           </a>
         </div>
 

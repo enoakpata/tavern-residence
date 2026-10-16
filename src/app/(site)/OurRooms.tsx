@@ -1,6 +1,9 @@
+'use client'
+
+import { useRef, useState } from 'react'
 import Image from 'next/image'
-import Reveal from '@/components/Reveal'
-import { AMENITY_ICONS } from '@/lib/amenityIcons'
+import Link from 'next/link'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 export type RoomCardData = {
   id: string
@@ -11,86 +14,34 @@ export type RoomCardData = {
   coverImage: string | null
 }
 
-// The site's 4 real room types as full-width, alternating image/copy
-// rows (image left + copy right, then flipped, repeating) — replaces the
-// previous uniform horizontal-scroll card row. Order is whatever `rooms`
-// arrives in (set by the caller, page.tsx); which side the image sits on
-// is purely a function of position here (even rows: image left, odd
-// rows: image right), so reordering rooms upstream automatically keeps
-// the alternation correct without this component needing to know room
-// identities.
 export default function OurRooms({ rooms }: { rooms: RoomCardData[] }) {
-  if (rooms.length === 0) return null
-
+  const track = useRef<HTMLDivElement>(null)
+  const [active, setActive] = useState(0)
+  function move(direction: number) {
+    const element = track.current
+    if (!element) return
+    element.scrollBy({ left: direction * (element.clientWidth / 2 + 14), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+  }
+  function show(index: number) {
+    const element = track.current
+    const card = element?.children[index] as HTMLElement | undefined
+    if (element && card) element.scrollTo({ left: card.offsetLeft - element.offsetLeft, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+  }
   return (
-    <section className="section-py mx-auto max-w-6xl px-6 md:px-16">
-      <p className="text-center text-xs tracking-widest text-stone uppercase">
-        Our Rooms
-      </p>
-      <h2 className="mt-3 text-center font-display text-3xl text-charcoal md:text-4xl">
-        Designed for comfort. <span className="italic">Curated for your stay.</span>
-      </h2>
-
-      <div className="mt-16 space-y-16 md:mt-20 md:space-y-24">
-        {rooms.map((room, index) => {
-          const imageOnRight = index % 2 === 1
-          return (
-            <Reveal key={room.id}>
-              <div className="grid items-center gap-8 md:grid-cols-2 md:gap-16">
-                <div
-                  className={`relative aspect-[4/3] overflow-hidden rounded-sm bg-espresso/10 ${
-                    imageOnRight ? 'md:order-2' : ''
-                  }`}
-                >
-                  {room.coverImage ? (
-                    <Image
-                      src={room.coverImage}
-                      alt={room.label}
-                      fill
-                      sizes="(min-width: 768px) 50vw, 100vw"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs tracking-widest text-espresso/40 uppercase">
-                      Photo coming soon
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="font-display text-2xl text-charcoal md:text-3xl">
-                    {room.label}
-                  </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-stone">
-                    {room.description}
-                  </p>
-
-                  <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3">
-                    {room.amenities.map((amenity) => {
-                      const Icon = AMENITY_ICONS[amenity]
-                      return (
-                        <li
-                          key={amenity}
-                          className="flex items-center gap-2 text-xs text-charcoal/70"
-                        >
-                          {Icon && (
-                            <Icon size={16} strokeWidth={1.5} className="shrink-0 text-espresso" />
-                          )}
-                          {amenity}
-                        </li>
-                      )
-                    })}
-                  </ul>
-
-                  <p className="mt-6 text-xs tracking-widest text-charcoal/70 uppercase">
-                    {room.priceFromLabel}
-                  </p>
-                </div>
-              </div>
-            </Reveal>
-          )
-        })}
-      </div>
+    <section id="rooms-preview" className="home-section rooms-preview-section">
+      <div className="editorial-heading"><h2>Rooms &amp; Suites</h2><p>Find your own corner of comfort at Tavern Residence. From a restful room to a spacious one-bedroom apartment, each space brings together thoughtful details and the ease of feeling at home.</p><Link href="/rooms" className="quiet-button">Discover all</Link></div>
+      {rooms.length > 0 ? <>
+        <div className="room-carousel">
+          <div ref={track} className="rooms-preview-track" aria-label="Explore our room types" tabIndex={0} onScroll={() => { const element = track.current; if (element) setActive(Math.min(rooms.length - 1, Math.round(element.scrollLeft / (((element.firstElementChild as HTMLElement)?.offsetWidth ?? 0) + 24)))) }}>
+            {rooms.map(room => <Link key={room.id} href={'/rooms/' + room.id} className="preview-room-card">
+              {room.coverImage && <Image src={room.coverImage} alt={room.label} fill sizes="(min-width: 768px) 45vw, 85vw" className="object-cover" />}
+              <div className="photo-shade" /><div className="preview-room-caption"><h3>{room.label}</h3><p>{room.priceFromLabel}</p></div><ChevronRight className="room-card-arrow" size={22} aria-hidden="true" />
+            </Link>)}
+          </div>
+          {rooms.length > 1 && <><button className="slider-arrow previous" onClick={() => move(-1)} aria-label="Previous room"><ChevronLeft size={20} /></button><button className="slider-arrow next" onClick={() => move(1)} aria-label="Next room"><ChevronRight size={20} /></button></>}
+        </div>
+        <div className="slider-dots">{rooms.map((room, index) => <button key={room.id} onClick={() => show(index)} aria-label={'Show ' + room.label} aria-pressed={active === index} className={active === index ? 'active' : ''} />)}</div>
+      </> : <p className="rooms-empty">Explore our room types and plan your stay. <Link href="/rooms">View rooms</Link></p>}
     </section>
   )
 }

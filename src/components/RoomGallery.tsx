@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import Image from 'next/image'
+import CrossfadeImage from './CrossfadeImage'
 import { HOTEL_NAME } from '@/lib/siteConfig'
 
 const DRAG_THRESHOLD = 50
@@ -21,25 +22,6 @@ export default function RoomGallery({
   const [active, setActive] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const dragStartX = useRef(0)
-
-  // Fade between photos — adjusting state during render (React's
-  // documented pattern for reacting to a state change without an extra
-  // effect-triggered render), the same approach GalleryLightbox.tsx
-  // already uses for its own photo crossfade: fade out the instant
-  // `active` changes, swap the src while invisible, fade back in. The
-  // effect below only ever calls setState inside its setTimeout callback,
-  // never directly in the effect body.
-  const [visible, setVisible] = useState(true)
-  const [lastActive, setLastActive] = useState(active)
-  if (active !== lastActive) {
-    setLastActive(active)
-    if (visible) setVisible(false)
-  }
-  useEffect(() => {
-    if (visible) return
-    const timeout = setTimeout(() => setVisible(true), 20)
-    return () => clearTimeout(timeout)
-  }, [visible])
 
   if (images.length === 0) {
     return (
@@ -117,17 +99,14 @@ export default function RoomGallery({
         onPointerLeave={handlePointerCancel}
         onKeyDown={handleKeyDown}
       >
-        <Image
-          key={images[active]}
+        <CrossfadeImage
           src={images[active]}
           alt={`${roomName}${altSuffix}, photo ${active + 1} of ${images.length}`}
           fill
           draggable={false}
           priority
           sizes={IMAGE_SIZES}
-          className={`object-cover transition-opacity duration-200 ${
-            visible ? 'opacity-100' : 'opacity-0'
-          }`}
+          className="object-cover"
         />
 
         {images.length > 1 && (

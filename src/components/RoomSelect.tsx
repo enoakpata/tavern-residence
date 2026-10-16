@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { Room } from '@/lib/types'
+import { displayRoomName } from '@/lib/roomTypeContent'
 
 type RoomOption = Room & { available: boolean }
 
 function roomLabel(room: RoomOption): string {
-  return `${room.room_number} — ${room.name} (₦${room.price_per_night.toLocaleString()}/night)`
+  return `${room.room_number} — ${displayRoomName(room.name)} (₦${room.price_per_night.toLocaleString()}/night)`
 }
 
 export default function RoomSelect({

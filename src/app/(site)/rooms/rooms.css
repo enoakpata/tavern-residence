@@ -1,0 +1,84 @@
+/* Room collection presentation. Booking and availability data stay in the existing flow.
+   The hero itself has no /rooms-specific styles any more — PageHero.tsx
+   is shared with the homepage verbatim, styled entirely by .page-hero
+   and friends in guest.css. See that file for all of it. */
+@media (prefers-reduced-motion: reduce) {
+  .room-row-carousel-track { transition: none; }
+}
+
+.rooms-search-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 15px 30px; border-block: 1px solid #e5e7df; padding-block: 18px; margin: 70px auto 0; width: min(100% - 112px, 1150px); max-width: 1120px; font-size: 13px; color: var(--stone); }
+.rooms-search-summary > a { margin-left: auto; text-decoration: underline; text-underline-offset: 4px; color: var(--charcoal); }
+.rooms-empty-state { padding: 60px 0; color: var(--stone); text-align: center; }
+/* "For groups of N, please contact us..." — shown instead of (or
+   alongside, when dates are also set) the plain search summary above,
+   when no room type can ever hold the chosen party. Same warm warning
+   tint as .room-row-availability.is-unavailable below, for one
+   consistent "this won't work" color across the page. */
+.rooms-capacity-notice { margin: 24px auto 0; padding: 14px 22px; width: min(100% - 112px, 1150px); max-width: 1120px; border-radius: 4px; background: #fff0e9; color: #923d28; font-size: 13px; }
+
+/* Full-width alternating rows — image carousel one side, text the
+   other, swapping each row (RoomTypeList.tsx's `index % 2`). No card
+   border around a row; a hairline divider would read as one, so rows
+   are separated by padding alone. */
+.room-rows { width: min(100% - 112px, 1150px); max-width: 1120px; margin: 40px auto 0; }
+.room-row { display: flex; align-items: center; gap: 60px; padding-block: 70px; }
+.room-row-media { flex: 1 1 50%; min-width: 0; order: 1; position: relative; }
+.room-row-text { flex: 1 1 50%; min-width: 0; order: 2; padding: 0 20px; }
+.room-row-reverse .room-row-media { order: 2; }
+.room-row-reverse .room-row-text { order: 1; }
+
+.room-row-carousel { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 4px; background: var(--paper); outline: none; }
+.room-row-carousel-track { display: flex; height: 100%; transition: transform .6s cubic-bezier(.2, .7, .2, 1); }
+.room-row-carousel-slide { position: relative; flex: 0 0 100%; height: 100%; }
+.room-row-carousel-arrow { position: absolute; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: rgb(255 255 255 / 90%); color: var(--espresso); transition: opacity .2s, background .2s; }
+.room-row-carousel-arrow:hover { background: white; }
+.room-row-carousel-arrow.previous { left: 14px; }
+.room-row-carousel-arrow.next { right: 14px; }
+.room-row-carousel-counter { position: absolute; bottom: 12px; right: 14px; border-radius: 999px; background: rgb(25 20 13 / 55%); color: white; padding: 5px 12px; font-size: 11px; letter-spacing: .04em; pointer-events: none; }
+.room-row-photo-empty { display: flex; aspect-ratio: 4 / 3; align-items: center; justify-content: center; border-radius: 4px; background: var(--paper); color: var(--stone); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+.room-row-availability { position: absolute; top: 15px; left: 15px; max-width: calc(100% - 30px); border-radius: 999px; background: #f5f8ee; color: #34432d; padding: 9px 14px; font-size: 11px; line-height: 1.2; pointer-events: none; }
+.room-row-availability.is-unavailable { background: #fff0e9; color: #923d28; }
+
+.room-row-eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--espresso); }
+.room-row-name { margin-top: 10px; font-family: var(--font-primary), Georgia, serif; font-size: clamp(32px, 3vw, 46px); font-weight: 400; line-height: 1.1; letter-spacing: -.01em; color: var(--charcoal); }
+.room-row-description { margin-top: 16px; font-size: 15px; line-height: 1.75; color: var(--stone); max-width: 480px; }
+.room-row-price { margin-top: 20px; font-family: var(--font-primary), Georgia, serif; font-size: 26px; color: var(--charcoal); }
+.room-row-price > span { font-family: inherit; font-size: 13px; color: var(--stone); }
+.room-row-facts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 16px; font-size: 13px; color: var(--charcoal); }
+.room-row-facts li { position: relative; padding-left: 14px; }
+.room-row-facts li::before { content: ''; position: absolute; left: 0; top: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); }
+.room-row-amenities { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 18px; }
+.room-row-amenities li { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--charcoal); }
+.room-row-amenities svg { color: var(--espresso); flex-shrink: 0; }
+.room-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; margin-top: 30px; }
+.room-row-book { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 12px 26px; border-radius: 999px; background: var(--primary); color: var(--on-primary); font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; transition: background .25s; }
+.room-row-book:hover { background: var(--primary-hover); }
+/* Sold out / too small for the chosen party — the room stays listed
+   (never hidden), just visibly dimmed, with Book now disabled rather
+   than linking anywhere. */
+.room-row-disabled { opacity: .55; }
+.room-row-book-disabled { cursor: not-allowed; background: var(--line); color: var(--stone); }
+.room-row-book-disabled:hover { background: var(--line); }
+
+@media (max-width: 1100px) {
+  .room-rows { width: calc(100% - 72px); }
+  .rooms-search-summary { width: calc(100% - 72px); }
+}
+@media (max-width: 899px) {
+  /* Single column, image always on top and the same order for every
+     room — overriding the alternating `order` regardless of
+     .room-row-reverse, since there's no "side" left to alternate once
+     stacked. */
+  .room-row, .room-row-reverse { flex-direction: column; align-items: stretch; gap: 26px; padding-block: 45px; }
+  .room-row-media, .room-row-reverse .room-row-media { order: 1; }
+  .room-row-text, .room-row-reverse .room-row-text { order: 2; padding: 0 4px; }
+  .room-row-description { max-width: none; }
+  .room-row-name { font-size: 30px; }
+}
+@media (max-width: 599px) {
+  .room-rows, .rooms-search-summary { width: calc(100% - 44px); }
+  .room-row { padding-block: 35px; }
+  .room-row-carousel-arrow { width: 36px; height: 36px; }
+  .rooms-search-summary { gap: 10px; flex-direction: column; align-items: start; margin-top: 35px; }
+  .rooms-search-summary > a { margin-left: 0; }
+}

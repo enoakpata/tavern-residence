@@ -4,6 +4,11 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import ConfirmModal from '@/components/ConfirmModal'
 import { getCancellationOutcome } from '@/lib/cancellationPolicy'
+import {
+  MANAGE_BOOKING_MESSAGES,
+  cancellationPreviewMessage,
+  cancellationSuccessMessage,
+} from '@/lib/manageBookingMessages'
 import { cancelBooking } from './actions'
 
 export default function CancelBookingButton({
@@ -11,13 +16,17 @@ export default function CancelBookingButton({
   checkIn,
   createdAt,
   pricePerNight,
-  paymentToken,
+  hasCardOnFile,
+  amountPaid,
 }: {
   bookingId: string
   checkIn: string
   createdAt: string
   pricePerNight: number
-  paymentToken: string | null
+  // Derived server-side — never the actual card token. See
+  // src/app/(site)/booking/[id]/page.tsx.
+  hasCardOnFile: boolean
+  amountPaid: number
 }) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
@@ -26,20 +35,19 @@ export default function CancelBookingButton({
     null
   )
 
-  const { free, feeAmount } = getCancellationOutcome({
+  const { feeApplies, reason } = getCancellationOutcome({
     createdAt,
     checkIn,
     pricePerNight,
   })
-  // No actual chargeable token on file (e.g. paid by transfer, or a
-  // walk-in who paid by POS card with no Paystack token recorded) — the
-  // server cancels this for free in that case, so the preview shouldn't
-  // tell the guest a card is about to be charged.
-  const feeApplies = !free && Boolean(paymentToken)
+  const alreadyPaid = amountPaid > 0
+  const feeMayApply = feeApplies && hasCardOnFile && !alreadyPaid
 
-  const message = feeApplies
-    ? `Cancelling now is within 24 hours of check-in. A cancellation fee of ₦${feeAmount.toLocaleString()} will be charged to your card. Continue?`
-    : 'Cancel this booking? This is a free cancellation.'
+  // Cancellation itself never charges a card automatically — a fee
+  // outside the free window only applies if our team follows up and
+  // applies it manually, per policy (and never if the stay's already
+  // been paid for — see cancellationPreviewMessage).
+  const message = cancellationPreviewMessage({ feeMayApply, reason, alreadyPaid })
 
   function handleConfirm() {
     setModalOpen(false)
@@ -48,19 +56,21 @@ export default function CancelBookingButton({
       if (res.success) {
         setResult({
           type: 'success',
-          message: res.feeCharged
-            ? `Your booking has been cancelled. A cancellation fee of ₦${res.feeAmount.toLocaleString()} was charged to your card.`
-            : 'Your booking has been cancelled — no charge.',
+          message: cancellationSuccessMessage(res),
         })
         router.refresh()
       } else {
-        setResult({ type: 'error', message: res.error })
+        setResult({ type: 'error', message: MANAGE_BOOKING_MESSAGES[res.code] })
       }
     })
   }
 
   if (result?.type === 'success') {
-    return <p className="text-sm text-verdant">{result.message}</p>
+    return (
+      <p role="status" className="text-sm text-verdant">
+        {result.message}
+      </p>
+    )
   }
 
   return (
@@ -74,13 +84,17 @@ export default function CancelBookingButton({
         {isPending ? 'Cancelling…' : 'Cancel booking'}
       </button>
 
-      {result?.type === 'error' && <p className="mt-3 text-sm text-clay">{result.message}</p>}
+      {result?.type === 'error' && (
+        <p role="alert" className="mt-3 text-sm text-clay">
+          {result.message}
+        </p>
+      )}
 
       <ConfirmModal
         open={modalOpen}
         title="Cancel booking"
         message={message}
-        confirmLabel={feeApplies ? 'Charge fee & cancel' : 'Cancel booking'}
+        confirmLabel="Cancel booking"
         cancelLabel="Keep booking"
         onConfirm={handleConfirm}
         onCancel={() => setModalOpen(false)}

@@ -5,11 +5,6 @@ import CheckInButton from './CheckInButton'
 import CheckOutButton from './CheckOutButton'
 import { ActionResultProvider } from './ActionResultContext'
 
-function nightsBetween(checkIn: string, checkOut: string) {
-  const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
-  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
-}
-
 export default async function TodayPage() {
   const supabase = await createClient()
 
@@ -70,17 +65,7 @@ export default async function TodayPage() {
                   {b.guest_name}
                 </p>
                 <p className="text-sm text-charcoal/60">{b.guest_phone}</p>
-                <CheckInButton
-                  bookingId={b.id}
-                  paymentStatus={b.payment_status}
-                  paymentToken={b.payment_token}
-                  guestEmail={b.guest_email}
-                  totalAmount={
-                    b.Rooms
-                      ? b.Rooms.price_per_night * nightsBetween(b.check_in, b.check_out)
-                      : 0
-                  }
-                />
+                <CheckInButton bookingId={b.id} />
               </div>
             ))}
           </div>

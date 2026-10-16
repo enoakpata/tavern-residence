@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { supabaseAdmin } from './supabaseAdmin'
-import { getCancellationOutcome } from './cancellationPolicy'
+import { getCancellationOutcome, type CancellationOutcome } from './cancellationPolicy'
+import type { Booking } from './types'
 
 /**
  * Statuses that mean a booking still occupies its room's dates — used
@@ -135,10 +136,24 @@ export async function isAnyRoomAvailable(
 export function calculateCancellationOutcome(
   booking: { created_at: string; check_in: string },
   room: { price_per_night: number } | null | undefined
-): { free: boolean; feeAmount: number } {
+): CancellationOutcome {
   return getCancellationOutcome({
     createdAt: booking.created_at,
     checkIn: booking.check_in,
     pricePerNight: room?.price_per_night ?? 0,
   })
+}
+
+/**
+ * The authorization code to actually charge for a cancellation/no-show
+ * fee — card_authorization_code for any booking made after the card-hold
+ * migration, falling back to the legacy payment_token for older bookings
+ * that predate it (see supabase/migrations/20261014_manual_payment_and_card_hold.sql).
+ * Server-only: never pass the result of this to a client component or
+ * back out through a server action's return value.
+ */
+export function getChargeableAuthCode(
+  booking: Pick<Booking, 'card_authorization_code' | 'payment_token'>
+): string | null {
+  return booking.card_authorization_code ?? booking.payment_token
 }

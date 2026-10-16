@@ -2,16 +2,19 @@
 
 import { revalidatePath } from 'next/cache'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { calculateCancellationOutcome } from '@/lib/bookings'
-import { chargeAuthorization } from '@/lib/paystack'
+import { calculateCancellationOutcome, getChargeableAuthCode } from '@/lib/bookings'
 import { sendEmail, buildCancellationNotificationEmail } from '@/lib/email'
-import { HOTEL_PHONE_DISPLAY, HOTEL_EMAIL } from '@/lib/siteConfig'
+import { HOTEL_EMAIL } from '@/lib/siteConfig'
+import { displayRoomName } from '@/lib/roomTypeContent'
+import type { ManageBookingErrorCode } from '@/lib/manageBookingMessages'
 
 const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
 
+// An error code, never raw text — see findBookings in
+// manage-booking/actions.ts for the same pattern and why.
 export type CancelBookingResult =
-  | { success: true; feeCharged: boolean; feeAmount: number }
-  | { success: false; error: string }
+  | { success: true; feeMayApply: boolean; feeAmount: number; alreadyPaid: boolean }
+  | { success: false; code: ManageBookingErrorCode }
 
 /**
  * Notifies the hotel a guest cancelled their own booking (email + an
@@ -27,14 +30,14 @@ async function notifyCancellation(
     check_out: string
     Rooms?: { room_number: string; name: string } | null
   },
-  feeCharged: boolean,
+  feeMayApply: boolean,
   feeAmount: number
 ) {
   const roomNumber = booking.Rooms?.room_number ?? ''
-  const roomName = booking.Rooms?.name ?? 'the room'
-  const message = `Booking cancelled: ${booking.guest_name} — Room ${roomNumber} (${
-    feeCharged ? `₦${feeAmount.toLocaleString()} fee charged` : 'no fee'
-  })`
+  const roomName = displayRoomName(booking.Rooms?.name, 'the room')
+  const message = `Booking cancelled by guest: ${booking.guest_name} — Room ${roomNumber}${
+    feeMayApply ? ` (₦${feeAmount.toLocaleString()} fee may apply — not charged automatically)` : ''
+  }`
 
   const results = await Promise.allSettled([
     sendEmail({
@@ -45,8 +48,9 @@ async function notifyCancellation(
         roomName,
         checkIn: booking.check_in,
         checkOut: booking.check_out,
-        feeCharged,
+        feeCharged: false,
         feeAmount,
+        feePending: feeMayApply,
       }),
     }),
     supabaseAdmin.from('Notifications').insert({
@@ -62,6 +66,14 @@ async function notifyCancellation(
   }
 }
 
+/**
+ * Guest self-service cancellation — never charges a card. This always
+ * just cancels the booking; when the cancellation policy would normally
+ * suggest a fee (outside the free-cancellation window, with a chargeable
+ * card on file), the guest is told a fee may apply per policy and staff
+ * are notified to apply it manually (via "Charge saved card" in the admin
+ * dashboard) rather than this charging automatically.
+ */
 export async function cancelBooking(bookingId: string): Promise<CancelBookingResult> {
   const { data: booking, error: fetchError } = await supabaseAdmin
     .from('Bookings')
@@ -70,80 +82,45 @@ export async function cancelBooking(bookingId: string): Promise<CancelBookingRes
     .single()
 
   if (fetchError || !booking) {
-    return { success: false, error: 'Booking not found.' }
+    if (fetchError) console.error('cancelBooking fetch failed:', fetchError)
+    return { success: false, code: 'not_found' }
   }
 
+  if (booking.status === 'cancelled') {
+    return { success: false, code: 'already_cancelled' }
+  }
   if (NON_CANCELLABLE_STATUSES.includes(booking.status)) {
-    return { success: false, error: 'This booking can no longer be cancelled.' }
+    return { success: false, code: 'cancel_locked' }
   }
 
-  const { free, feeAmount } = calculateCancellationOutcome(booking, booking.Rooms)
-
-  // payment_method === 'card' alone doesn't mean there's a real token to
-  // charge — e.g. a walk-in who paid via a physical POS card machine also
-  // has payment_method: 'card' recorded, with no Paystack token at all.
-  // Without an actual chargeable token, there's nothing to attempt a
-  // charge against, so treat it the same as a free cancellation rather
-  // than blocking the guest from self-service cancelling entirely.
-  const hasCardOnFile = Boolean(booking.payment_token)
-
-  // Free cancellation — either more than 24 hours before check-in, within
-  // the 1-hour grace period after the booking was created, or there's no
-  // card on file to charge a fee to at all.
-  if (free || !hasCardOnFile) {
-    const { error } = await supabaseAdmin
-      .from('Bookings')
-      .update({ status: 'cancelled' })
-      .eq('id', bookingId)
-
-    if (error) return { success: false, error: 'Something went wrong. Please try again.' }
-
-    await notifyCancellation(bookingId, booking, false, 0)
-
-    revalidatePath(`/booking/${bookingId}`)
-    // Keeps the admin dashboard's cached pages from showing a booking as
-    // still active after a guest cancels it themselves online.
-    revalidatePath('/admin/bookings')
-    revalidatePath('/admin/check-in/check-out')
-    revalidatePath('/admin/calendar')
-    return { success: true, feeCharged: false, feeAmount: 0 }
-  }
-
-  // Outside both free-cancellation windows, with a card on file — a 50%
-  // late-cancellation fee applies, charged to the card saved at booking
-  // time via the same helper the admin dashboard uses for no-show fees.
-  if (!booking.guest_email) {
-    return {
-      success: false,
-      error: `We couldn't process the cancellation fee — please contact us directly to cancel: ${HOTEL_PHONE_DISPLAY}`,
-    }
-  }
-
-  const charge = await chargeAuthorization(booking.payment_token, feeAmount, booking.guest_email)
-  if (!charge.success) {
-    return {
-      success: false,
-      error: `We couldn't process the cancellation fee (${charge.error}). Please contact us directly to cancel: ${HOTEL_PHONE_DISPLAY}`,
-    }
-  }
+  const { feeApplies, feeAmount } = calculateCancellationOutcome(booking, booking.Rooms)
+  const hasCardOnFile = Boolean(getChargeableAuthCode(booking)) && booking.card_reusable !== false
+  // Already paid: no cancellation fee applies regardless of timing —
+  // same rule as the admin-side cancellation (section 8), extended to
+  // the guest's own flow. There was never an automatic charge here
+  // either way (see this function's own doc comment); this only
+  // changes what the guest is told, so it doesn't claim a fee applies
+  // when staff wouldn't actually apply one.
+  const alreadyPaid = Number(booking.amount_paid ?? 0) > 0
+  const feeMayApply = feeApplies && hasCardOnFile && !alreadyPaid
 
   const { error } = await supabaseAdmin
     .from('Bookings')
-    .update({
-      status: 'cancelled',
-      payment_status: 'paid',
-      charge_type: 'late_cancellation_fee',
-      amount_charged: feeAmount,
-    })
+    .update({ status: 'cancelled' })
     .eq('id', bookingId)
 
-  if (error) return { success: false, error: 'Something went wrong. Please try again.' }
+  if (error) {
+    console.error('cancelBooking update failed:', error)
+    return { success: false, code: 'server_error' }
+  }
 
-  await notifyCancellation(bookingId, booking, true, feeAmount)
+  await notifyCancellation(bookingId, booking, feeMayApply, feeAmount)
 
   revalidatePath(`/booking/${bookingId}`)
+  // Keeps the admin dashboard's cached pages from showing a booking as
+  // still active after a guest cancels it themselves online.
   revalidatePath('/admin/bookings')
   revalidatePath('/admin/check-in/check-out')
   revalidatePath('/admin/calendar')
-  return { success: true, feeCharged: true, feeAmount }
+  return { success: true, feeMayApply, feeAmount, alreadyPaid }
 }

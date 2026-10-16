@@ -1,0 +1,712 @@
+/* Guest-facing design, scoped to leave the staff interface unchanged. */
+html:has(.guest-site) { scroll-behavior: smooth; }
+.guest-site {
+  --ivory: #fff; --charcoal: #3e3c33; --stone: #68665e; --espresso: #66511d; --brass: #E3C162;
+  --primary: #f3dda0; --primary-hover: #d4ae46; --on-primary: #30291b;
+  --paper: #f5f3eb; --line: #e5e2d7;
+  display: flex; flex: 1; flex-direction: column; min-height: 100svh; background: #fff;
+  color: var(--charcoal); font-family: var(--font-secondary), Arial, sans-serif; overflow-x: clip;
+}
+.guest-site .font-sans { font-family: var(--font-secondary), Arial, sans-serif; }
+.guest-site .font-display { font-family: var(--font-primary), Georgia, serif; font-weight: 400; }
+.guest-site :is(button,a,input,textarea,select):focus-visible { outline: 2px solid #77704a; outline-offset: 4px; }
+.guest-site button:not(:disabled), .guest-site a { -webkit-tap-highlight-color: transparent; cursor: pointer; }
+.guest-site [id] { scroll-margin-top: 85px; }
+.guest-site h1, .guest-site h2, .guest-site h3 { font-family: var(--font-primary), Georgia, serif; font-weight: 400; }
+.guest-site .home-section { width: min(100% - 112px, 1120px); margin: 100px auto 0; }
+.guest-site .eyebrow, .guest-site .section-kicker { font-family: var(--font-secondary), Arial, sans-serif; font-size: 10px; letter-spacing: .1em; line-height: 1.7; text-transform: uppercase; color: var(--stone); }
+.guest-site .editorial-heading { text-align: center; margin-bottom: 38px; }
+.guest-site .editorial-heading h2, .guest-site .section-title { font-size: clamp(34px, 3.7vw, 48px); line-height: 1.05; font-weight: 400; }
+.guest-site .editorial-heading > .eyebrow { margin-bottom: 10px; }
+.guest-site .editorial-heading > p:not(.eyebrow) { max-width: 820px; margin: 20px auto 0; font-size: 13px; line-height: 1.8; color: var(--stone); }
+.guest-site .quiet-button { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; padding: 10px 24px; border: 1px solid #b7b29f; border-radius: 3px; font-size: 11px; background: transparent; color: var(--espresso); margin-top: 24px; transition: background .2s,color .2s; }
+.guest-site .quiet-button:hover { background: var(--primary); color: var(--on-primary); }
+.guest-site .text-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 11px; color: var(--espresso); text-underline-offset: 4px; }
+.guest-site .text-link:hover { text-decoration: underline; }
+.center-link { text-align: center; margin-top: 20px; }
+.photo-shade { position: absolute; inset: 0; background: linear-gradient(transparent 50%,rgb(0 0 0 / 62%)); pointer-events: none; }
+
+/* Narrow white navigation matches the reference's unobtrusive masthead. */
+.guest-header { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #f3f1eb; color: var(--charcoal); }
+.guest-header-row { width: min(100% - 64px, 1260px); margin: auto; height: 64px; display: flex; align-items: center; gap: 30px; }
+.guest-wordmark { font-family: var(--font-primary), Georgia, serif; font-size: 25px; white-space: nowrap; color: var(--espresso); }
+.guest-desktop-nav { display: flex; align-items: center; margin-left: auto; gap: 26px; }
+.guest-desktop-nav a { display: flex; align-items: center; min-height: 44px; font-size: 11px; color: var(--charcoal); }
+.guest-desktop-nav a:hover, .guest-desktop-nav .nav-active { color: var(--espresso); text-decoration: underline; text-underline-offset: 5px; }
+.guest-header-actions { display: flex; align-items: center; gap: 12px; }
+.header-booking { display: flex; align-items: center; justify-content: center; min-height: 38px; padding: 10px 22px; border-radius: 3px; background: var(--primary); color: var(--on-primary); font-size: 11px; }
+.header-booking:hover { background: var(--primary-hover); }
+.guest-menu-toggle { display: none; align-items: center; justify-content: center; width: 44px; height: 44px; }
+.skip-link { position: absolute; top: -100px; left: 24px; padding: 12px 20px; background: #fff; }
+.skip-link:focus { top: 4px; z-index: 60; }
+.mobile-menu-panel { display: none; }
+
+/* The one shared hero — both the homepage and /rooms render
+   PageHero.tsx (one markup tree, props-driven: image/title/subtitle/
+   action), styled ENTIRELY by the rules below with no page-specific
+   variant of any of them. The homepage's own look is the reference —
+   full-bleed, a fixed height, headline and bar absolutely overlaid on
+   the photo — and /rooms uses the exact same rules, at every size,
+   with zero exceptions. The only thing that differs between the pages
+   is content inside .hero-subline (below the <h1>, inside
+   .hero-headline): the homepage renders a <p> subtitle there, /rooms
+   renders a .hero-action-link button instead — same box, same
+   position, so whichever one a page has sits exactly where the other
+   page's would. .hero-subline is positioned out of flow precisely so
+   that it can't affect .hero-headline's own height — .hero-headline's
+   top:38%/translateY(-50%) centering is driven by the <h1> alone, so
+   the title sits at the same vertical position on both pages no matter
+   which sibling (subtitle text vs. a taller pill button) follows it.
+   (An earlier version of this file gave /rooms its own .has-action
+   variant of the hero/headline/bar — flex instead of absolute, a
+   narrower max-width on the bar, text-align: center inherited down
+   into the bar's fields. That's exactly what caused the two heroes to
+   visibly diverge, so none of it exists any more.) */
+.guest-site .page-hero { position: relative; isolation: isolate; width: 100%; max-width: none; margin: 0; height: calc(100svh - 65px); background: #393529; border-radius: 0; color: white; }
+.hero-photo { border-radius: 0; }
+.hero-shade { position: absolute; inset: 0; border-radius: 0; background: linear-gradient(rgb(25 20 13 / 28%),rgb(25 20 13 / 40%)); }
+/* Extra darkening specifically behind the now-transparent availability
+   bar — a safety net for whichever hero photo happens to be in
+   rotation (getGalleryImages()) being too bright for the glass bar's
+   white text on its own, without having to make the bar itself less
+   transparent. Sits below the content's own z-index:5 so the headline/
+   bar render on top of it. */
+.guest-site .page-hero::after { content: ''; position: absolute; inset: auto 0 0 0; height: 45%; max-height: 220px; background: linear-gradient(to bottom, transparent, rgb(10 8 5 / 55%)); pointer-events: none; z-index: 4; }
+.hero-headline { position: absolute; top: 38%; left: 24px; right: 24px; transform: translateY(-50%); text-align: center; }
+.hero-headline h1 { font-family: var(--font-primary), Georgia, serif; font-weight: 400; font-size: clamp(40px, 4.7vw, 68px); line-height: 1.04; color: #fff; text-wrap: balance; }
+/* Out of flow (not static/relative) so it never contributes to
+   .hero-headline's own box height — see the comment above .hero-
+   headline. top: calc(100% + 20px) reproduces the same 20px gap a
+   margin-top would, measured from the <h1>'s own bottom edge (which,
+   with .hero-subline out of flow, is .hero-headline's bottom edge too). */
+.hero-subline { position: absolute; top: calc(100% + 20px); left: 0; right: 0; }
+.hero-headline p { font-size: 12px; color: #f5f0e5; line-height: 1.6; }
+/* /rooms' "Explore the collection" — takes the same spot a subtitle
+   <p> would (same .hero-subline box above), styled like .outline-pill
+   (guest.css) everywhere else but readable over a photo: white
+   text/border instead of the pill's normal dark-on-light default, a
+   translucent hover fill. */
+.guest-site .hero-action-link { color: white; border-color: rgb(255 255 255 / 65%); padding-right: 18px; gap: 20px; }
+.guest-site .hero-action-link:hover { background: rgb(255 255 255 / 12%); }
+.hero-availability { position: absolute; z-index: 5; bottom: 26px; left: 28px; right: 28px; }
+/* Same glass look on both the homepage hero and /rooms — the hero photo
+   shows through (see the .availability-bar base rule below), so every
+   label/value/icon/divider inside needs to switch to light text instead
+   of its normal dark default — the next block does that, scoped to
+   .hero-availability so it only affects the bar while it's actually
+   sitting inside the (one, shared) hero, at every width on both pages.
+   A soft dark gradient at the base of the hero (.page-hero::after,
+   above) backs this up in case a given hero photo is too bright on its
+   own.
+
+   The :not() exclusions below matter: DateRangePicker's and GuestPicker's
+   popovers render as DOM children of .availability-bar (not a portal),
+   so without them this descendant selector's specificity beats the
+   popovers' own Tailwind text-color utilities and turns their calendar/
+   stepper text white on their own white popover background. Excluding
+   popover descendants leaves the trigger row (outside the popover) glass-
+   styled as before, while the popover's own past/available/today/
+   selected/booked styling — untouched here — shows through normally. */
+.hero-availability .availability-bar { max-width: none; padding: 12px; }
+.hero-availability .availability-bar > div { align-items: center; }
+.hero-availability .availability-bar > div > div { border-color: rgb(255 255 255 / 25%); }
+.hero-availability .availability-bar > div > div:last-child { border: none; }
+.hero-availability .availability-bar p:not(.date-picker-popover *, .guest-picker-popover *),
+.hero-availability .availability-bar span:not(.date-picker-popover *, .guest-picker-popover *),
+.hero-availability .availability-bar button:not(.date-picker-popover *, .guest-picker-popover *) { color: #fff; text-shadow: 0 1px 3px rgb(0 0 0 / 35%); }
+.hero-availability .availability-bar svg:not(.date-picker-popover *, .guest-picker-popover *) { color: rgb(255 255 255 / 90%); }
+.hero-availability .availability-bar > p { color: #ffe3c2; }
+/* Opens upward instead of downward — the bar sits bottom: 26px
+   absolute in a tall hero on both pages alike, so there's reliably
+   more open space above it than below. */
+.hero-availability .date-picker-popover, .hero-availability .guest-picker-popover {
+  top: auto; bottom: 100%; margin-top: 0; margin-bottom: 10px;
+}
+/* Glass — the hero photo shows through. A light tint (not solid white),
+   blurred, with a soft white hairline border — the one shared bar look,
+   used as-is by both the homepage hero overlay and the /rooms hero
+   overlay. */
+.availability-bar { background: rgb(255 255 255 / 15%); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgb(255 255 255 / 35%); border-radius: 3px; box-shadow: none; }
+/* Shared "Check Availability" button — rectangular (not a pill), the
+   site's gold token as a semi-transparent fill (not solid), white text,
+   normal case — used by the bar on both pages so they share one exact
+   look, per the component itself rather than a page-scoped override.
+   Gold token (--primary) is #f3dda0 = rgb(243 221 160); hardcoded as
+   rgb()/alpha here since CSS can't apply an alpha on top of a var()
+   color without color-mix(), and the exact opacity matters (it's what
+   keeps the white text readable over the hero photo). */
+.availability-submit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 24px; border-radius: 3px; background: rgb(243 221 160 / 62%); border: 1px solid rgb(243 221 160 / 80%); color: #fff; text-shadow: 0 1px 3px rgb(0 0 0 / 35%); font-family: var(--font-secondary), Arial, sans-serif; font-size: 13px; font-weight: 500; letter-spacing: normal; text-transform: none; transition: background .2s, border-color .2s; }
+.availability-submit:hover { background: rgb(243 221 160 / 88%); }
+.availability-submit:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Tablet-only bar layout (600px–1099px): Check-in/Check-out/Guests in
+   one 3-column row, Check Availability full-width in its own row below
+   — entirely via CSS on the SAME markup HomeAvailabilityCheck.tsx
+   already renders at every width (no extra wrapper element, no JSX
+   change), so desktop (1100px+, the component's own sm:flex Tailwind
+   classes, unmodified) and mobile (below 600px, the component's own
+   grid-cols-1 default) are completely untouched by this block. Below
+   1100px the component's sm:flex (Tailwind's 640px breakpoint) would
+   otherwise take over at 640–1099 and stack below 640 — flex-wrap here
+   overrides that for the whole 600–1099 range so the tablet layout
+   starts exactly at 600px, not 640px. !important for the same reason as
+   the popover-clamp rule above: needs to reliably beat the component's
+   own Tailwind utility classes regardless of cascade/build order. */
+@media (min-width: 600px) and (max-width: 1099px) {
+  .hero-availability .availability-bar > div {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: stretch;
+    gap: 0 !important;
+  }
+  .hero-availability .availability-bar > div > div {
+    flex: 1 1 33.3333% !important;
+    padding: 10px 8px !important;
+    border-left: 1px solid rgb(255 255 255 / 25%);
+  }
+  .hero-availability .availability-bar > div > div:first-child {
+    border-left: none;
+  }
+  .hero-availability .availability-bar > div > div p:first-child {
+    font-size: 9px;
+  }
+  .hero-availability .availability-bar > div > div:last-child {
+    flex: 1 1 100% !important;
+    padding: 12px 0 0 !important;
+    border-left: none;
+  }
+  .hero-availability .availability-bar > div > div:last-child .availability-submit {
+    width: 100%;
+  }
+}
+
+.guest-site .welcome-section { margin-top: 80px; margin-bottom: 0; }
+.guest-site .welcome-section h2 { font-size: clamp(36px, 3.8vw, 52px); }
+.guest-site .welcome-section > p:not(.eyebrow) { max-width: 880px; }
+
+/* Staggered, editorial story photography. */
+.stories-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.stories-heading h2 { font-size: 42px; }
+.stories-heading .text-link { text-decoration: underline; text-underline-offset: 4px; }
+/* Dead CSS — kept only because AroundTheResidence.tsx's gallery grid
+   copies these values; the "Our Story" section that used to render
+   with these classes has been removed. No story-copy text sits below
+   the photo any more — story-feature now stretches to match the
+   taller, offset side photos instead of pinning to the row's start, and
+   story-photo fills that stretched height so the trio keeps looking like
+   one deliberate composition rather than a short photo over a gap. */
+.stories-layout { display: grid; grid-template-columns: 1.4fr 1fr 1fr; align-items: stretch; gap: 16px; }
+.story-feature { position: relative; border-left: 1px solid var(--line); }
+.story-feature::after { content: ''; position: absolute; bottom: 0; left: -4px; width: 7px; height: 7px; border: 1px solid #b1ab94; border-radius: 50%; background: white; }
+.story-photo { position: relative; height: 100%; overflow: hidden; border-radius: 4px; }
+.story-copy { padding: 22px 20px 0; }
+.story-copy h3 { font-size: 37px; margin: 8px 0 12px; line-height: 1.05; }
+.story-copy > p:not(.eyebrow) { font-size: 12px; color: var(--stone); line-height: 1.8; max-width: 370px; }
+.story-copy > .text-link { margin-top: 12px; }
+.story-secondary, .story-third { position: relative; height: 420px; overflow: hidden; border-radius: 4px; }
+.story-secondary { margin-top: 110px; }
+.story-third { margin-top: 32px; height: 420px; }
+.story-pagination { position: relative; display: flex; justify-content: end; margin-top: 10px; min-height: 44px; align-items: center; }
+.carousel-controls { display: flex; gap: 10px; }
+.carousel-controls button { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid #c7c2b1; border-radius: 50%; color: var(--espresso); }
+.carousel-controls button:hover { background: var(--paper); }
+.story-pagination .slider-dots { position: absolute; left: 50%; transform: translateX(-50%); margin: 0; }
+.slider-dots { display: flex; justify-content: center; gap: 3px; margin-top: 18px; }
+.slider-dots button { width: 28px; height: 32px; position: relative; }
+.slider-dots button::after { content: ''; position: absolute; height: 2px; width: 17px; background: #dedbd0; top: 15px; left: 5px; transition: background .2s; }
+.slider-dots button.active::after { background: var(--primary); }
+
+/* Room imagery stays linked to the existing reservation flow. */
+.guest-site .rooms-preview-section { display: block; margin-top: 110px; }
+.room-carousel, .residence-carousel { position: relative; }
+.rooms-preview-track { display: flex; gap: 24px; position: relative; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.rooms-preview-track::-webkit-scrollbar, .residence-photo-track::-webkit-scrollbar { display: none; }
+.preview-room-card { flex: 0 0 calc((100% - 24px) / 2); aspect-ratio: 1.3; position: relative; border-radius: 4px; overflow: hidden; color: white; background: var(--paper); scroll-snap-align: start; }
+.preview-room-card img { transition: transform .4s; }
+.preview-room-card:hover img { transform: scale(1.025); }
+.preview-room-caption { position: absolute; left: 25px; bottom: 25px; right: 40px; }
+.preview-room-caption h3 { font-size: 33px; color: white; line-height: 1.1; }
+.preview-room-caption p { margin-top: 7px; font-size: 11px; color: #f6f0e5; }
+.room-card-arrow { position: absolute; bottom: 30px; right: 20px; }
+.slider-arrow { position: absolute; z-index: 2; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: white; color: var(--espresso); border: 1px solid var(--line); border-radius: 50%; box-shadow: 0 2px 8px rgb(0 0 0 / 5%); }
+.slider-arrow.previous { left: -20px; }
+.slider-arrow.next { right: -20px; }
+.slider-arrow:hover { background: var(--paper); }
+.rooms-empty { text-align: center; background: var(--paper); padding: 35px; font-size: 14px; }
+.rooms-empty a { text-decoration: underline; }
+
+/* Amenity blocks, dining card and alternating stay features. */
+.guest-site .facilities-section { margin-top: 100px; }
+/* 4 even tiles (previously 6 columns split 3+2 for 5 tiles). */
+.amenity-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.amenity-tile { background: var(--paper); border-radius: 4px; padding: 25px; min-height: 166px; position: relative; transition: background .2s, color .2s; }
+.amenity-tile > svg:first-child { color: var(--espresso); margin-bottom: 20px; }
+.amenity-tile h3 { font-size: 28px; line-height: 1.1; margin-bottom: 10px; }
+.amenity-tile p { font-size: 11px; line-height: 1.6; }
+.amenity-tile .amenity-arrow { position: absolute; right: 20px; top: 25px; opacity: 0; transition: opacity .2s; }
+.amenity-tile:hover { background: #e8e4d7; }
+.amenity-tile:hover .amenity-arrow { opacity: 1; }
+.amenity-featured, .amenity-featured:hover { background: var(--primary); color: var(--on-primary); box-shadow: 0 6px 10px rgb(55 47 22 / 15%); }
+.amenity-featured > svg:first-child { color: var(--on-primary); }
+.guest-site .dining-section { margin-top: 90px; }
+.dining-panel { border-radius: 5px; box-shadow: 0 0 36px rgb(50 43 20 / 8%); overflow: hidden; }
+.guest-site .dining-copy { padding: 48px 55px 28px; margin-bottom: 0; }
+.guest-site .dining-copy > p:not(.eyebrow) { max-width: 880px; }
+.guest-site .dining-copy > p.dining-note { font-size: 10px; margin-top: 10px; }
+.dining-copy .text-link { margin-top: 6px; }
+.dining-photo { position: relative; height: 420px; }
+.comfort-section > .editorial-heading { margin-bottom: 65px; }
+.comfort-list { display: flex; flex-direction: column; gap: 70px; }
+.comfort-row { display: grid; grid-template-columns: 1fr 1fr; gap: 65px; align-items: center; }
+.comfort-row:nth-child(even) .comfort-photo { grid-row: 1; grid-column: 1; }
+.comfort-row:nth-child(even) .comfort-copy { grid-column: 2; }
+.comfort-copy { text-align: center; padding: 15px 10px; }
+.comfort-copy h3 { font-size: 40px; line-height: 1.05; margin: 10px 0 15px; }
+.comfort-copy > p:not(.eyebrow) { font-size: 13px; color: var(--stone); line-height: 1.8; max-width: 440px; margin: auto; }
+.comfort-copy .text-link { margin-top: 10px; }
+.comfort-photo { position: relative; height: 360px; border-radius: 4px; overflow: hidden; }
+
+/* Full-width gallery with pointer-drag swipe and an accessible lightbox.
+   AroundTheResidence.tsx renders one fixed-position trio — a sliding
+   window over `images` (large tile + 2 small tiles, advancing by
+   exactly one image per step) — using the same staggered feature + two
+   offset photos pattern the former "Our Story" section used (see
+   .stories-layout/.story-* above) — copied here rather than shared,
+   since the two sections' grids are otherwise independent and may
+   diverge later. .residence-photo-track/.residence-group below are dead
+   — left over from an earlier native-scroll-track version of this
+   gallery — since the component no longer renders those classes. */
+.guest-site .residence-gallery-section { margin-top: 110px; }
+.residence-photo-track { position: relative; display: flex; gap: 24px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.residence-group { flex: 0 0 100%; scroll-snap-align: start; }
+.residence-trio { display: grid; grid-template-columns: 1.4fr 1fr 1fr; align-items: stretch; gap: 16px; }
+.residence-feature { position: relative; border-left: 1px solid var(--line); }
+.residence-feature::after { content: ''; position: absolute; bottom: 0; left: -4px; width: 7px; height: 7px; border: 1px solid #b1ab94; border-radius: 50%; background: white; }
+.residence-feature-photo { position: relative; height: 100%; width: 100%; overflow: hidden; border-radius: 4px; display: block; }
+.residence-secondary, .residence-third { position: relative; overflow: hidden; border-radius: 4px; height: 420px; width: 100%; display: block; }
+.residence-secondary { margin-top: 110px; }
+.residence-third { margin-top: 32px; }
+/* Combined with the opacity transition here (not left to CrossfadeImage's
+   own Tailwind transition-opacity utility class) because this rule's
+   higher specificity (class + type selector) would otherwise win and
+   silently drop the opacity half of the crossfade — the shorthand
+   `transition` property always resets every sub-property it doesn't
+   list. Duration/easing kept in sync with CrossfadeImage's own constant. */
+.residence-trio img { transition: transform .4s, opacity 600ms ease-in-out; }
+.residence-feature-photo:hover img, .residence-secondary:hover img, .residence-third:hover img { transform: scale(1.02); }
+.gallery-pagination { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 25px; font-size: 10px; color: var(--stone); }
+.gallery-progress { height: 2px; width: 70px; background: var(--line); }
+.gallery-progress > span { display: block; height: 100%; background: var(--espresso); transition: width .2s; }
+
+/* Three compact experience cards echo the reference. */
+.guest-site .experiences-section { margin-top: 110px; }
+.experience-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.experience-card { border-radius: 4px; box-shadow: 0 4px 18px rgb(48 43 25 / 7%); overflow: hidden; display: flex; flex-direction: column; }
+.experience-photo { position: relative; height: 205px; }
+.experience-copy { padding: 23px 22px 18px; flex: 1; display: flex; flex-direction: column; }
+.experience-copy h3 { font-size: 30px; line-height: 1.05; margin-bottom: 14px; }
+.experience-copy p { font-size: 12px; line-height: 1.8; color: var(--stone); }
+.experience-copy .text-link { margin-top: auto; padding-top: 14px; align-self: start; }
+.guest-site .booking-invitation { padding: 50px 25px; background: var(--primary); border-radius: 5px; text-align: center; color: var(--on-primary); margin-top: 100px; }
+.booking-invitation h2 { font-size: 46px; line-height: 1.02; }
+.booking-invitation p { margin-top: 20px; font-size: 13px; line-height: 1.8; color: var(--on-primary); }
+.guest-site .booking-invitation .quiet-button { background: var(--on-primary); color: white; border: none; }
+.guest-site .booking-invitation .quiet-button:hover { background: #4d4029; }
+.guest-site .getting-here { display: grid; grid-template-columns: 1fr 1fr; gap: 90px; align-items: center; margin-top: 100px; }
+.getting-here h2 { font-size: 48px; line-height: 1.1; margin: 5px 0 26px; }
+.getting-here-copy > a { display: flex; align-items: flex-start; gap: 12px; font-size: 12px; color: var(--stone); line-height: 1.7; padding-block: 9px; overflow-wrap: anywhere; }
+.getting-here-copy > a > svg { flex-shrink: 0; margin-top: 2px; color: var(--espresso); }
+.getting-here-copy > a:hover { color: var(--espresso); }
+.getting-here-copy > a.text-link { align-items: center; margin-top: 8px; color: var(--espresso); }
+.location-map { height: 310px; border-radius: 5px; overflow: hidden; background: var(--paper); }
+.location-map iframe { width: 100%; height: 100%; border: 0; filter: saturate(.55); }
+
+/* Simple horizontal footer. */
+.guest-footer { width: min(100% - 112px,1120px); margin: 100px auto 0; padding-bottom: 24px; }
+.footer-main { display: flex; align-items: center; gap: 30px; padding-bottom: 32px; }
+.footer-wordmark { font-family: var(--font-primary),Georgia,serif; font-size: 24px; color: var(--espresso); }
+.footer-main > nav { margin-left: auto; display: flex; gap: 20px; }
+.footer-main > nav a { display: inline-flex; align-items: center; min-height: 44px; font-size: 10px; color: var(--stone); }
+.footer-social { display: flex; gap: 6px; }
+.footer-social a { width: 36px; height: 40px; display: flex; align-items: center; justify-content: center; color: var(--espresso); }
+.guest-footer-bottom { padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 20px; color: var(--stone); font-size: 9px; }
+.guest-footer-bottom nav { display: flex; gap: 15px; }
+.guest-footer-bottom nav a { padding-block: 8px; }
+.guest-footer a:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+/* Consistent guest page styling without changing form behaviour. */
+.guest-site .site-content > main:not(:has(.page-hero)) { padding-top: 45px; }
+.guest-site .site-content > main > section:first-child.relative.-mt-14 { margin: -45px 20px 0; border-radius: 4px; }
+.guest-site .site-content > main:not(:has(.page-hero)) .rounded-sm { border-radius: 4px; }
+.guest-site .site-content > main:not(:has(.page-hero)) .shadow-2xl { box-shadow: 0 8px 30px rgb(45 39 24 / 8%); }
+.guest-site .site-content > main:not(:has(.page-hero)) .tracking-widest { letter-spacing: .08em; }
+.guest-site input, .guest-site select, .guest-site textarea { border-radius: 3px; }
+.guest-site .outline-pill { display: inline-flex; align-items: center; gap: 10px; padding: 12px 22px; min-height: 44px; border: 1px solid #b7b29f; border-radius: 3px; font-size: 12px; }
+.guest-site .outline-pill:hover { background: var(--paper); }
+
+@media (max-width: 1100px) {
+  .guest-header-row { width: calc(100% - 40px); gap: 22px; }
+  .guest-desktop-nav { gap: 20px; }
+  .guest-site .home-section, .guest-footer { width: calc(100% - 80px); }
+  .comfort-row { gap: 40px; }
+  .footer-main { gap: 20px; }
+  .footer-main > nav { gap: 12px; }
+}
+@media (max-width: 899px) {
+  .guest-header-row { height: 64px; }
+  .guest-header-actions { margin-left: auto; }
+  .guest-desktop-nav { display: none; }
+  .guest-menu-toggle { display: flex; }
+  .mobile-menu-panel { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; height: 100dvh; background: white; visibility: hidden; pointer-events: none; transform: translateX(100%); transition: transform .3s,visibility 0s .3s; }
+  .mobile-menu-panel.is-open { visibility: visible; pointer-events: auto; transform: none; transition-delay: 0s; }
+  .mobile-menu-header { display: flex; align-items: center; justify-content: space-between; padding: calc(20px + env(safe-area-inset-top)) 25px 20px; border-bottom: 1px solid var(--line); }
+  .mobile-menu-close { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; }
+  .mobile-menu-content { flex: 1; min-height: 0; overflow-y: auto; padding: 25px; }
+  .mobile-menu-eyebrow { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--stone); margin-bottom: 16px; }
+  .guest-mobile-nav { display: flex; flex-direction: column; }
+  .guest-mobile-nav > a { display: flex; align-items: center; gap: 20px; padding-block: 14px; border-bottom: 1px solid var(--line); min-height: 54px; font-size: 29px; font-family: var(--font-primary),Georgia,serif; }
+  .guest-mobile-nav > a > svg { margin-left: auto; }
+  .mobile-nav-number { font-family: var(--font-secondary),Arial,sans-serif; font-size: 10px; color: var(--stone); }
+  .mobile-menu-footer { padding: 20px 25px calc(20px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  .mobile-booking-link { display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; background: var(--primary); color: var(--on-primary); }
+  .mobile-menu-footer p { text-align: center; font-size: 11px; color: var(--stone); margin-top: 15px; }
+  .guest-site .home-section, .guest-footer { width: calc(100% - 56px); margin-top: 75px; }
+  .story-photo { height: 100%; }
+  .story-secondary { height: 330px; margin-top: 70px; }
+  .story-third { height: 330px; }
+  .story-copy { padding-inline: 15px; }
+  .residence-feature-photo { height: 100%; }
+  .residence-secondary { height: 330px; margin-top: 70px; }
+  .residence-third { height: 330px; }
+  .comfort-photo { height: 300px; }
+  .comfort-row { gap: 30px; }
+  .comfort-copy h3 { font-size: 34px; }
+  .dining-photo { height: 340px; }
+  .experience-grid { gap: 16px; }
+  .experience-copy { padding: 20px 16px 14px; }
+  .experience-copy h3 { font-size: 27px; }
+  .experience-photo { height: 165px; }
+  .guest-site .getting-here { gap: 35px; }
+  .footer-main { flex-wrap: wrap; }
+  .footer-main > nav { order: 3; width: 100%; justify-content: space-between; }
+  .footer-social { margin-left: auto; }
+}
+@media (max-width: 599px) {
+  .guest-header-row { width: calc(100% - 32px); gap: 10px; height: 60px; }
+  .guest-wordmark { font-size: 23px; }
+  .header-booking { padding: 9px 13px; font-size: 10px; }
+  .guest-header-actions { gap: 4px; }
+  .guest-site .page-hero { height: calc(100svh - 61px); }
+  .hero-headline { top: 27%; left: 18px; right: 18px; }
+  .hero-headline h1 { font-size: clamp(36px, 9vw, 50px); line-height: 1.03; }
+  .hero-headline h1 br { display: none; }
+  .hero-headline p { font-size: 11px; padding-inline: 10px; }
+  .hero-availability { left: 12px; right: 12px; bottom: 16px; }
+  .hero-availability .availability-bar { padding: 10px; }
+  .hero-availability .availability-bar > div { gap: 8px; }
+  .hero-availability .availability-bar > div > div { padding: 10px 6px; }
+  .hero-availability .availability-bar > div > div:nth-child(3) { border-top: 1px solid rgb(255 255 255 / 25%); }
+  .hero-availability .availability-bar > div > div:last-child { padding: 0; }
+  .guest-site .home-section, .guest-footer { width: calc(100% - 40px); margin-top: 65px; }
+  .guest-site .editorial-heading { margin-bottom: 28px; }
+  .guest-site .editorial-heading h2 { font-size: 36px; }
+  .guest-site .editorial-heading > p:not(.eyebrow) { font-size: 13px; }
+  .guest-site .welcome-section { margin-top: 60px; }
+  .welcome-section h2 br { display: none; }
+  .stories-heading h2 { font-size: 36px; }
+  .stories-heading .text-link { font-size: 10px; }
+  .stories-layout { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .story-feature { grid-column: 1 / -1; }
+  .story-photo { height: 270px; }
+  .story-copy h3 { font-size: 34px; }
+  .story-copy > p:not(.eyebrow) { max-width: none; font-size: 13px; }
+  .story-copy { padding: 20px; }
+  .story-secondary, .story-third { height: 205px; margin-top: 10px; }
+  .story-third { margin-top: 40px; }
+  .story-pagination { margin-top: 16px; }
+  .guest-site .rooms-preview-section { margin-top: 75px; }
+  .preview-room-card { flex-basis: 91%; aspect-ratio: 1.12; }
+  .preview-room-caption { left: 20px; bottom: 20px; }
+  .preview-room-caption h3 { font-size: 32px; }
+  .slider-arrow { width: 36px; height: 36px; }
+  .slider-arrow.previous { left: -12px; }
+  .slider-arrow.next { right: -12px; }
+  .amenity-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .amenity-tile { padding: 20px 16px; min-height: 170px; }
+  .amenity-tile h3 { font-size: 25px; }
+  .amenity-tile p { font-size: 11px; }
+  .amenity-tile > svg:first-child { margin-bottom: 15px; }
+  .guest-site .dining-section { margin-top: 65px; }
+  .guest-site .dining-copy { padding: 30px 22px 20px; margin: 0; }
+  .dining-photo { height: 265px; }
+  .comfort-section > .editorial-heading { margin-bottom: 35px; }
+  .comfort-list { gap: 45px; }
+  .comfort-row { display: flex; flex-direction: column-reverse; gap: 20px; }
+  .comfort-photo { width: 100%; height: 285px; }
+  .comfort-copy { padding: 0 10px; }
+  .comfort-copy h3 { font-size: 35px; }
+  .comfort-copy > p:not(.eyebrow) { font-size: 13px; }
+  .residence-trio { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .residence-feature { grid-column: 1 / -1; }
+  .residence-feature-photo { height: 270px; }
+  .residence-secondary, .residence-third { height: 205px; margin-top: 10px; }
+  .residence-third { margin-top: 40px; }
+  .guest-site .residence-gallery-section, .guest-site .experiences-section { margin-top: 75px; }
+  .experience-grid { grid-template-columns: 1fr; gap: 25px; }
+  .experience-photo { height: 240px; }
+  .experience-copy { padding: 22px; }
+  .experience-copy h3 { font-size: 32px; }
+  .experience-copy p { font-size: 13px; }
+  .guest-site .booking-invitation { padding: 40px 20px; margin-top: 65px; }
+  .booking-invitation h2 { font-size: 38px; }
+  .booking-invitation p { font-size: 12px; }
+  .booking-invitation p br { display: none; }
+  .guest-site .getting-here { grid-template-columns: 1fr; gap: 25px; margin-top: 65px; }
+  .getting-here h2 { font-size: 42px; margin-bottom: 20px; }
+  .location-map { height: 290px; }
+  .guest-footer { margin-top: 60px; }
+  .footer-main { gap: 15px; padding-bottom: 15px; }
+  .footer-wordmark { font-size: 23px; }
+  .footer-social { gap: 0; }
+  .footer-social a { width: 30px; }
+  .footer-main > nav { flex-wrap: wrap; gap: 4px 16px; justify-content: start; }
+  .guest-footer-bottom { flex-direction: column; gap: 8px; font-size: 9px; padding-top: 18px; }
+  .guest-site :is(input,textarea,select) { font-size: 16px; }
+  .guest-site .site-content > main > section:first-child.relative.-mt-14 { margin-inline: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html:has(.guest-site) { scroll-behavior: auto; }
+  .guest-site *, .guest-site *::before, .guest-site *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  .guest-site .reveal { opacity: 1; transform: none; }
+}
+
+/* The bar's own triggers/popovers now just use their normal dark-text
+   defaults (the near-white background provides the contrast against the
+   hero photo, not light-colored trigger text) — only the "it opens
+   rightward" nudge for the 3rd field's popover (Guests, closest to the
+   bar's right edge) still needs a page-specific position tweak. */
+.hero-availability .availability-bar > div > div:nth-child(3) .relative > .absolute { right: 0; }
+
+.dining-photo img { object-position: center 70%; }
+
+/* Primary actions use gold with a contrasting ink foreground. */
+.guest-site :is(.bg-brass, .bg-espresso) { background-color: var(--primary); color: var(--on-primary); }
+.guest-site :is(button, a).bg-brass:hover, .guest-site :is(button, a).bg-espresso:hover { background-color: var(--primary-hover); }
+.guest-site .text-brass { color: var(--espresso); }
+.guest-site :is(button,a,input,textarea,select):focus-visible { outline-color: var(--espresso); }
+
+/* Popovers (date picker + guests) clamped to the viewport on narrow
+   screens — previously they could open off the right edge and clip
+   (the .w-[min(...)] width clamp alone doesn't prevent that, since it
+   only caps width, not horizontal position). Fixed to the viewport
+   (not the trigger), which also sidesteps any ancestor's own
+   overflow:hidden (none of DateRangePicker's/GuestPicker's ancestors on
+   either page apply a transform, so `fixed` stays viewport-relative —
+   confirmed for both the homepage and /rooms hero contexts). Acts as a
+   simple bottom sheet: anchored to the bottom with side margins, scrolls
+   internally if the content (a 6-week month grid) is taller than the
+   available space. !important because these need to reliably win over
+   the components' own Tailwind position/width utility classes, which
+   have identical (0,1,0) specificity and could otherwise come after this
+   rule in the cascade depending on build order. */
+@media (max-width: 599px) {
+  .date-picker-popover:not(.inline-calendar), .guest-picker-popover {
+    position: fixed !important;
+    inset: auto 16px 16px 16px !important;
+    margin-top: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: min(75vh, 500px);
+    overflow-y: auto;
+  }
+}
+
+/* Hidden everywhere by default (including every admin screen, which
+   reuses both DateRangePicker/GuestPicker) — only shown by the
+   tablet-scoped rule below. */
+.popover-mobile-backdrop, .popover-mobile-close { display: none; }
+
+/* Tablet-only (600px–1099px): the same fixed bottom-sheet treatment as
+   the mobile rule above, PLUS a dimmed backdrop and close button
+   (DateRangePicker.tsx/GuestPicker.tsx's own .popover-mobile-backdrop/
+   .popover-mobile-close, invisible everywhere else by default) — this
+   is the "centered modal/bottom sheet" the brief asks for, scoped
+   strictly to the tablet range. Desktop (1100px+) keeps the normal
+   popover; mobile (below 600px) keeps the plain sheet above, unchanged,
+   with no backdrop/close button.
+
+   Targeted by a `.tablet-sheet` class the components add themselves
+   (only inside .hero-availability, only in this width range — see
+   DateRangePicker.tsx's isHeroTabletSheet), not by `.hero-availability`
+   ancestry: .availability-bar has its own backdrop-filter, and Chromium
+   treats a backdrop-filter ancestor as establishing the containing
+   block for position:fixed descendants, so these elements are portaled
+   to document.body in this one case to escape it — meaning they're no
+   longer DOM descendants of .hero-availability by the time this CSS
+   needs to find them.
+
+   width/max-width are capped to a true compact panel, NOT `width: auto`
+   (the mobile rule's own value, meant for a genuinely narrow screen
+   where spanning viewport-minus-32px is the right call). At tablet
+   widths that same `auto` resolved to 900px+ wide, and the day-number
+   buttons below (aspect-square + w-full, stretching to fill whatever
+   7-column grid they're given) turned into ~120px squares inside it —
+   this is what was actually making the sheet "fill almost the whole
+   screen": the sheet itself was fine, its CONTENT was being stretched
+   to match. Centered via top/left 50% + transform rather than the
+   mobile rule's edge-inset bottom-sheet, per "centered modal". */
+@media (min-width: 600px) and (max-width: 1099px) {
+  .date-picker-popover.tablet-sheet:not(.inline-calendar),
+  .guest-picker-popover.tablet-sheet {
+    position: fixed !important;
+    inset: auto !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    margin: 0 !important;
+    width: min(380px, calc(100vw - 32px)) !important;
+    max-width: min(380px, calc(100vw - 32px)) !important;
+    max-height: calc(100vh - 48px) !important;
+    overflow-y: auto;
+    z-index: 200;
+  }
+  .popover-mobile-backdrop.tablet-sheet {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+    background: rgb(20 16 10 / 55%);
+  }
+  /* The Guests popover's own content (GuestPicker.tsx) starts an Adults
+     row right at its top-right corner — the same corner this button
+     sits in — so it needs the popover to reserve room above its normal
+     content rather than floating over it. The date popover's header row
+     (month label + prev/next arrows) doesn't reach that corner, so this
+     extra padding is scoped to .guest-picker-popover only. */
+  .guest-picker-popover.tablet-sheet { padding-top: 44px; }
+  .popover-mobile-close.tablet-sheet {
+    display: flex;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: var(--charcoal, #26241f);
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  /* The actual fix for the oversized day cells: fixed-height rows
+     instead of letting aspect-square (height = width) blow up to match
+     whatever width a 7-column grid gets inside the now-capped 380px
+     panel, and the column grid itself no longer needs to stretch either
+     — repeat(7, 40px) rather than repeat(7, 1fr), so cells stay a fixed
+     ~40px square regardless of the panel's own width (the 380px cap
+     above is already generous enough that this never overflows it).
+     Same desktop-ish type scale per the brief (month title / weekday
+     letters ~14-16px, day numbers ~14-15px) — bumped up from the
+     default compact/bare sizing, which read too small once the panel
+     is this much bigger than the trigger it's anchored from. */
+  .date-picker-popover.tablet-sheet .day-grid {
+    grid-template-columns: repeat(7, 40px) !important;
+    grid-auto-rows: 40px !important;
+    justify-content: center;
+    gap: 2px !important;
+  }
+  .date-picker-popover.tablet-sheet .day-grid button {
+    aspect-ratio: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    font-size: 14px !important;
+  }
+  .date-picker-popover.tablet-sheet .month-label {
+    font-size: 15px;
+  }
+  .date-picker-popover.tablet-sheet .weekday-row {
+    grid-template-columns: repeat(7, 40px) !important;
+    justify-content: center;
+    font-size: 13px;
+  }
+  .date-picker-popover.tablet-sheet .weekday-row span {
+    font-size: 13px;
+  }
+}
+
+/* Above the fixed glass header (z-index: 50, guest-header above) so the
+   calendar/guests popover always renders fully visible instead of
+   being visually cut by the header's own translucent background — the
+   bug this fixes: at tablet widths the popover opens upward (above) and
+   previously sat at z-20, underneath the header. Scoped to
+   .hero-availability only; every other DateRangePicker/GuestPicker
+   caller (the room booking form, the whole admin dashboard) keeps its
+   original z-20. */
+.hero-availability .date-picker-popover,
+.hero-availability .guest-picker-popover {
+  z-index: 200;
+}
+
+/* =====================================================================
+   GLASS HEADER EXPERIMENT — self-contained, nothing above this point
+   touched. Applied only on hero pages (Header.tsx: `hasHero`, matched by
+   exact pathname — "/" and "/rooms" only, so /rooms/[id] etc. stay
+   solid). TO REVERT: delete this block, and in Header.tsx stop adding
+   `header--glass`/`is-scrolled` to the <header>'s className (one small
+   edit there, or just leave those classes being added — with no CSS
+   left to match them, they're inert). The existing .guest-header/
+   .header-solid rules above are completely unchanged.
+
+   Switches the header from its normal `position: sticky` (reserves
+   64-65px of layout space above the hero) to `position: fixed` (floats
+   over it, zero layout space) so the hero can reach the very top of the
+   viewport — which is why .page-hero's height is adjusted below,
+   scoped with :has(.header--glass) so removing this block (or the
+   class) reverts it automatically too, with no leftover gap or overlap
+   (the <main> top-padding exclusion for hero pages, further up this
+   file, isn't conditional on this at all — a <main> containing
+   .page-hero never gets that padding in the first place, glass or not).
+   Text stays white throughout both
+   states (transparent-over-photo, then more solid once scrolled) rather
+   than swapping colors, which keeps the 200-300ms transition to a
+   single property family (background/blur) instead of a color flip. */
+.header--glass {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgb(0 0 0 / 20%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid transparent;
+  box-shadow: none;
+  transition: background .25s ease, backdrop-filter .25s ease, border-color .25s ease;
+}
+.header--glass .guest-wordmark,
+.header--glass .guest-desktop-nav a,
+.header--glass .guest-menu-toggle { color: #fff; text-shadow: 0 1px 3px rgb(0 0 0 / 35%); transition: color .25s ease; }
+.header--glass .guest-desktop-nav a:hover, .header--glass .guest-desktop-nav .nav-active { color: #fff; text-decoration-color: rgb(255 255 255 / 70%); }
+/* Same translucent-gold button as the availability bar's own
+   .availability-submit (section 3) — same rgb()/alpha values, reused
+   here rather than duplicated differently. */
+.header--glass .header-booking { background: rgb(243 221 160 / 62%); border: 1px solid rgb(243 221 160 / 80%); color: #fff; text-shadow: 0 1px 3px rgb(0 0 0 / 35%); transition: background .25s ease, border-color .25s ease; }
+.header--glass .header-booking:hover { background: rgb(243 221 160 / 88%); }
+
+.header--glass.is-scrolled {
+  background: rgb(25 20 13 / 90%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom-color: rgb(255 255 255 / 12%);
+}
+
+/* Hero-height compensation for the header no longer occupying layout
+   space — see the block comment above for why this is scoped to
+   :has(.header--glass) rather than applied unconditionally. Not scoped
+   to any breakpoint, so its (0,3,0) specificity also beats the
+   mobile-only .page-hero height rule above (0,2,0) at every viewport,
+   including the ones under 599px. */
+.guest-site:has(.header--glass) .page-hero { height: 100svh; }
