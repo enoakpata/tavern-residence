@@ -193,10 +193,10 @@ export default function BookingActions({
         feeAmount,
         hasAmountPaid
           ? {
-              disposition: cancelDisposition,
-              refundMethod: cancelRefundMethod,
-              note: cancelDispositionNote,
-            }
+            disposition: cancelDisposition,
+            refundMethod: cancelRefundMethod,
+            note: cancelDispositionNote,
+          }
           : undefined
       )
       if (res.success) {
@@ -268,7 +268,7 @@ export default function BookingActions({
     setChangeRoomError('')
     setChangeRoomReason('')
     setNotifyGuest(false)
-    setTotalChoice('keep_original')
+    //setTotalChoice('keep_original')
     setSelectedRoomId('')
     setRoomOptions([])
     setPendingChangeRoom(true)
@@ -290,7 +290,7 @@ export default function BookingActions({
     }
     setPendingChangeRoom(false)
     startTransition(async () => {
-      const res = await changeBookingRoom(bookingId, selectedRoomId, totalChoice, changeRoomReason, notifyGuest)
+      const res = await changeBookingRoom(bookingId, selectedRoomId, changeRoomReason, notifyGuest)
       if (res.success) {
         const toRoom = roomOptions.find((r) => r.id === selectedRoomId)
         setChangeRoomResult({
@@ -330,13 +330,12 @@ export default function BookingActions({
           success: true,
           message:
             res.overpaid > 0
-              ? `Checked out early. ₦${res.overpaid.toLocaleString()} overpayment — ${
-                  earlyDisposition === 'hold_credit'
-                    ? 'held as credit.'
-                    : earlyDisposition === 'refund'
-                      ? 'recorded as refunded.'
-                      : 'kept, no refund.'
-                }`
+              ? `Checked out early. ₦${res.overpaid.toLocaleString()} overpayment — ${earlyDisposition === 'hold_credit'
+                ? 'held as credit.'
+                : earlyDisposition === 'refund'
+                  ? 'recorded as refunded.'
+                  : 'kept, no refund.'
+              }`
               : 'Checked out early.',
         })
         onActionComplete?.()
@@ -350,8 +349,8 @@ export default function BookingActions({
   const newNightsPreview =
     earlyCheckoutDate && earlyCheckoutDate > checkIn
       ? Math.round(
-          (parseISODate(earlyCheckoutDate).getTime() - parseISODate(checkIn).getTime()) / (1000 * 60 * 60 * 24)
-        )
+        (parseISODate(earlyCheckoutDate).getTime() - parseISODate(checkIn).getTime()) / (1000 * 60 * 60 * 24)
+      )
       : 0
   const unusedNightsPreview = newNightsPreview > 0 ? Math.max(0, originalNights - newNightsPreview) : 0
   const newTotalPreview = newNightsPreview * pricePerNight
@@ -488,8 +487,8 @@ export default function BookingActions({
         message={
           <div>
             <p>
-              Update {guestName}&apos;s stay dates for Room {roomNumber}. This doesn&apos;t
-              charge anything — collect any payment difference outside the system.
+              Update {guestName}&apos;s stay dates for Room {roomNumber}. The booking total will be
+recalculated automatically.
             </p>
             {canEditCheckIn ? (
               <>
@@ -531,6 +530,13 @@ export default function BookingActions({
                 </div>
               </>
             )}
+            {editCheckIn && editCheckOut && editCheckOut > editCheckIn && (
+              <p className="mt-3 text-sm text-charcoal">
+                New 
+              total: ₦{(pricePerNight * nightsBetween(editCheckIn, editCheckOut)).toLocaleString()}{' '}
+                ({nightsBetween(editCheckIn, editCheckOut)} nights)
+              </p>
+            )}
             {editDatesError && <p className="mt-2 text-xs text-clay">{editDatesError}</p>}
           </div>
         }
@@ -563,9 +569,8 @@ export default function BookingActions({
               {roomOptions.map((opt) => (
                 <label
                   key={opt.id}
-                  className={`flex items-center justify-between gap-2 rounded-sm border px-3 py-2 text-sm ${
-                    !opt.isFree ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
-                  } ${selectedRoomId === opt.id ? 'border-espresso bg-espresso/5' : 'border-charcoal/15'}`}
+                  className={`flex items-center justify-between gap-2 rounded-sm border px-3 py-2 text-sm ${!opt.isFree ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
+                    } ${selectedRoomId === opt.id ? 'border-espresso bg-espresso/5' : 'border-charcoal/15'}`}
                 >
                   <span className="flex items-center gap-2">
                     <input
@@ -595,7 +600,7 @@ export default function BookingActions({
                 <div className="mt-3 space-y-2 rounded-sm bg-charcoal/5 p-3 text-xs text-charcoal/70">
                   <p>Current total: ₦{currentTotal.toLocaleString()}</p>
                   <p>Total at the new rate: ₦{newRateTotal.toLocaleString()}</p>
-                  <label className="flex items-center gap-2">
+                  {/* <label className="flex items-center gap-2">
                     <input
                       type="radio"
                       name="total-choice"
@@ -612,7 +617,7 @@ export default function BookingActions({
                       onChange={() => setTotalChoice('update_to_new_rate')}
                     />
                     Update total to the new rate (₦{newRateTotal.toLocaleString()})
-                  </label>
+                  </label> */}
                 </div>
               )
             })()}

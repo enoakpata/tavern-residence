@@ -736,7 +736,7 @@ export async function editBookingDates(
   const supabase = await createClient()
   const { data: booking, error: fetchError } = await supabase
     .from('Bookings')
-    .select('room_id, check_in, check_out, status')
+    .select('room_id, check_in, check_out, status, Rooms (price_per_night)')
     .eq('id', bookingId)
     .single()
 
@@ -770,12 +770,18 @@ export async function editBookingDates(
     }
   }
 
+  const room = Array.isArray(booking.Rooms) ? booking.Rooms[0] : booking.Rooms
+  const newTotal = (room?.price_per_night ?? 0) * nightsBetween(newCheckIn, newCheckOut)
+
   const { error } = await supabase
     .from('Bookings')
-    .update({ check_in: newCheckIn, check_out: newCheckOut })
+    .update({ check_in: newCheckIn, check_out: newCheckOut, total_amount: newTotal })
     .eq('id', bookingId)
 
   if (error) return { success: false, error: 'Something went wrong. Please try again.' }
+
+  const recalc = await recalculateBookingTotals(supabase, bookingId)
+  if (!recalc.success) return recalc
 
   revalidatePath('/admin/bookings')
   revalidatePath('/admin/check-in/check-out')
@@ -1192,7 +1198,6 @@ export async function getRoomOptionsForChange(bookingId: string): Promise<GetRoo
 export async function changeBookingRoom(
   bookingId: string,
   newRoomId: string,
-  totalChoice: 'keep_original' | 'update_to_new_rate',
   reason: string,
   notifyGuest: boolean
 ): Promise<ActionResult> {
@@ -1238,8 +1243,7 @@ export async function changeBookingRoom(
   }
 
   const nights = nightsBetween(booking.check_in, booking.check_out)
-  const newTotal =
-    totalChoice === 'update_to_new_rate' ? toRoom.price_per_night * nights : oldTotal
+  const newTotal = toRoom.price_per_night * nights
 
   const { error: updateError } = await supabase
     .from('Bookings')
@@ -1264,7 +1268,7 @@ export async function changeBookingRoom(
       to_type: displayRoomName(toRoom.name),
       old_total: oldTotal,
       new_total: newTotal,
-      total_choice: totalChoice,
+      //total_choice: totalChoice,
       notified_guest: notifyGuest,
     },
     performed_by: user?.email ?? null,
