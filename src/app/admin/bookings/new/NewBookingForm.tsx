@@ -9,6 +9,13 @@ import Dropdown, { type DropdownOption } from '@/components/Dropdown'
 import RoomSelect from '@/components/RoomSelect'
 import { computePaymentStatus } from '@/lib/bookingStatus'
 import { todayInLagos } from '@/lib/dateUtils'
+import {
+  stayTotal,
+  promoNightCount,
+  earlyLateFee,
+  STANDARD_CHECK_IN_TIME,
+  LATE_CHECK_OUT_LATEST_TIME,
+} from '@/lib/pricing'
 import type { Room, BookingPaymentMethod } from '@/lib/types'
 
 function nightsBetween(checkIn: string, checkOut: string): number {
@@ -38,6 +45,10 @@ export default function NewBookingForm() {
   const [paymentMethod, setPaymentMethod] = useState<BookingPaymentMethod>('transfer')
   const [paymentDate, setPaymentDate] = useState(() => todayInLagos())
   const [overpaymentPending, setOverpaymentPending] = useState(false)
+
+  // --- Optional extras, flat EARLY_LATE_FEE each (pricing.ts) ---
+  const [earlyCheckin, setEarlyCheckin] = useState(false)
+  const [lateCheckout, setLateCheckout] = useState(false)
 
   const hasDates = Boolean(checkIn && checkOut)
 
@@ -71,7 +82,14 @@ export default function NewBookingForm() {
   const visibleRooms = hasDates ? rooms : []
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0
   const selectedRoom = rooms.find((room) => room.id === roomId)
-  const total = nights * (selectedRoom?.price_per_night ?? 0)
+  // Same pricing the server stores (src/lib/pricing.ts): night by night,
+  // so promo nights are priced at the promo rate.
+  const roomTotal = selectedRoom && checkIn && checkOut ? stayTotal(selectedRoom, checkIn, checkOut) : 0
+  const promoNights =
+    selectedRoom && checkIn && checkOut ? promoNightCount(selectedRoom, checkIn, checkOut) : 0
+  const extraFee = selectedRoom ? earlyLateFee(selectedRoom) : 0
+  const extrasTotal = (earlyCheckin ? extraFee : 0) + (lateCheckout ? extraFee : 0)
+  const total = roomTotal + extrasTotal
 
   const paidAmount = Number(amountPaid) || 0
   const hasPayment = paidAmount > 0
@@ -91,6 +109,8 @@ export default function NewBookingForm() {
     formData.set('payment_method', paymentMethod)
     formData.set('payment_date', paymentDate)
     formData.set('allow_overpayment', overpaymentPending ? 'true' : 'false')
+    formData.set('early_checkin', earlyCheckin ? 'true' : 'false')
+    formData.set('late_checkout', lateCheckout ? 'true' : 'false')
 
     startTransition(async () => {
       const res = await createManualBooking(formData)
@@ -159,6 +179,7 @@ export default function NewBookingForm() {
             rooms={visibleRooms}
             value={roomId}
             onChange={setRoomId}
+            rateDate={checkIn}
             disabled={!hasDates || loadingRooms}
             placeholder={
               !hasDates
@@ -175,11 +196,49 @@ export default function NewBookingForm() {
       {hasDates && roomId && nights > 0 && (
         <div>
           <p className="text-xs tracking-widest text-charcoal/60 uppercase">
+            Extras (optional)
+          </p>
+          <div className="mt-2 space-y-2 text-sm text-charcoal">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={earlyCheckin}
+                onChange={(e) => {
+                  setEarlyCheckin(e.target.checked)
+                  setOverpaymentPending(false)
+                }}
+              />
+              Early check-in (before {STANDARD_CHECK_IN_TIME}) — ₦{extraFee.toLocaleString()}
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={lateCheckout}
+                onChange={(e) => {
+                  setLateCheckout(e.target.checked)
+                  setOverpaymentPending(false)
+                }}
+              />
+              Late check-out (until {LATE_CHECK_OUT_LATEST_TIME}) — ₦{extraFee.toLocaleString()}
+            </label>
+          </div>
+        </div>
+      )}
+
+      {hasDates && roomId && nights > 0 && (
+        <div>
+          <p className="text-xs tracking-widest text-charcoal/60 uppercase">
             Total
           </p>
           <p className="mt-2 text-base font-medium text-charcoal">
             ₦{total.toLocaleString()} for {nights} night{nights === 1 ? '' : 's'}
+            {extrasTotal > 0 ? ` (incl. ₦${extrasTotal.toLocaleString()} extras)` : ''}
           </p>
+          {promoNights > 0 && (
+            <p className="mt-1 text-xs text-charcoal/50">
+              {promoNights} of {nights} night{nights === 1 ? '' : 's'} at the promo rate.
+            </p>
+          )}
         </div>
       )}
 

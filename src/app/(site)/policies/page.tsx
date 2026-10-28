@@ -8,10 +8,16 @@ import {
   HOTEL_ADDRESS_REGION,
 } from '@/lib/siteConfig'
 import { CANCELLATION_POLICY_BULLETS } from '@/lib/cancellationPolicy'
+import {
+  EARLY_LATE_POLICY_TEXT,
+  STANDARD_CHECK_IN_TIME,
+  STANDARD_CHECK_OUT_TIME,
+  LATE_CHECK_OUT_LATEST_TIME,
+} from '@/lib/pricing'
 
 export const metadata: Metadata = {
   title: `Policies | ${HOTEL_NAME}`,
-  description: `Check-in from 2:00 PM, check-out by 12:00 PM. Free cancellation up to 24 hours before check-in; no smoking in rooms, in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION}.`,
+  description: `Check-in from ${STANDARD_CHECK_IN_TIME}, check-out by ${STANDARD_CHECK_OUT_TIME}; late check-out until ${LATE_CHECK_OUT_LATEST_TIME} on request. Free cancellation up to 24 hours before check-in; no smoking in rooms, in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION}.`,
 }
 
 export default function PoliciesPage() {
@@ -33,12 +39,9 @@ export default function PoliciesPage() {
             Check-in &amp; check-out
           </h2>
           <div className="mt-4 space-y-2 text-charcoal/70">
-            <p>Check-in: from 2:00 PM</p>
-            <p>Check-out: by 12:00 PM</p>
-            <p>
-              Early check-in or late check-out is available for a fee of 50%
-              of the room&apos;s nightly rate, subject to availability.
-            </p>
+            <p>Check-in: from {STANDARD_CHECK_IN_TIME}</p>
+            <p>Check-out: by {STANDARD_CHECK_OUT_TIME}</p>
+            <p>{EARLY_LATE_POLICY_TEXT}</p>
           </div>
         </section>
 

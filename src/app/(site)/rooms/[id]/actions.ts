@@ -13,6 +13,7 @@ import {
 } from '@/lib/email'
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
 import { displayRoomName } from '@/lib/roomTypeContent'
+import { stayTotal } from '@/lib/pricing'
 
 export async function checkAvailability(
   roomId: string,
@@ -82,7 +83,7 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
   // reused further down (totalAmount) instead of querying Rooms twice.
   const { data: bookedRoom } = await supabase
     .from('Rooms')
-    .select('price_per_night, max_occupancy')
+    .select('name, price_per_night, max_occupancy')
     .eq('id', roomId)
     .single()
 
@@ -147,14 +148,10 @@ const bookingId = crypto.randomUUID()
 // success screen's free-cancellation cutoff on same-day bookings.
 const createdAt = new Date().toISOString()
 const isSameDayBooking = checkIn === todayInLagos()
-const nights = Math.max(
-  1,
-  Math.round(
-    (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)
-  )
-)
-
-const totalAmount = (bookedRoom?.price_per_night ?? 0) * nights
+// Night-by-night, so any promo nights in the stay are priced at the
+// promo rate and the rest at the normal rate — see src/lib/pricing.ts.
+// The same function drives the total BookingForm.tsx showed the guest.
+const totalAmount = bookedRoom ? stayTotal(bookedRoom, checkIn, checkOut) : 0
 
 const { error } = await supabase.from('Bookings').insert({
   id: bookingId,

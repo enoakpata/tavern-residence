@@ -182,6 +182,22 @@ export default function BookingDetailModal({
                 <dt className="text-charcoal/50">Card on file</dt>
                 <dd className="mt-1 text-charcoal">{booking.has_card_on_file ? 'Yes' : 'No'}</dd>
               </div>
+              {booking.early_checkin_fee != null && (
+                <div>
+                  <dt className="text-charcoal/50">Early check-in</dt>
+                  <dd className="mt-1 text-charcoal">
+                    Yes — ₦{Number(booking.early_checkin_fee).toLocaleString()}
+                  </dd>
+                </div>
+              )}
+              {booking.late_checkout_fee != null && (
+                <div>
+                  <dt className="text-charcoal/50">Late check-out</dt>
+                  <dd className="mt-1 text-charcoal">
+                    Yes — ₦{Number(booking.late_checkout_fee).toLocaleString()}
+                  </dd>
+                </div>
+              )}
               {booking.charge_type && (
                 <div>
                   <dt className="text-charcoal/50">Charge type</dt>
@@ -236,6 +252,9 @@ export default function BookingDetailModal({
                     roomNumber={room?.room_number ?? ''}
                     hasCardOnFile={booking.card_chargeable}
                     pricePerNight={room?.price_per_night ?? 0}
+                    roomName={room?.name ?? null}
+                    earlyCheckinFee={booking.early_checkin_fee != null ? Number(booking.early_checkin_fee) : null}
+                    lateCheckoutFee={booking.late_checkout_fee != null ? Number(booking.late_checkout_fee) : null}
                     amountPaid={booking.amount_paid}
                     onActionComplete={refetch}
                   />
