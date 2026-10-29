@@ -8,60 +8,98 @@
 //
 // Rooms.price_per_night stays the hotel's NORMAL rate. A promotion is a
 // dated override on top of it, applied night by night: each night that
-// falls inside the promo window is priced at the promo rate, every other
-// night at the normal rate. A stay that crosses the end of a promo is
-// split — e.g. Oct 30 → Nov 2 is two promo nights + one normal night.
-// Nothing needs changing in Supabase when a promo starts or ends; once
-// the end date passes, every price shown and charged reverts on its own.
+// falls inside a promo is priced at the promo rate, every other night at
+// the normal rate. A stay that crosses the end of a promo is split — e.g.
+// Oct 30 → Nov 2 is two promo nights + one normal night.
+//
+// Promotions live in the `promotions` table and are managed from the
+// admin Promotions page (src/app/admin/promotions) — they switch on and
+// off by themselves on their dates; nothing here changes per promo.
+// Server code loads them with getPromotions() (src/lib/promotions.ts) and
+// passes them in; client components receive them as props. Every
+// function below takes the list explicitly, so the server and a client
+// preview always price from the exact same promos.
 
-export type Promo = {
+export type PromotionKind = 'fixed' | 'percent'
+
+export type Promotion = {
+  id: string
+  name: string
   // First and last NIGHT covered, inclusive, as ISO dates. A "night" is
   // identified by the date it starts on (a stay checking in Oct 31 and
   // out Nov 1 is one night: Oct 31).
   firstNight: string
   lastNight: string
-  // Promo nightly rate per room type, keyed by the exact Rooms.name value
-  // (see RoomDbName in roomTypeContent.ts). A type missing from here just
-  // keeps its normal rate during the promo.
-  rates: Partial<Record<string, number>>
-  // Short guest-facing description, e.g. for a "promo" note next to a price.
-  label: string
+  kind: PromotionKind
+  // kind 'fixed': nightly price per room type, keyed by the exact
+  // Rooms.name (see RoomDbName in roomTypeContent.ts). A type missing
+  // from here keeps its normal price.
+  rates: Record<string, number> | null
+  // kind 'percent': % off every room type's normal price.
+  percentOff: number | null
+  active: boolean
 }
 
-// October 2026 promo. To run a future promo, replace this (or add to
-// PROMOS) — nothing else needs changing.
-export const PROMOS: Promo[] = [
-  {
-    firstNight: '2026-10-01',
-    lastNight: '2026-10-31',
-    rates: {
-      'Single Room': 90000,
-      'Studio Room': 100000,
-      '1-Bedroom Deluxe': 150000,
-      '1-Bedroom Suite': 180000,
-    },
-    label: 'October promo — ends 31 October',
-  },
-]
+/** Maps a `promotions` row (snake_case, numeric strings) to a Promotion. */
+export function rowToPromotion(row: Record<string, unknown>): Promotion {
+  const rawRates = (row.rates ?? null) as Record<string, unknown> | null
+  const rates: Record<string, number> | null = rawRates
+    ? Object.fromEntries(
+        Object.entries(rawRates)
+          .map(([k, v]) => [k, Number(v)] as const)
+          .filter(([, v]) => Number.isFinite(v) && v > 0)
+      )
+    : null
+  return {
+    id: String(row.id),
+    name: String(row.name ?? ''),
+    firstNight: String(row.first_night),
+    lastNight: String(row.last_night),
+    kind: row.kind === 'percent' ? 'percent' : 'fixed',
+    rates,
+    percentOff: row.percent_off != null ? Number(row.percent_off) : null,
+    active: row.active !== false,
+  }
+}
 
 export type PricedRoom = {
   name?: string | null
   price_per_night: number
 }
 
-function activePromoFor(room: PricedRoom, nightIso: string): Promo | null {
-  if (!room.name) return null
-  return (
-    PROMOS.find(
-      (p) => nightIso >= p.firstNight && nightIso <= p.lastNight && p.rates[room.name!] != null
-    ) ?? null
-  )
+/** What `promo` charges for one night in `room`, or null if it doesn't cover this room type. */
+export function promoRateFor(room: PricedRoom, promo: Promotion): number | null {
+  if (promo.kind === 'percent') {
+    if (promo.percentOff == null || !(promo.percentOff > 0 && promo.percentOff < 100)) return null
+    return Math.round(room.price_per_night * (1 - promo.percentOff / 100))
+  }
+  if (!room.name || !promo.rates) return null
+  const rate = promo.rates[room.name]
+  return rate != null && rate > 0 ? rate : null
+}
+
+/**
+ * The promo (and its rate) applying to one night, or null. If more than
+ * one active promo covers the night, the guest gets the LOWEST price.
+ */
+export function promoForNight(
+  room: PricedRoom,
+  nightIso: string,
+  promos: Promotion[]
+): { promo: Promotion; rate: number } | null {
+  let best: { promo: Promotion; rate: number } | null = null
+  for (const promo of promos) {
+    if (!promo.active || nightIso < promo.firstNight || nightIso > promo.lastNight) continue
+    const rate = promoRateFor(room, promo)
+    if (rate == null) continue
+    if (!best || rate < best.rate) best = { promo, rate }
+  }
+  return best
 }
 
 /** The rate for ONE night starting on `nightIso` — promo rate if one applies, otherwise normal. */
-export function nightlyRate(room: PricedRoom, nightIso: string): number {
-  const promo = activePromoFor(room, nightIso)
-  return promo ? (promo.rates[room.name!] as number) : room.price_per_night
+export function nightlyRate(room: PricedRoom, nightIso: string, promos: Promotion[]): number {
+  return promoForNight(room, nightIso, promos)?.rate ?? room.price_per_night
 }
 
 /** The room's normal (non-promo) nightly rate — Rooms.price_per_night. */
@@ -69,20 +107,33 @@ export function normalRate(room: PricedRoom): number {
   return room.price_per_night
 }
 
+function formatDayMonth(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  })
+}
+
+/** Guest-facing promo note, e.g. "October promo — ends 31 October". */
+export function promoLabel(promo: Promotion): string {
+  return `${promo.name} — ends ${formatDayMonth(promo.lastNight)}`
+}
+
 /**
- * Promo info for the rate a guest would see if their stay started on
- * `todayIso` — used by the room listings to show a struck-through normal
- * price next to the promo price. Null when no promo applies.
+ * Promo info for the rate a guest would see for a night starting on
+ * `dateIso` — used by the room listings to show a struck-through normal
+ * price next to the promo price. Null when no promo applies or it
+ * doesn't actually lower the price.
  */
 export function promoOnDate(
   room: PricedRoom,
-  todayIso: string
+  dateIso: string,
+  promos: Promotion[]
 ): { promoRate: number; normalRate: number; label: string } | null {
-  const promo = activePromoFor(room, todayIso)
-  if (!promo) return null
-  const promoRate = promo.rates[room.name!] as number
-  if (promoRate === room.price_per_night) return null
-  return { promoRate, normalRate: room.price_per_night, label: promo.label }
+  const hit = promoForNight(room, dateIso, promos)
+  if (!hit || hit.rate >= room.price_per_night) return null
+  return { promoRate: hit.rate, normalRate: room.price_per_night, label: promoLabel(hit.promo) }
 }
 
 // ISO date arithmetic in UTC, so the result never depends on the timezone
@@ -110,14 +161,25 @@ export function stayNights(checkIn: string, checkOut: string): string[] {
  * `price_per_night × nights`, which couldn't express a promo that ends
  * part-way through a stay.
  */
-export function stayTotal(room: PricedRoom, checkIn: string, checkOut: string): number {
-  return stayNights(checkIn, checkOut).reduce((sum, night) => sum + nightlyRate(room, night), 0)
+export function stayTotal(
+  room: PricedRoom,
+  checkIn: string,
+  checkOut: string,
+  promos: Promotion[]
+): number {
+  return stayNights(checkIn, checkOut).reduce((sum, night) => sum + nightlyRate(room, night, promos), 0)
 }
 
 /** How many of a stay's nights are at a promo rate — for "includes N promo nights" notes. */
-export function promoNightCount(room: PricedRoom, checkIn: string, checkOut: string): number {
-  return stayNights(checkIn, checkOut).filter((night) => nightlyRate(room, night) !== room.price_per_night)
-    .length
+export function promoNightCount(
+  room: PricedRoom,
+  checkIn: string,
+  checkOut: string,
+  promos: Promotion[]
+): number {
+  return stayNights(checkIn, checkOut).filter(
+    (night) => nightlyRate(room, night, promos) !== room.price_per_night
+  ).length
 }
 
 // =====================================================================
@@ -153,4 +215,43 @@ export type ExtraFees = {
 /** Sum of a booking's early check-in / late check-out fees (0 if neither). */
 export function extraFeesTotal(booking: ExtraFees): number {
   return Number(booking.early_checkin_fee ?? 0) + Number(booking.late_checkout_fee ?? 0)
+}
+
+// =====================================================================
+// Staff discounts
+// =====================================================================
+
+export type DiscountFields = {
+  discount_amount?: number | string | null
+  discount_percent?: number | string | null
+}
+
+/**
+ * The naira discount on a booking. A percentage discount is recomputed
+ * from the room total (so 10% stays 10% when dates or the room change);
+ * a fixed discount is used as stored. Never more than the room total.
+ * Applies to the room total only — not to early check-in / late
+ * check-out fees.
+ */
+export function discountFor(booking: DiscountFields, roomTotal: number): number {
+  const percent = booking.discount_percent != null ? Number(booking.discount_percent) : null
+  const raw =
+    percent != null && percent > 0
+      ? Math.round((roomTotal * percent) / 100)
+      : Number(booking.discount_amount ?? 0)
+  return Math.min(Math.max(0, raw), Math.max(0, roomTotal))
+}
+
+/**
+ * A booking's full total from its parts: room total (promo-aware) + early
+ * check-in / late check-out fees − discount. Every place that stores or
+ * previews a total goes through this.
+ */
+export function bookingTotal(
+  roomTotal: number,
+  booking: ExtraFees & DiscountFields
+): { roomTotal: number; fees: number; discount: number; total: number } {
+  const fees = extraFeesTotal(booking)
+  const discount = discountFor(booking, roomTotal)
+  return { roomTotal, fees, discount, total: roomTotal + fees - discount }
 }

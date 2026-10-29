@@ -14,6 +14,8 @@ import {
   promoNightCount,
   earlyLateFee,
   STANDARD_CHECK_IN_TIME,
+  bookingTotal,
+  type Promotion,
   LATE_CHECK_OUT_LATEST_TIME,
 } from '@/lib/pricing'
 import type { Room, BookingPaymentMethod } from '@/lib/types'
@@ -28,7 +30,7 @@ const PAYMENT_METHOD_OPTIONS: DropdownOption<BookingPaymentMethod>[] = [
   { value: 'pos', label: 'POS' },
 ]
 
-export default function NewBookingForm() {
+export default function NewBookingForm({ promos }: { promos: Promotion[] }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
@@ -49,6 +51,11 @@ export default function NewBookingForm() {
   // --- Optional extras, flat EARLY_LATE_FEE each (pricing.ts) ---
   const [earlyCheckin, setEarlyCheckin] = useState(false)
   const [lateCheckout, setLateCheckout] = useState(false)
+
+  // --- Optional staff discount (amount or %, reason required) ---
+  const [discountType, setDiscountType] = useState<'amount' | 'percent'>('amount')
+  const [discountValue, setDiscountValue] = useState('')
+  const [discountReason, setDiscountReason] = useState('')
 
   const hasDates = Boolean(checkIn && checkOut)
 
@@ -84,12 +91,20 @@ export default function NewBookingForm() {
   const selectedRoom = rooms.find((room) => room.id === roomId)
   // Same pricing the server stores (src/lib/pricing.ts): night by night,
   // so promo nights are priced at the promo rate.
-  const roomTotal = selectedRoom && checkIn && checkOut ? stayTotal(selectedRoom, checkIn, checkOut) : 0
+  const roomTotal =
+    selectedRoom && checkIn && checkOut ? stayTotal(selectedRoom, checkIn, checkOut, promos) : 0
   const promoNights =
-    selectedRoom && checkIn && checkOut ? promoNightCount(selectedRoom, checkIn, checkOut) : 0
+    selectedRoom && checkIn && checkOut ? promoNightCount(selectedRoom, checkIn, checkOut, promos) : 0
   const extraFee = selectedRoom ? earlyLateFee(selectedRoom) : 0
   const extrasTotal = (earlyCheckin ? extraFee : 0) + (lateCheckout ? extraFee : 0)
-  const total = roomTotal + extrasTotal
+  const discountNumber = Number(discountValue) || 0
+  const { total, discount } = bookingTotal(roomTotal, {
+    early_checkin_fee: earlyCheckin ? extraFee : null,
+    late_checkout_fee: lateCheckout ? extraFee : null,
+    discount_amount: discountType === 'amount' && discountNumber > 0 ? discountNumber : null,
+    discount_percent: discountType === 'percent' && discountNumber > 0 ? discountNumber : null,
+  })
+  const discountMissingReason = discountNumber > 0 && !discountReason.trim()
 
   const paidAmount = Number(amountPaid) || 0
   const hasPayment = paidAmount > 0
@@ -99,6 +114,11 @@ export default function NewBookingForm() {
 
   function handleSubmit(formData: FormData) {
     setError('')
+
+    if (discountMissingReason) {
+      setError('Add a reason for the discount.')
+      return
+    }
 
     if (isOverpaying && !overpaymentPending) {
       setOverpaymentPending(true)
@@ -111,6 +131,9 @@ export default function NewBookingForm() {
     formData.set('allow_overpayment', overpaymentPending ? 'true' : 'false')
     formData.set('early_checkin', earlyCheckin ? 'true' : 'false')
     formData.set('late_checkout', lateCheckout ? 'true' : 'false')
+    formData.set('discount_type', discountType)
+    formData.set('discount_value', discountNumber > 0 ? String(discountNumber) : '')
+    formData.set('discount_reason', discountReason)
 
     startTransition(async () => {
       const res = await createManualBooking(formData)
@@ -180,6 +203,7 @@ export default function NewBookingForm() {
             value={roomId}
             onChange={setRoomId}
             rateDate={checkIn}
+            promos={promos}
             disabled={!hasDates || loadingRooms}
             placeholder={
               !hasDates
@@ -228,12 +252,66 @@ export default function NewBookingForm() {
       {hasDates && roomId && nights > 0 && (
         <div>
           <p className="text-xs tracking-widest text-charcoal/60 uppercase">
+            Discount (optional)
+          </p>
+          <div className="mt-2 flex gap-2">
+            <div className="flex shrink-0 overflow-hidden rounded-sm border border-charcoal/20 text-sm">
+              {(['amount', 'percent'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    setDiscountType(t)
+                    setOverpaymentPending(false)
+                  }}
+                  className={`px-3 py-2 ${discountType === t ? 'bg-espresso text-ivory' : 'text-charcoal/70'}`}
+                >
+                  {t === 'amount' ? '₦' : '%'}
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              min="0"
+              step={discountType === 'percent' ? '0.5' : '1000'}
+              inputMode="decimal"
+              value={discountValue}
+              onChange={(e) => {
+                setDiscountValue(e.target.value)
+                setOverpaymentPending(false)
+              }}
+              placeholder={discountType === 'percent' ? '% off the room' : 'Amount off the room'}
+              aria-label={discountType === 'percent' ? 'Percent off' : 'Amount off in naira'}
+              className="w-full rounded-sm border border-charcoal/20 px-4 py-2 text-sm focus:border-espresso focus:outline-none"
+            />
+          </div>
+          {discountNumber > 0 && (
+            <input
+              type="text"
+              value={discountReason}
+              onChange={(e) => setDiscountReason(e.target.value)}
+              placeholder="Reason (required) — e.g. regular guest, long stay"
+              aria-label="Discount reason"
+              className="mt-2 w-full rounded-sm border border-charcoal/20 px-4 py-2 text-sm focus:border-espresso focus:outline-none"
+            />
+          )}
+        </div>
+      )}
+
+      {hasDates && roomId && nights > 0 && (
+        <div>
+          <p className="text-xs tracking-widest text-charcoal/60 uppercase">
             Total
           </p>
           <p className="mt-2 text-base font-medium text-charcoal">
             ₦{total.toLocaleString()} for {nights} night{nights === 1 ? '' : 's'}
             {extrasTotal > 0 ? ` (incl. ₦${extrasTotal.toLocaleString()} extras)` : ''}
           </p>
+          {discount > 0 && (
+            <p className="mt-1 text-xs text-charcoal/50">
+              After a ₦{discount.toLocaleString()} discount on the room.
+            </p>
+          )}
           {promoNights > 0 && (
             <p className="mt-1 text-xs text-charcoal/50">
               {promoNights} of {nights} night{nights === 1 ? '' : 's'} at the promo rate.

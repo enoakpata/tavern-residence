@@ -10,6 +10,7 @@ import {
   changeBookingRoom,
   earlyCheckout,
   setEarlyLateOption,
+  setBookingDiscount,
   type EarlyLateKind,
   type RoomChangeOption,
 } from './actions'
@@ -21,7 +22,8 @@ import { parseISODate, toISODate, type BlockedRange } from '@/lib/dateUtils'
 import {
   stayTotal,
   earlyLateFee,
-  extraFeesTotal,
+  bookingTotal,
+  type Promotion,
   STANDARD_CHECK_IN_TIME,
   LATE_CHECK_OUT_LATEST_TIME,
 } from '@/lib/pricing'
@@ -47,6 +49,13 @@ type BookingActionsProps = {
   // not added). Carried into every total preview below.
   earlyCheckinFee: number | null
   lateCheckoutFee: number | null
+  // Staff discount on the booking (null = none). A % discount is
+  // re-applied to the room total in every preview, as the server does.
+  discountAmount: number | null
+  discountPercent: number | null
+  discountReason: string | null
+  // Active promotions (from getBookingDetail) — previews price with these.
+  promos: Promotion[]
   // Already paid toward this stay — drives both the cancel dialog (no
   // fee/card charge once anything's been paid, section 8) and whether
   // "Early checkout" needs to ask about an overpayment (section 7).
@@ -105,12 +114,24 @@ export default function BookingActions({
   roomName,
   earlyCheckinFee,
   lateCheckoutFee,
+  discountAmount,
+  discountPercent,
+  discountReason,
+  promos,
   amountPaid,
   onActionComplete,
 }: BookingActionsProps) {
   const pricedRoom = { name: roomName, price_per_night: pricePerNight }
-  const extraFees = extraFeesTotal({ early_checkin_fee: earlyCheckinFee, late_checkout_fee: lateCheckoutFee })
-  const previewTotal = (ci: string, co: string) => stayTotal(pricedRoom, ci, co) + extraFees
+  const adjustments = {
+    early_checkin_fee: earlyCheckinFee,
+    late_checkout_fee: lateCheckoutFee,
+    discount_amount: discountAmount,
+    discount_percent: discountPercent,
+  }
+  // Same calculation the server actions store: promo-aware room total,
+  // plus early/late fees, minus any discount.
+  const previewTotal = (ci: string, co: string) =>
+    bookingTotal(stayTotal(pricedRoom, ci, co, promos), adjustments).total
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
   // Always shown once Cancel is clicked (not computed/skipped up front) —
@@ -170,6 +191,15 @@ export default function BookingActions({
   )
   const [earlyLateResult, setEarlyLateResult] = useState<null | { success: boolean; message: string }>(null)
 
+  // --- Discount ---
+  const [pendingDiscount, setPendingDiscount] = useState(false)
+  const [pendingRemoveDiscount, setPendingRemoveDiscount] = useState(false)
+  const [discountType, setDiscountType] = useState<'amount' | 'percent'>('amount')
+  const [discountValue, setDiscountValue] = useState('')
+  const [discountReasonInput, setDiscountReasonInput] = useState('')
+  const [discountError, setDiscountError] = useState('')
+  const [discountResult, setDiscountResult] = useState<null | { success: boolean; message: string }>(null)
+
   function run(
     action: () => Promise<{ success: boolean; error?: string }>,
     errorPrefix = ''
@@ -207,6 +237,8 @@ export default function BookingActions({
   const canAddLateCheckout = earlyLateActive && lateCheckoutFee == null
   const canRemoveLateCheckout = earlyLateActive && lateCheckoutFee != null
   const earlyLateFeeAmount = earlyLateFee(pricedRoom)
+  const hasDiscount = discountAmount != null || discountPercent != null
+  const canDiscount = !['cancelled', 'no_show'].includes(status)
 
   function handleCancelClick() {
     // feeAmount/reason are the policy's suggestion, shown for reference —
@@ -340,6 +372,62 @@ export default function BookingActions({
       } else {
         setChangeRoomResult({ success: false, message: res.error })
       }
+    })
+  }
+
+  function handleDiscountClick() {
+    setDiscountType(discountPercent != null ? 'percent' : 'amount')
+    setDiscountValue(
+      discountPercent != null ? String(discountPercent) : discountAmount != null ? String(discountAmount) : ''
+    )
+    setDiscountReasonInput(discountReason ?? '')
+    setDiscountError('')
+    setPendingDiscount(true)
+  }
+
+  function handleConfirmDiscount() {
+    const value = Number(discountValue)
+    if (!discountValue.trim() || !(value > 0)) {
+      setDiscountError('Enter a discount greater than zero.')
+      return
+    }
+    if (discountType === 'percent' && value >= 100) {
+      setDiscountError('A percentage discount must be less than 100%.')
+      return
+    }
+    if (!discountReasonInput.trim()) {
+      setDiscountError('Add a reason for the discount.')
+      return
+    }
+    setPendingDiscount(false)
+    startTransition(async () => {
+      const res = await setBookingDiscount(bookingId, {
+        type: discountType,
+        value,
+        reason: discountReasonInput,
+      })
+      setDiscountResult(
+        res.success
+          ? {
+              success: true,
+              message: `Discount of ₦${res.discount.toLocaleString()} applied. New total: ₦${res.newTotal.toLocaleString()}.`,
+            }
+          : { success: false, message: res.error }
+      )
+      if (res.success) onActionComplete?.()
+    })
+  }
+
+  function handleConfirmRemoveDiscount() {
+    setPendingRemoveDiscount(false)
+    startTransition(async () => {
+      const res = await setBookingDiscount(bookingId, null)
+      setDiscountResult(
+        res.success
+          ? { success: true, message: `Discount removed. New total: ₦${res.newTotal.toLocaleString()}.` }
+          : { success: false, message: res.error }
+      )
+      if (res.success) onActionComplete?.()
     })
   }
 
@@ -483,6 +571,26 @@ export default function BookingActions({
           className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
         >
           {canAddLateCheckout ? 'Add late check-out' : 'Remove late check-out'}
+        </button>
+      )}
+
+      {canDiscount && (
+        <button
+          disabled={isPending}
+          onClick={handleDiscountClick}
+          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
+        >
+          {hasDiscount ? 'Edit discount' : 'Add discount'}
+        </button>
+      )}
+
+      {canDiscount && hasDiscount && (
+        <button
+          disabled={isPending}
+          onClick={() => setPendingRemoveDiscount(true)}
+          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
+        >
+          Remove discount
         </button>
       )}
 
@@ -810,6 +918,85 @@ recalculated automatically.
         confirmLabel={pendingEarlyLate?.enabled ? 'Add' : 'Remove'}
         onConfirm={handleConfirmEarlyLate}
         onCancel={() => setPendingEarlyLate(null)}
+      />
+
+      <ConfirmModal
+        open={pendingDiscount}
+        title={hasDiscount ? 'Edit discount' : 'Add discount'}
+        message={
+          <div>
+            <p>
+              Choose ₦ (an amount) or % (a percentage) off the room total — not off early check-in /
+              late check-out fees. A percentage stays a percentage if the dates or room change later.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <div className="flex shrink-0 overflow-hidden rounded-sm border border-charcoal/20 text-sm">
+                {(['amount', 'percent'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setDiscountType(t)
+                      setDiscountError('')
+                    }}
+                    className={`px-3 py-1.5 ${discountType === t ? 'bg-espresso text-ivory' : 'text-charcoal/70'}`}
+                  >
+                    {t === 'amount' ? '₦' : '%'}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                min="0"
+                step={discountType === 'percent' ? '0.5' : '1000'}
+                inputMode="decimal"
+                value={discountValue}
+                onChange={(e) => {
+                  setDiscountValue(e.target.value)
+                  setDiscountError('')
+                }}
+                placeholder={discountType === 'percent' ? 'e.g. 10' : 'e.g. 20000'}
+                aria-label={discountType === 'percent' ? 'Percent off' : 'Amount off in naira'}
+                className="w-full rounded-sm border border-charcoal/20 px-2 py-1.5 text-sm text-charcoal"
+              />
+            </div>
+            <label className="mt-3 block text-xs tracking-widest text-charcoal/60 uppercase">
+              Reason
+            </label>
+            <input
+              value={discountReasonInput}
+              onChange={(e) => {
+                setDiscountReasonInput(e.target.value)
+                setDiscountError('')
+              }}
+              placeholder="e.g. regular guest, long stay"
+              className="mt-1 w-full rounded-sm border border-charcoal/20 px-2 py-1.5 text-sm text-charcoal"
+            />
+            {discountError && <p className="mt-2 text-xs text-clay">{discountError}</p>}
+          </div>
+        }
+        confirmLabel={hasDiscount ? 'Save discount' : 'Add discount'}
+        onConfirm={handleConfirmDiscount}
+        onCancel={() => setPendingDiscount(false)}
+      />
+
+      <ConfirmModal
+        open={pendingRemoveDiscount}
+        title="Remove discount"
+        message={`This removes the ₦${(discountAmount ?? 0).toLocaleString()} discount and puts it back on the booking total.`}
+        confirmLabel="Remove"
+        onConfirm={handleConfirmRemoveDiscount}
+        onCancel={() => setPendingRemoveDiscount(false)}
+      />
+
+      <ConfirmModal
+        open={discountResult !== null}
+        title={discountResult?.success ? 'Booking updated' : 'Update failed'}
+        message={discountResult?.message ?? ''}
+        confirmLabel="OK"
+        hideCancel
+        onConfirm={() => setDiscountResult(null)}
+        onCancel={() => setDiscountResult(null)}
       />
 
       <ConfirmModal

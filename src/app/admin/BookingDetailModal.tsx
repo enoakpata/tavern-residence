@@ -198,6 +198,16 @@ export default function BookingDetailModal({
                   </dd>
                 </div>
               )}
+              {(booking.discount_amount != null || booking.discount_percent != null) && (
+                <div className="col-span-2">
+                  <dt className="text-charcoal/50">Discount</dt>
+                  <dd className="mt-1 text-charcoal">
+                    −₦{Number(booking.discount_amount ?? 0).toLocaleString()}
+                    {booking.discount_percent != null ? ` (${booking.discount_percent}% off the room)` : ''}
+                    {booking.discount_reason ? ` — ${booking.discount_reason}` : ''}
+                  </dd>
+                </div>
+              )}
               {booking.charge_type && (
                 <div>
                   <dt className="text-charcoal/50">Charge type</dt>
@@ -255,6 +265,10 @@ export default function BookingDetailModal({
                     roomName={room?.name ?? null}
                     earlyCheckinFee={booking.early_checkin_fee != null ? Number(booking.early_checkin_fee) : null}
                     lateCheckoutFee={booking.late_checkout_fee != null ? Number(booking.late_checkout_fee) : null}
+                    discountAmount={booking.discount_amount}
+                    discountPercent={booking.discount_percent}
+                    discountReason={booking.discount_reason}
+                    promos={result?.status === 'ok' ? result.promotions : []}
                     amountPaid={booking.amount_paid}
                     onActionComplete={refetch}
                   />

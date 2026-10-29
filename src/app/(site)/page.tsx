@@ -14,6 +14,7 @@ import OurRooms, { type RoomCardData } from './OurRooms'
 import AroundTheResidence from './AroundTheResidence'
 import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER } from '@/lib/roomTypeContent'
 import { promoOnDate } from '@/lib/pricing'
+import { getPromotions } from '@/lib/promotions'
 import { todayInLagos } from '@/lib/dateUtils'
 
 // Without this, Next.js finds no dynamic API in use here and statically
@@ -39,6 +40,7 @@ export default async function Home() {
     .select('id, room_number, name, price_per_night')
 
   const today = todayInLagos()
+  const promos = await getPromotions()
   const roomsByNumber = new Map((roomRows ?? []).map((r) => [r.room_number as string, r]))
 
   // The 4 real, guest-facing room types — exactly these 4, no more. No
@@ -63,7 +65,8 @@ export default async function Home() {
       priceFromLabel: (() => {
         const promo = promoOnDate(
           { name: room.name as string, price_per_night: room.price_per_night as number },
-          today
+          today,
+          promos
         )
         return promo
           ? `From ₦${promo.promoRate.toLocaleString()} / night (was ₦${promo.normalRate.toLocaleString()})`

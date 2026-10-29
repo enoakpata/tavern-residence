@@ -10,6 +10,8 @@ const EVENT_LABELS: Record<BookingAuditEntry['eventType'], string> = {
   cancellation_money: 'Cancellation — payment handling',
   early_checkin: 'Early check-in',
   late_checkout: 'Late check-out',
+  discount: 'Discount',
+  promo_reprice: 'Repriced for a promotion',
 }
 
 function describe(entry: BookingAuditEntry): string {
@@ -39,6 +41,20 @@ function describe(entry: BookingAuditEntry): string {
     const newTotal = typeof d.new_total === 'number' ? d.new_total : 0
     const verb = d.action === 'removed' ? 'Removed' : 'Added'
     return `${verb} — ₦${fee.toLocaleString()} fee, total now ₦${newTotal.toLocaleString()}`
+  }
+  if (entry.eventType === 'discount') {
+    const amount = typeof d.amount === 'number' ? d.amount : 0
+    const newTotal = typeof d.new_total === 'number' ? d.new_total : 0
+    if (d.action === 'removed') return `Removed — total now ₦${newTotal.toLocaleString()}`
+    const pct = typeof d.percent === 'number' ? ` (${d.percent}%)` : ''
+    const verb = d.action === 'changed' ? 'Changed to' : 'Added'
+    return `${verb} ₦${amount.toLocaleString()}${pct} off — total now ₦${newTotal.toLocaleString()}`
+  }
+  if (entry.eventType === 'promo_reprice') {
+    const name = typeof d.promotion === 'string' ? d.promotion : 'a promotion'
+    const oldTotal = typeof d.old_total === 'number' ? d.old_total : 0
+    const newTotal = typeof d.new_total === 'number' ? d.new_total : 0
+    return `Repriced for ${name}: ₦${oldTotal.toLocaleString()} → ₦${newTotal.toLocaleString()}`
   }
   // cancellation_money
   const amount = typeof d.amount === 'number' ? d.amount : 0

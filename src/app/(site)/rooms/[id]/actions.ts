@@ -14,6 +14,7 @@ import {
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
 import { displayRoomName } from '@/lib/roomTypeContent'
 import { stayTotal } from '@/lib/pricing'
+import { getPromotions } from '@/lib/promotions'
 
 export async function checkAvailability(
   roomId: string,
@@ -150,8 +151,10 @@ const createdAt = new Date().toISOString()
 const isSameDayBooking = checkIn === todayInLagos()
 // Night-by-night, so any promo nights in the stay are priced at the
 // promo rate and the rest at the normal rate — see src/lib/pricing.ts.
-// The same function drives the total BookingForm.tsx showed the guest.
-const totalAmount = bookedRoom ? stayTotal(bookedRoom, checkIn, checkOut) : 0
+// The same function (and the same promotions table) drives the total
+// BookingForm.tsx showed the guest.
+const promos = await getPromotions()
+const totalAmount = bookedRoom ? stayTotal(bookedRoom, checkIn, checkOut, promos) : 0
 
 const { error } = await supabase.from('Bookings').insert({
   id: bookingId,
