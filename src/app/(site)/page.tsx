@@ -13,6 +13,8 @@ import PageHero from './PageHero'
 import OurRooms, { type RoomCardData } from './OurRooms'
 import AroundTheResidence from './AroundTheResidence'
 import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER } from '@/lib/roomTypeContent'
+import { promoOnDate } from '@/lib/pricing'
+import { todayInLagos } from '@/lib/dateUtils'
 
 // Without this, Next.js finds no dynamic API in use here and statically
 // prerenders the page once at build time — including the gallery folder
@@ -34,8 +36,9 @@ export const metadata: Metadata = {
 export default async function Home() {
   const { data: roomRows } = await supabase
     .from('Rooms')
-    .select('id, room_number, price_per_night')
+    .select('id, room_number, name, price_per_night')
 
+  const today = todayInLagos()
   const roomsByNumber = new Map((roomRows ?? []).map((r) => [r.room_number as string, r]))
 
   // The 4 real, guest-facing room types — exactly these 4, no more. No
@@ -55,8 +58,17 @@ export default async function Home() {
       label: content.label,
       description: content.longDescription,
       amenities: content.amenities,
-      // Real nightly rate from Supabase — never invented.
-      priceFromLabel: `From ₦${(room.price_per_night as number).toLocaleString()} / night`,
+      // Real nightly rate from Supabase — never invented — or tonight's
+      // promo rate while a promo runs (src/lib/pricing.ts).
+      priceFromLabel: (() => {
+        const promo = promoOnDate(
+          { name: room.name as string, price_per_night: room.price_per_night as number },
+          today
+        )
+        return promo
+          ? `From ₦${promo.promoRate.toLocaleString()} / night (was ₦${promo.normalRate.toLocaleString()})`
+          : `From ₦${(room.price_per_night as number).toLocaleString()} / night`
+      })(),
       coverImage: getRoomCoverImage(content.representativeRoomNumber),
     }
   })

@@ -7,19 +7,34 @@ import { checkAvailability, createBooking } from './actions'
 import DateRangePicker from '@/components/DateRangePicker'
 import ConfirmModal from '@/components/ConfirmModal'
 import type { Room } from '@/lib/types'
+import {
+  stayTotal,
+  promoNightCount,
+  STANDARD_CHECK_IN_TIME,
+  STANDARD_CHECK_OUT_TIME,
+  LATE_CHECK_OUT_LATEST_TIME,
+  EARLY_LATE_FEE,
+} from '@/lib/pricing'
 import { formatLagosTime, todayInLagos, type BlockedRange } from '@/lib/dateUtils'
 import Link from 'next/link'
 import { HOTEL_PHONE_DISPLAY, CANCELLATION_FEE_FRACTION, CANCELLATION_POLICY_VERSION } from '@/lib/siteConfig'
 import { CANCELLATION_POLICY_BULLETS, CARD_HOLD_CONSENT_TEXT } from '@/lib/cancellationPolicy'
 
 // The compact "Before you book" summary (point 2 of the policy-step
-// redesign) — 5 short rows, no icons, kept in sync with
+// redesign) — short rows, no icons, kept in sync with
 // cancellationPolicy.ts's actual rule (the fee % is interpolated, not
 // hardcoded) rather than restating the full CANCELLATION_POLICY_BULLETS
 // text, which is still shown verbatim in the "View full policy" expansion
 // below.
 const POLICY_SUMMARY_ROWS = [
-  { label: 'Check-in / check-out', detail: 'check-in from 2:00 PM, check-out by 12:00 PM' },
+  {
+    label: 'Check-in / check-out',
+    detail: `check-in from ${STANDARD_CHECK_IN_TIME}, check-out by ${STANDARD_CHECK_OUT_TIME}`,
+  },
+  {
+    label: 'Early check-in / late check-out',
+    detail: `On request: early check-in any time before ${STANDARD_CHECK_IN_TIME}, late check-out until ${LATE_CHECK_OUT_LATEST_TIME} — ₦${EARLY_LATE_FEE.toLocaleString('en-NG')} each, subject to availability`,
+  },
   { label: 'Payment', detail: 'Pay the hotel directly on arrival (transfer or card)' },
   { label: 'Cancellation', detail: 'Free up to 24 hours before check-in' },
   {
@@ -149,7 +164,10 @@ export default function BookingForm({
   const isSameDayBooking = checkIn === todayInLagos()
 
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0
-  const totalPrice = nights * room.price_per_night
+  // Same night-by-night pricing createBooking stores (src/lib/pricing.ts)
+  // — promo nights at the promo rate, the rest at the normal rate.
+  const totalPrice = checkIn && checkOut ? stayTotal(room, checkIn, checkOut) : 0
+  const promoNights = checkIn && checkOut ? promoNightCount(room, checkIn, checkOut) : 0
 
   // The success card is far shorter than the booking form, so swapping
   // between them instantly produced a visible layout jerk. Instead, fade
@@ -382,6 +400,11 @@ export default function BookingForm({
                 <p className="text-sm text-charcoal">
                   Total for {nights} night{nights === 1 ? '' : 's'}:{' '}
                   <span className="font-medium">₦{totalPrice.toLocaleString()}</span>
+                  {promoNights > 0 && (
+                    <span className="mt-1 block text-xs text-charcoal/60">
+                      Includes {promoNights === nights ? 'promo pricing' : `${promoNights} night${promoNights === 1 ? '' : 's'} at the promo rate`}.
+                    </span>
+                  )}
                 </p>
               ) : (
                 <p className="text-sm text-charcoal/50">

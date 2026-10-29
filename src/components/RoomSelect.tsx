@@ -3,11 +3,16 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Room } from '@/lib/types'
 import { displayRoomName } from '@/lib/roomTypeContent'
+import { nightlyRate } from '@/lib/pricing'
 
 type RoomOption = Room & { available: boolean }
 
-function roomLabel(room: RoomOption): string {
-  return `${room.room_number} — ${displayRoomName(room.name)} (₦${room.price_per_night.toLocaleString()}/night)`
+// The rate shown is the one for the first night of the stay (rateDate),
+// so a promo rate shows during a promo — falls back to the normal rate
+// when no date is known yet.
+function roomLabel(room: RoomOption, rateDate: string | null): string {
+  const rate = rateDate ? nightlyRate(room, rateDate) : room.price_per_night
+  return `${room.room_number} — ${displayRoomName(room.name)} (₦${rate.toLocaleString()}/night)`
 }
 
 export default function RoomSelect({
@@ -16,12 +21,14 @@ export default function RoomSelect({
   onChange,
   disabled = false,
   placeholder = 'Select a room',
+  rateDate = null,
 }: {
   rooms: RoomOption[]
   value: string
   onChange: (roomId: string) => void
   disabled?: boolean
   placeholder?: string
+  rateDate?: string | null
 }) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -60,7 +67,7 @@ export default function RoomSelect({
         className="flex w-full items-center justify-between rounded-sm border border-charcoal/20 px-4 py-3 text-left text-sm focus:border-espresso focus:outline-none disabled:opacity-50"
       >
         <span className={selectedRoom ? 'text-charcoal' : 'text-charcoal/40'}>
-          {selectedRoom ? roomLabel(selectedRoom) : placeholder}
+          {selectedRoom ? roomLabel(selectedRoom, rateDate) : placeholder}
         </span>
         <svg
           width="16"
@@ -98,7 +105,7 @@ export default function RoomSelect({
                       : 'text-charcoal hover:bg-espresso/5'
                 }`}
               >
-                <span>{roomLabel(room)}</span>
+                <span>{roomLabel(room, rateDate)}</span>
                 {!room.available && (
                   <span className="text-xs text-clay/70">Unavailable for these dates</span>
                 )}

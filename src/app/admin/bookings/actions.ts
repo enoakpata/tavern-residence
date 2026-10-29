@@ -18,6 +18,7 @@ import {
 import type { Room, BookingPayment, BookingPaymentMethod } from '@/lib/types'
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
 import { displayRoomName, getRoomTypeContentByDbName } from '@/lib/roomTypeContent'
+import { stayTotal, earlyLateFee, extraFeesTotal } from '@/lib/pricing'
 
 type ActionResult = { success: true } | { success: false; error: string }
 
@@ -69,7 +70,7 @@ async function recalculateBookingTotals(
 
   const { data: booking, error: bookingError } = await supabase
     .from('Bookings')
-    .select('total_amount, check_in, check_out, Rooms(price_per_night)')
+    .select('total_amount, check_in, check_out, Rooms(name, price_per_night)')
     .eq('id', bookingId)
     .single()
 
@@ -133,6 +134,12 @@ const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
 const BOOKING_DETAIL_COLUMNS =
   'id, room_id, guest_name, guest_phone, guest_email, check_in, check_out, status, source, payment_status, charge_type, amount_charged, created_by, created_at, reminder_sent, special_requests, total_amount, amount_paid, payment_token, card_authorization_code, card_reusable, Rooms(room_number, name, room_type, price_per_night)'
 
+// Columns added by migrations that may not have been run yet — requested
+// together, and dropped together on a missing-column error (see
+// fetchBookingDetailRow). early_checkin_fee/late_checkout_fee come from
+// supabase/migrations/20261028_promo_pricing_and_early_late_fees.sql.
+const OPTIONAL_DETAIL_COLUMNS = 'cancelled_at, early_checkin_fee, late_checkout_fee'
+
 // PostgREST surfaces an unknown column differently depending on where it
 // appears in the request: a SELECT referencing one gets the raw Postgres
 // error (42703, "column does not exist"), while an INSERT/UPDATE payload
@@ -146,6 +153,37 @@ function isMissingColumnError(error: { code?: string } | null | undefined): bool
   return Boolean(error?.code && MISSING_COLUMN_ERROR_CODES.has(error.code))
 }
 
+/**
+ * A booking's early check-in / late check-out fees (null = not added).
+ * Fetched on their own, rather than added to every select string that
+ * recomputes a total, so that on a database where
+ * supabase/migrations/20261028_promo_pricing_and_early_late_fees.sql
+ * hasn't been run yet those recomputations (edit dates, change room,
+ * early checkout) keep working — they just see no fees — instead of
+ * failing outright on the unknown column, the same posture as
+ * cancelled_at above.
+ */
+async function fetchExtraFees(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  bookingId: string
+): Promise<{ early_checkin_fee: number | null; late_checkout_fee: number | null }> {
+  const { data, error } = await supabase
+    .from('Bookings')
+    .select('early_checkin_fee, late_checkout_fee')
+    .eq('id', bookingId)
+    .single()
+  if (error || !data) {
+    if (error && !isMissingColumnError(error)) {
+      console.error('fetchExtraFees failed:', error)
+    }
+    return { early_checkin_fee: null, late_checkout_fee: null }
+  }
+  return {
+    early_checkin_fee: data.early_checkin_fee != null ? Number(data.early_checkin_fee) : null,
+    late_checkout_fee: data.late_checkout_fee != null ? Number(data.late_checkout_fee) : null,
+  }
+}
+
 export type GetBookingDetailResult =
   | { status: 'ok'; booking: NonNullable<Awaited<ReturnType<typeof fetchBookingDetailRow>>> }
   | { status: 'not_found' }
@@ -156,7 +194,7 @@ async function fetchBookingDetailRow(bookingId: string) {
 
   let { data, error } = await supabase
     .from('Bookings')
-    .select(`${BOOKING_DETAIL_COLUMNS}, cancelled_at`)
+    .select(`${BOOKING_DETAIL_COLUMNS}, ${OPTIONAL_DETAIL_COLUMNS}`)
     .eq('id', bookingId)
     .single()
 
@@ -166,7 +204,9 @@ async function fetchBookingDetailRow(bookingId: string) {
       .select(BOOKING_DETAIL_COLUMNS)
       .eq('id', bookingId)
       .single()
-    data = retry.data ? { ...retry.data, cancelled_at: null } : null
+    data = retry.data
+      ? { ...retry.data, cancelled_at: null, early_checkin_fee: null, late_checkout_fee: null }
+      : null
     error = retry.error
   }
 
@@ -243,6 +283,8 @@ export async function createManualBooking(formData: FormData): Promise<CreateMan
   const paymentMethod = ((formData.get('payment_method') as string) || 'transfer') as BookingPaymentMethod
   const paymentDate = (formData.get('payment_date') as string) || todayInLagos()
   const allowOverpayment = formData.get('allow_overpayment') === 'true'
+  const wantsEarlyCheckin = formData.get('early_checkin') === 'true'
+  const wantsLateCheckout = formData.get('late_checkout') === 'true'
 
   if (!roomId || !guestName || !guestPhone || !checkIn || !checkOut || !source) {
     return { success: false, error: 'Please fill in all required fields.' }
@@ -264,10 +306,16 @@ export async function createManualBooking(formData: FormData): Promise<CreateMan
 
   const { data: room } = await supabase
     .from('Rooms')
-    .select('price_per_night')
+    .select('name, price_per_night')
     .eq('id', roomId)
     .single()
-  const totalAmount = (room?.price_per_night ?? 0) * nightsBetween(checkIn, checkOut)
+  // Early check-in / late check-out fees are fixed at the moment they're
+  // added — a flat EARLY_LATE_FEE each (see pricing.ts).
+  const earlyCheckinFee = wantsEarlyCheckin ? earlyLateFee(room) : null
+  const lateCheckoutFee = wantsLateCheckout ? earlyLateFee(room) : null
+  const totalAmount =
+    (room ? stayTotal(room, checkIn, checkOut) : 0) +
+    extraFeesTotal({ early_checkin_fee: earlyCheckinFee, late_checkout_fee: lateCheckoutFee })
 
   if (amountPaid > totalAmount && !allowOverpayment) {
     return {
@@ -298,6 +346,10 @@ export async function createManualBooking(formData: FormData): Promise<CreateMan
     total_amount: totalAmount,
     amount_paid: amountPaid,
     created_by: user?.email ?? null,
+    // Only sent when actually used, so a manual booking without either
+    // still works on a database that hasn't had the fee-columns migration.
+    ...(earlyCheckinFee != null ? { early_checkin_fee: earlyCheckinFee } : {}),
+    ...(lateCheckoutFee != null ? { late_checkout_fee: lateCheckoutFee } : {}),
   })
 
   if (error) {
@@ -426,7 +478,7 @@ export async function recordPayment(
 
   const { data: booking, error: fetchError } = await supabase
     .from('Bookings')
-    .select('status, total_amount, amount_paid, check_in, check_out, Rooms(price_per_night)')
+    .select('status, total_amount, amount_paid, check_in, check_out, Rooms(name, price_per_night)')
     .eq('id', bookingId)
     .single()
 
@@ -736,7 +788,7 @@ export async function editBookingDates(
   const supabase = await createClient()
   const { data: booking, error: fetchError } = await supabase
     .from('Bookings')
-    .select('room_id, check_in, check_out, status, Rooms (price_per_night)')
+    .select('room_id, check_in, check_out, status, Rooms (name, price_per_night)')
     .eq('id', bookingId)
     .single()
 
@@ -771,7 +823,12 @@ export async function editBookingDates(
   }
 
   const room = Array.isArray(booking.Rooms) ? booking.Rooms[0] : booking.Rooms
-  const newTotal = (room?.price_per_night ?? 0) * nightsBetween(newCheckIn, newCheckOut)
+  // Night-by-night (promo nights at the promo rate), plus any early
+  // check-in / late check-out fees already on the booking — those are a
+  // fixed amount and don't change with the dates.
+  const extraFees = await fetchExtraFees(supabase, bookingId)
+  const newTotal =
+    (room ? stayTotal(room, newCheckIn, newCheckOut) : 0) + extraFeesTotal(extraFees)
 
   const { error } = await supabase
     .from('Bookings')
@@ -1139,6 +1196,11 @@ export type RoomChangeOption = {
   roomNumber: string
   typeName: string
   pricePerNight: number
+  // What this booking's total would become in this room — its own dates,
+  // priced night by night (promo nights included), plus any early
+  // check-in / late check-out fees already on the booking. Computed here
+  // so the dialog's preview is exactly what changeBookingRoom will store.
+  totalForBooking: number
   isCurrent: boolean
   isFree: boolean
 }
@@ -1175,12 +1237,20 @@ export async function getRoomOptionsForChange(bookingId: string): Promise<GetRoo
     return { success: false, error: roomsError.message }
   }
 
+  const extraFees = extraFeesTotal(await fetchExtraFees(supabase, bookingId))
+
   const options = await Promise.all(
     (rooms ?? []).map(async (room) => ({
       id: room.id as string,
       roomNumber: room.room_number as string,
       typeName: displayRoomName(room.name as string),
       pricePerNight: room.price_per_night as number,
+      totalForBooking:
+        stayTotal(
+          { name: room.name as string, price_per_night: room.price_per_night as number },
+          booking.check_in,
+          booking.check_out
+        ) + extraFees,
       isCurrent: room.id === booking.room_id,
       isFree:
         room.id === booking.room_id ||
@@ -1242,8 +1312,10 @@ export async function changeBookingRoom(
     return { success: false, error: 'Room not found.' }
   }
 
-  const nights = nightsBetween(booking.check_in, booking.check_out)
-  const newTotal = toRoom.price_per_night * nights
+  // Early check-in / late check-out fees carry over unchanged — they
+  // were fixed at the rate of the room they were added on.
+  const extraFees = await fetchExtraFees(supabase, bookingId)
+  const newTotal = stayTotal(toRoom, booking.check_in, booking.check_out) + extraFeesTotal(extraFees)
 
   const { error: updateError } = await supabase
     .from('Bookings')
@@ -1322,7 +1394,7 @@ export async function earlyCheckout(
 
   const { data: booking, error: fetchError } = await supabase
     .from('Bookings')
-    .select('check_in, check_out, status, amount_paid, guest_email, guest_phone, Rooms(price_per_night)')
+    .select('check_in, check_out, status, amount_paid, guest_email, guest_phone, Rooms(name, price_per_night)')
     .eq('id', bookingId)
     .single()
 
@@ -1338,7 +1410,11 @@ export async function earlyCheckout(
 
   const room = Array.isArray(booking.Rooms) ? booking.Rooms[0] : booking.Rooms
   const nightsStayed = nightsBetween(booking.check_in, newCheckOutDate)
-  const newTotal = nightsStayed * (room?.price_per_night ?? 0)
+  // Any early check-in / late check-out fee stays on the booking (staff
+  // can remove one from the booking actions if it no longer applies).
+  const extraFees = await fetchExtraFees(supabase, bookingId)
+  const newTotal =
+    (room ? stayTotal(room, booking.check_in, newCheckOutDate) : 0) + extraFeesTotal(extraFees)
   const amountPaid = Number(booking.amount_paid ?? 0)
   const overpaid = Math.max(0, amountPaid - newTotal)
 
@@ -1394,6 +1470,130 @@ export async function earlyCheckout(
   revalidatePath('/admin/check-in/check-out')
   revalidatePath('/admin/calendar')
   return { success: true, overpaid }
+}
+
+// =====================================================================
+// SECTION 8: early check-in / late check-out — an optional extra on a
+// booking, charged at a flat EARLY_LATE_FEE (₦50,000) each, regardless of
+// room type or promo (see pricing.ts). Early check-in is any time
+// before the standard 2:00 PM; late check-out is up to 4:00 PM.
+// =====================================================================
+
+export type EarlyLateKind = 'early_checkin' | 'late_checkout'
+
+const EARLY_LATE_COLUMN: Record<EarlyLateKind, 'early_checkin_fee' | 'late_checkout_fee'> = {
+  early_checkin: 'early_checkin_fee',
+  late_checkout: 'late_checkout_fee',
+}
+
+const EARLY_LATE_EDITABLE_STATUSES = ['pending', 'confirmed', 'checked_in']
+
+export type SetEarlyLateResult =
+  | { success: true; fee: number; newTotal: number }
+  | { success: false; error: string }
+
+/**
+ * Adds (enabled = true) or removes (enabled = false) an early check-in or
+ * late check-out on a booking. The fee is fixed when added (the flat
+ * EARLY_LATE_FEE) and stored in its own column so
+ * later recalculations (edit dates, change room, early checkout) carry it
+ * over unchanged. The total is adjusted by exactly the fee added or
+ * removed, never re-priced from scratch, so nothing else about an
+ * existing total changes as a side effect. Payment status is then
+ * re-derived from the ledger as usual (adding a fee to a paid booking
+ * makes it "partial" until the extra is collected).
+ */
+export async function setEarlyLateOption(
+  bookingId: string,
+  kind: EarlyLateKind,
+  enabled: boolean
+): Promise<SetEarlyLateResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { data: booking, error: fetchError } = await supabase
+    .from('Bookings')
+    .select('status, total_amount, check_in, check_out, Rooms(name, price_per_night)')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchError || !booking) {
+    return { success: false, error: 'Booking not found.' }
+  }
+  if (isBookingLocked(booking)) {
+    return { success: false, error: LOCKED_ERROR }
+  }
+  if (!EARLY_LATE_EDITABLE_STATUSES.includes(booking.status)) {
+    return { success: false, error: 'Only an upcoming or checked-in booking can be changed.' }
+  }
+  // Early check-in can still be ADDED once the guest is checked in — staff
+  // often only record an early arrival after the fact.
+
+  // Read directly (not via fetchExtraFees) — this action can't work at
+  // all without the columns, so a missing-column error should surface as
+  // a clear message rather than be treated as "no fees".
+  const { data: feeRow, error: feeError } = await supabase
+    .from('Bookings')
+    .select('early_checkin_fee, late_checkout_fee')
+    .eq('id', bookingId)
+    .single()
+  if (feeError) {
+    if (isMissingColumnError(feeError)) {
+      return {
+        success: false,
+        error:
+          'Early check-in / late check-out isn\'t set up in the database yet. Run the 20261028 migration in Supabase first.',
+      }
+    }
+    return { success: false, error: feeError.message }
+  }
+
+  const column = EARLY_LATE_COLUMN[kind]
+  const existingFee = feeRow[column] != null ? Number(feeRow[column]) : null
+  if (enabled && existingFee != null) {
+    return { success: false, error: 'This is already on the booking.' }
+  }
+  if (!enabled && existingFee == null) {
+    return { success: false, error: 'This isn\'t on the booking.' }
+  }
+
+  const room = Array.isArray(booking.Rooms) ? booking.Rooms[0] : booking.Rooms
+  const fee = enabled ? earlyLateFee(room) : (existingFee as number)
+  const currentTotal = resolveTotalAmount(
+    { ...booking, early_checkin_fee: feeRow.early_checkin_fee, late_checkout_fee: feeRow.late_checkout_fee },
+    room
+  )
+  const newTotal = enabled ? currentTotal + fee : Math.max(0, currentTotal - fee)
+
+  const { error: updateError } = await supabase
+    .from('Bookings')
+    .update({ [column]: enabled ? fee : null, total_amount: newTotal })
+    .eq('id', bookingId)
+  if (updateError) {
+    return { success: false, error: updateError.message }
+  }
+
+  const totalsResult = await recalculateBookingTotals(supabase, bookingId)
+  if (!totalsResult.success) return totalsResult
+
+  await supabase.from('booking_audit_log').insert({
+    booking_id: bookingId,
+    event_type: kind,
+    reason: null,
+    details: {
+      action: enabled ? 'added' : 'removed',
+      fee,
+      old_total: currentTotal,
+      new_total: newTotal,
+    },
+    performed_by: user?.email ?? null,
+  })
+
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
+  return { success: true, fee, newTotal }
 }
 
 // =====================================================================
@@ -1490,7 +1690,7 @@ export async function applyGuestCredit(
 
 export type BookingAuditEntry = {
   id: string
-  eventType: 'room_change' | 'early_checkout' | 'cancellation_money'
+  eventType: 'room_change' | 'early_checkout' | 'cancellation_money' | 'early_checkin' | 'late_checkout'
   reason: string | null
   details: Record<string, unknown>
   performedBy: string | null
