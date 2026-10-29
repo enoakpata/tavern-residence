@@ -1528,9 +1528,8 @@ export async function setEarlyLateOption(
   if (!EARLY_LATE_EDITABLE_STATUSES.includes(booking.status)) {
     return { success: false, error: 'Only an upcoming or checked-in booking can be changed.' }
   }
-  if (kind === 'early_checkin' && enabled && booking.status === 'checked_in') {
-    return { success: false, error: 'This guest has already checked in.' }
-  }
+  // Early check-in can still be ADDED once the guest is checked in — staff
+  // often only record an early arrival after the fact.
 
   // Read directly (not via fetchExtraFees) — this action can't work at
   // all without the columns, so a missing-column error should surface as

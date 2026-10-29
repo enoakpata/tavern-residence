@@ -198,11 +198,11 @@ export default function BookingActions({
   // checked_in has already ended one way or another.
   const canEarlyCheckout = status === 'checked_in'
   const hasAmountPaid = amountPaid > 0
-  // Early check-in only makes sense before the guest has arrived; late
-  // check-out can be added any time up to check-out. Either can be
-  // removed while the booking is still active.
+  // Either can be added or removed while the booking is still active —
+  // including early check-in for a guest who's already checked in, since
+  // staff often record an early arrival after the fact.
   const earlyLateActive = ['pending', 'confirmed', 'checked_in'].includes(status)
-  const canAddEarlyCheckin = earlyLateActive && status !== 'checked_in' && earlyCheckinFee == null
+  const canAddEarlyCheckin = earlyLateActive && earlyCheckinFee == null
   const canRemoveEarlyCheckin = earlyLateActive && earlyCheckinFee != null
   const canAddLateCheckout = earlyLateActive && lateCheckoutFee == null
   const canRemoveLateCheckout = earlyLateActive && lateCheckoutFee != null
