@@ -10,6 +10,7 @@ import type { Room } from '@/lib/types'
 import {
   stayTotal,
   promoNightCount,
+  type Promotion,
   STANDARD_CHECK_IN_TIME,
   STANDARD_CHECK_OUT_TIME,
   LATE_CHECK_OUT_LATEST_TIME,
@@ -82,6 +83,7 @@ type Step = 'form' | 'verifying' | 'success' | 'error'
 
 export default function BookingForm({
   room,
+  promos,
   blockedRanges,
   initialCheckIn = null,
   initialCheckOut = null,
@@ -89,6 +91,8 @@ export default function BookingForm({
   childrenCount = null,
 }: {
   room: Room
+  // Active promotions (src/lib/promotions.ts) — priced into the total.
+  promos: Promotion[]
   blockedRanges: BlockedRange[]
   initialCheckIn?: string | null
   initialCheckOut?: string | null
@@ -166,8 +170,8 @@ export default function BookingForm({
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0
   // Same night-by-night pricing createBooking stores (src/lib/pricing.ts)
   // — promo nights at the promo rate, the rest at the normal rate.
-  const totalPrice = checkIn && checkOut ? stayTotal(room, checkIn, checkOut) : 0
-  const promoNights = checkIn && checkOut ? promoNightCount(room, checkIn, checkOut) : 0
+  const totalPrice = checkIn && checkOut ? stayTotal(room, checkIn, checkOut, promos) : 0
+  const promoNights = checkIn && checkOut ? promoNightCount(room, checkIn, checkOut, promos) : 0
 
   // The success card is far shorter than the booking form, so swapping
   // between them instantly produced a visible layout jerk. Instead, fade

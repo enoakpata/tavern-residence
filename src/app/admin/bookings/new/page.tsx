@@ -1,6 +1,11 @@
 import NewBookingForm from './NewBookingForm'
+import { createClient } from '@/lib/supabase/server'
+import { getPromotions } from '@/lib/promotions'
 
-export default function NewBookingPage() {
+export default async function NewBookingPage() {
+  // Priced into the form's live total — the same promos createManualBooking uses.
+  const promos = await getPromotions(await createClient())
+
   return (
     <main className="mx-auto max-w-3xl px-6 pt-6 pb-12 md:px-12">
       <p className="text-xs tracking-widest text-brass uppercase">
@@ -14,7 +19,7 @@ export default function NewBookingPage() {
       </p>
 
       <div className="mt-8">
-        <NewBookingForm />
+        <NewBookingForm promos={promos} />
       </div>
     </main>
   )

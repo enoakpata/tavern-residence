@@ -6,7 +6,14 @@
 // is what guarantees the admin UI and the server actions it calls can
 // never disagree about whether a booking is paid or locked.
 
-import { stayTotal, extraFeesTotal, type ExtraFees, type PricedRoom } from './pricing'
+import {
+  stayTotal,
+  bookingTotal,
+  type ExtraFees,
+  type DiscountFields,
+  type PricedRoom,
+  type Promotion,
+} from './pricing'
 
 /**
  * The one status value that makes a booking fully read-only everywhere
@@ -31,17 +38,22 @@ export function isBookingLocked(booking: { status: string }): boolean {
  * fallback-resolved total, while the server computed payment_status from
  * the raw, sometimes-null column instead).
  *
- * total_amount itself always already INCLUDES the extra fees — every
- * write path stores stayTotal + extraFeesTotal (see pricing.ts), so
- * nothing is added on top of a stored value here.
+ * total_amount itself always already INCLUDES the extra fees and any
+ * discount — every write path stores bookingTotal(...).total (see
+ * pricing.ts), so nothing is added or taken off a stored value here.
+ *
+ * The fallback (legacy rows only) prices at normal rates unless promos
+ * are passed — every booking made since total_amount existed has it set.
  */
 export function resolveTotalAmount(
-  booking: { total_amount: number | null; check_in: string; check_out: string } & ExtraFees,
-  room: PricedRoom | null | undefined
+  booking: { total_amount: number | null; check_in: string; check_out: string } & ExtraFees &
+    DiscountFields,
+  room: PricedRoom | null | undefined,
+  promos: Promotion[] = []
 ): number {
   if (booking.total_amount != null) return Number(booking.total_amount)
-  const roomTotal = room ? stayTotal(room, booking.check_in, booking.check_out) : 0
-  return roomTotal + extraFeesTotal(booking)
+  const roomTotal = room ? stayTotal(room, booking.check_in, booking.check_out, promos) : 0
+  return bookingTotal(roomTotal, booking).total
 }
 
 export type PaymentStatus = 'unpaid' | 'partial' | 'paid'
