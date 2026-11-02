@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     .from('Bookings')
     .update({ status: 'checked_out' })
     .eq('status', 'checked_in')
-    .lte('check_out', today)
+    .lt('check_out', today)
     .select('id')
 
   if (error) {
