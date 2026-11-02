@@ -10,6 +10,7 @@ import { todayInLagos } from '@/lib/dateUtils'
 import { ACTIVE_BOOKING_STATUSES } from '@/lib/bookings'
 import { displayRoomCategory, displayRoomName } from '@/lib/roomTypeContent'
 import BookingForm from './BookingForm'
+import { getPromotions } from '@/lib/promotions'
 import RoomGallery from '@/components/RoomGallery'
 
 const META_DESCRIPTION_LENGTH = 155
@@ -161,6 +162,10 @@ export default async function RoomDetailPage({
     .eq('room_id', id)
     .in('status', ACTIVE_BOOKING_STATUSES)
 
+  // Promos priced into the form's live total — the same list
+  // createBooking prices from, so the guest is charged what they saw.
+  const promos = await getPromotions()
+
   const blockedRanges = (bookings ?? []).map((b) => ({
     checkIn: b.check_in as string,
     checkOut: b.check_out as string,
@@ -236,6 +241,7 @@ export default async function RoomDetailPage({
             ) : (
               <BookingForm
                 room={r}
+                promos={promos}
                 blockedRanges={blockedRanges}
                 initialCheckIn={initialCheckIn}
                 initialCheckOut={initialCheckOut}

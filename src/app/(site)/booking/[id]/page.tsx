@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { getChargeableAuthCode } from '@/lib/bookings'
+import { resolveTotalAmount } from '@/lib/bookingStatus'
 import { CANCELLATION_POLICY_BULLETS } from '@/lib/cancellationPolicy'
 import { HOTEL_NAME } from '@/lib/siteConfig'
 import { STATUS_LABELS } from '@/lib/statusStyles'
@@ -25,11 +26,6 @@ function formatDate(iso: string): string {
     day: 'numeric',
     year: 'numeric',
   })
-}
-
-function nightsBetween(checkIn: string, checkOut: string): number {
-  const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
-  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
 }
 
 export default async function ManageBookingPage({
@@ -76,10 +72,9 @@ export default async function ManageBookingPage({
 
   const room = booking.Rooms
   // Prefer the stored total_amount (authoritative for any booking made
-  // after the card-hold migration) — fall back to nights × current
-  // price_per_night only for older bookings that predate that column.
-  const totalAmount =
-    booking.total_amount ?? (room ? room.price_per_night * nightsBetween(booking.check_in, booking.check_out) : 0)
+  // after the card-hold migration) — the same shared resolution the
+  // admin dashboard uses, so guest and staff never see different totals.
+  const totalAmount = resolveTotalAmount(booking, room)
   const canCancel = !NON_CANCELLABLE_STATUSES.includes(booking.status)
 
   return (

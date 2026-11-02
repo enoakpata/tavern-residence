@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: '/admin/bookings', label: 'Bookings' },
   { href: '/admin/bookings/new', label: 'New booking' },
   { href: '/admin/calendar', label: 'Calendar' },
+  { href: '/admin/promotions', label: 'Promotions' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

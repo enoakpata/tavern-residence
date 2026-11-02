@@ -44,6 +44,8 @@
 .room-row-description { margin-top: 16px; font-size: 15px; line-height: 1.75; color: var(--stone); max-width: 480px; }
 .room-row-price { margin-top: 20px; font-family: var(--font-primary), Georgia, serif; font-size: 26px; color: var(--charcoal); }
 .room-row-price > span { font-family: inherit; font-size: 13px; color: var(--stone); }
+.room-row-price-was { margin-left: 10px; font-size: 16px; color: var(--stone); }
+.room-row-promo { margin-top: 4px; font-size: 12px; letter-spacing: 0.04em; color: var(--espresso); }
 .room-row-facts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 16px; font-size: 13px; color: var(--charcoal); }
 .room-row-facts li { position: relative; padding-left: 14px; }
 .room-row-facts li::before { content: ''; position: absolute; left: 0; top: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); }

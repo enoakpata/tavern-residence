@@ -18,6 +18,16 @@ import {
 import type { Room, BookingPayment, BookingPaymentMethod } from '@/lib/types'
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
 import { displayRoomName, getRoomTypeContentByDbName } from '@/lib/roomTypeContent'
+import { stayTotal, earlyLateFee, bookingTotal, discountFor } from '@/lib/pricing'
+import { getPromotions } from '@/lib/promotions'
+import {
+  recalculateBookingTotals,
+  isMissingColumnError,
+  fetchAdjustments,
+  priceWithAdjustments,
+  num,
+} from '@/lib/bookingTotals'
+import type { Promotion } from '@/lib/pricing'
 
 type ActionResult = { success: true } | { success: false; error: string }
 
@@ -38,59 +48,6 @@ const RECORDABLE_METHODS: BookingPaymentMethod[] = ['pos', 'transfer']
 function nightsBetween(checkIn: string, checkOut: string): number {
   const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
   return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
-}
-
-/**
- * Recomputes amount_paid and payment_status from the actual ledger
- * (booking_payments) rather than incrementing a counter by hand — the
- * ledger is the single source of truth, so every write path (record,
- * void, saved-card charge) calls this afterward instead of separately
- * tracking a running total that could drift out of sync. Resolves the
- * total via resolveTotalAmount (total_amount, falling back to nights ×
- * price_per_night) — the SAME resolution the Payments section displays —
- * rather than the raw, sometimes-null total_amount column alone, which
- * was the root cause of a booking showing "Paid in full" while still
- * badged "Partial" (no ceiling to compare against).
- */
-async function recalculateBookingTotals(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  bookingId: string
-): Promise<ActionResult> {
-  const { data: payments, error: paymentsError } = await supabase
-    .from('booking_payments')
-    .select('amount, status')
-    .eq('booking_id', bookingId)
-
-  if (paymentsError) return { success: false, error: paymentsError.message }
-
-  const amountPaid = (payments ?? [])
-    .filter((p) => p.status === 'success')
-    .reduce((sum, p) => sum + Number(p.amount), 0)
-
-  const { data: booking, error: bookingError } = await supabase
-    .from('Bookings')
-    .select('total_amount, check_in, check_out, Rooms(price_per_night)')
-    .eq('id', bookingId)
-    .single()
-
-  if (bookingError || !booking) {
-    return { success: false, error: bookingError?.message ?? 'Booking not found.' }
-  }
-
-  // Bookings -> Rooms is many-to-one; PostgREST returns a single embedded
-  // object at runtime, but without generated schema types supabase-js
-  // sometimes infers it as an array depending on the select shape.
-  const room = Array.isArray(booking.Rooms) ? booking.Rooms[0] : booking.Rooms
-  const totalAmount = resolveTotalAmount(booking, room)
-  const paymentStatus = computePaymentStatus(amountPaid, totalAmount)
-
-  const { error } = await supabase
-    .from('Bookings')
-    .update({ amount_paid: amountPaid, payment_status: paymentStatus })
-    .eq('id', bookingId)
-
-  if (error) return { success: false, error: error.message }
-  return { success: true }
 }
 
 const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
@@ -133,42 +90,54 @@ const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
 const BOOKING_DETAIL_COLUMNS =
   'id, room_id, guest_name, guest_phone, guest_email, check_in, check_out, status, source, payment_status, charge_type, amount_charged, created_by, created_at, reminder_sent, special_requests, total_amount, amount_paid, payment_token, card_authorization_code, card_reusable, Rooms(room_number, name, room_type, price_per_night)'
 
-// PostgREST surfaces an unknown column differently depending on where it
-// appears in the request: a SELECT referencing one gets the raw Postgres
-// error (42703, "column does not exist"), while an INSERT/UPDATE payload
-// key gets PostgREST's OWN schema-cache check instead (PGRST204, "Could
-// not find the X column ... in the schema cache") — confirmed by testing
-// both against this exact database. Both mean the same thing here
-// (cancelled_at doesn't exist yet), so both are treated as retry-without
-// the column rather than a real failure.
-const MISSING_COLUMN_ERROR_CODES = new Set(['42703', 'PGRST204'])
-function isMissingColumnError(error: { code?: string } | null | undefined): boolean {
-  return Boolean(error?.code && MISSING_COLUMN_ERROR_CODES.has(error.code))
+// Columns added by migrations that may not have been run yet, grouped by
+// the migration that adds them. fetchBookingDetailRow requests them all
+// at once and, only if that hits a missing column, falls back to one
+// group at a time — so a database that's run some migrations but not
+// others still shows everything it does have.
+const OPTIONAL_DETAIL_COLUMN_GROUPS = [
+  ['cancelled_at'], // 20261015
+  ['early_checkin_fee', 'late_checkout_fee'], // 20261028
+  ['discount_amount', 'discount_percent', 'discount_reason'], // 20261030
+] as const
+
+type OptionalDetailColumns = {
+  cancelled_at: string | null
+  early_checkin_fee: number | null
+  late_checkout_fee: number | null
+  discount_amount: number | null
+  discount_percent: number | null
+  discount_reason: string | null
+}
+
+const EMPTY_OPTIONAL_DETAIL: OptionalDetailColumns = {
+  cancelled_at: null,
+  early_checkin_fee: null,
+  late_checkout_fee: null,
+  discount_amount: null,
+  discount_percent: null,
+  discount_reason: null,
 }
 
 export type GetBookingDetailResult =
-  | { status: 'ok'; booking: NonNullable<Awaited<ReturnType<typeof fetchBookingDetailRow>>> }
+  | {
+      status: 'ok'
+      booking: NonNullable<Awaited<ReturnType<typeof fetchBookingDetailRow>>>
+      // Active promotions, so the detail view's previews (edit dates,
+      // early checkout) price exactly as the server will.
+      promotions: Promotion[]
+    }
   | { status: 'not_found' }
   | { status: 'error' }
 
 async function fetchBookingDetailRow(bookingId: string) {
   const supabase = await createClient()
 
-  let { data, error } = await supabase
+  const { data: baseData, error } = await supabase
     .from('Bookings')
-    .select(`${BOOKING_DETAIL_COLUMNS}, cancelled_at`)
+    .select(BOOKING_DETAIL_COLUMNS)
     .eq('id', bookingId)
     .single()
-
-  if (isMissingColumnError(error)) {
-    const retry = await supabase
-      .from('Bookings')
-      .select(BOOKING_DETAIL_COLUMNS)
-      .eq('id', bookingId)
-      .single()
-    data = retry.data ? { ...retry.data, cancelled_at: null } : null
-    error = retry.error
-  }
 
   if (error) {
     console.error('getBookingDetail query failed:', {
@@ -180,7 +149,10 @@ async function fetchBookingDetailRow(bookingId: string) {
     })
     throw error
   }
-  if (!data) return null
+  if (!baseData) return null
+
+  const optional = await fetchOptionalDetailColumns(supabase, bookingId)
+  const data = { ...baseData, ...optional }
 
   const { payment_token, card_authorization_code, card_reusable, ...safe } = data
   return {
@@ -190,11 +162,43 @@ async function fetchBookingDetailRow(bookingId: string) {
   }
 }
 
+async function fetchOptionalDetailColumns(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  bookingId: string
+): Promise<OptionalDetailColumns> {
+  const all = OPTIONAL_DETAIL_COLUMN_GROUPS.flat().join(', ')
+  const first = await supabase.from('Bookings').select(all).eq('id', bookingId).single()
+  if (!first.error && first.data) {
+    return { ...EMPTY_OPTIONAL_DETAIL, ...normalizeOptional(first.data as unknown as Record<string, unknown>) }
+  }
+  if (!isMissingColumnError(first.error)) return EMPTY_OPTIONAL_DETAIL
+
+  let result = { ...EMPTY_OPTIONAL_DETAIL }
+  for (const group of OPTIONAL_DETAIL_COLUMN_GROUPS) {
+    const res = await supabase.from('Bookings').select(group.join(', ')).eq('id', bookingId).single()
+    if (!res.error && res.data) {
+      result = { ...result, ...normalizeOptional(res.data as unknown as Record<string, unknown>) }
+    }
+  }
+  return result
+}
+
+function normalizeOptional(row: Record<string, unknown>): Partial<OptionalDetailColumns> {
+  const out: Partial<OptionalDetailColumns> = {}
+  if ('cancelled_at' in row) out.cancelled_at = (row.cancelled_at as string | null) ?? null
+  for (const key of ['early_checkin_fee', 'late_checkout_fee', 'discount_amount', 'discount_percent'] as const) {
+    if (key in row) out[key] = num(row[key])
+  }
+  if ('discount_reason' in row) out.discount_reason = (row.discount_reason as string | null) ?? null
+  return out
+}
+
 export async function getBookingDetail(bookingId: string): Promise<GetBookingDetailResult> {
   try {
     const booking = await fetchBookingDetailRow(bookingId)
     if (!booking) return { status: 'not_found' }
-    return { status: 'ok', booking }
+    const promotions = await getPromotions(await createClient())
+    return { status: 'ok', booking, promotions }
   } catch {
     // Already logged with full detail inside fetchBookingDetailRow — this
     // catch only decides what the client sees (a generic failure, not
@@ -243,6 +247,8 @@ export async function createManualBooking(formData: FormData): Promise<CreateMan
   const paymentMethod = ((formData.get('payment_method') as string) || 'transfer') as BookingPaymentMethod
   const paymentDate = (formData.get('payment_date') as string) || todayInLagos()
   const allowOverpayment = formData.get('allow_overpayment') === 'true'
+  const wantsEarlyCheckin = formData.get('early_checkin') === 'true'
+  const wantsLateCheckout = formData.get('late_checkout') === 'true'
 
   if (!roomId || !guestName || !guestPhone || !checkIn || !checkOut || !source) {
     return { success: false, error: 'Please fill in all required fields.' }
@@ -264,10 +270,39 @@ export async function createManualBooking(formData: FormData): Promise<CreateMan
 
   const { data: room } = await supabase
     .from('Rooms')
-    .select('price_per_night')
+    .select('name, price_per_night')
     .eq('id', roomId)
     .single()
-  const totalAmount = (room?.price_per_night ?? 0) * nightsBetween(checkIn, checkOut)
+  // Early check-in / late check-out fees are fixed at the moment they're
+  // added — a flat EARLY_LATE_FEE each (see pricing.ts).
+  const earlyCheckinFee = wantsEarlyCheckin ? earlyLateFee(room) : null
+  const lateCheckoutFee = wantsLateCheckout ? earlyLateFee(room) : null
+  // Optional staff discount (amount or %, reason required) — see
+  // setBookingDiscount below for the same rules on an existing booking.
+  const discountInput = parseDiscountInput(
+    formData.get('discount_type') as string | null,
+    formData.get('discount_value') as string | null,
+    formData.get('discount_reason') as string | null
+  )
+  if (!discountInput.ok) {
+    return { success: false, error: discountInput.error }
+  }
+  const promos = await getPromotions(supabase)
+  const roomTotal = room ? stayTotal(room, checkIn, checkOut, promos) : 0
+  const discountFields = discountInput.discount
+    ? {
+        discount_amount: discountInput.discount.type === 'amount' ? discountInput.discount.value : null,
+        discount_percent: discountInput.discount.type === 'percent' ? discountInput.discount.value : null,
+      }
+    : {}
+  if (discountInput.discount?.type === 'amount' && discountInput.discount.value > roomTotal) {
+    return { success: false, error: `The discount can't be more than the room total (₦${roomTotal.toLocaleString()}).` }
+  }
+  const { total: totalAmount, discount: discountAmount } = bookingTotal(roomTotal, {
+    early_checkin_fee: earlyCheckinFee,
+    late_checkout_fee: lateCheckoutFee,
+    ...discountFields,
+  })
 
   if (amountPaid > totalAmount && !allowOverpayment) {
     return {
@@ -298,6 +333,17 @@ export async function createManualBooking(formData: FormData): Promise<CreateMan
     total_amount: totalAmount,
     amount_paid: amountPaid,
     created_by: user?.email ?? null,
+    // Only sent when actually used, so a manual booking without either
+    // still works on a database that hasn't had the fee-columns migration.
+    ...(earlyCheckinFee != null ? { early_checkin_fee: earlyCheckinFee } : {}),
+    ...(lateCheckoutFee != null ? { late_checkout_fee: lateCheckoutFee } : {}),
+    ...(discountInput.discount
+      ? {
+          discount_amount: discountAmount,
+          discount_percent: discountInput.discount.type === 'percent' ? discountInput.discount.value : null,
+          discount_reason: discountInput.discount.reason,
+        }
+      : {}),
   })
 
   if (error) {
@@ -426,7 +472,7 @@ export async function recordPayment(
 
   const { data: booking, error: fetchError } = await supabase
     .from('Bookings')
-    .select('status, total_amount, amount_paid, check_in, check_out, Rooms(price_per_night)')
+    .select('status, total_amount, amount_paid, check_in, check_out, Rooms(name, price_per_night)')
     .eq('id', bookingId)
     .single()
 
@@ -736,7 +782,7 @@ export async function editBookingDates(
   const supabase = await createClient()
   const { data: booking, error: fetchError } = await supabase
     .from('Bookings')
-    .select('room_id, check_in, check_out, status')
+    .select('room_id, check_in, check_out, status, Rooms (price_per_night)')
     .eq('id', bookingId)
     .single()
 
@@ -770,9 +816,12 @@ export async function editBookingDates(
     }
   }
 
+  const room = Array.isArray(booking.Rooms) ? booking.Rooms[0] : booking.Rooms
+  const newTotal = (room?.price_per_night ?? 0) * nightsBetween(newCheckIn, newCheckOut)
+
   const { error } = await supabase
     .from('Bookings')
-    .update({ check_in: newCheckIn, check_out: newCheckOut })
+    .update({ check_in: newCheckIn, check_out: newCheckOut, total_amount: newTotal })
     .eq('id', bookingId)
 
   if (error) return { success: false, error: 'Something went wrong. Please try again.' }
@@ -1133,6 +1182,11 @@ export type RoomChangeOption = {
   roomNumber: string
   typeName: string
   pricePerNight: number
+  // What this booking's total would become in this room — its own dates,
+  // priced night by night (promo nights included), plus any early
+  // check-in / late check-out fees already on the booking. Computed here
+  // so the dialog's preview is exactly what changeBookingRoom will store.
+  totalForBooking: number
   isCurrent: boolean
   isFree: boolean
 }
@@ -1169,12 +1223,24 @@ export async function getRoomOptionsForChange(bookingId: string): Promise<GetRoo
     return { success: false, error: roomsError.message }
   }
 
+  const promos = await getPromotions(supabase)
+  const adjustments = await fetchAdjustments(supabase, bookingId)
+
   const options = await Promise.all(
     (rooms ?? []).map(async (room) => ({
       id: room.id as string,
       roomNumber: room.room_number as string,
       typeName: displayRoomName(room.name as string),
       pricePerNight: room.price_per_night as number,
+      totalForBooking: priceWithAdjustments(
+        stayTotal(
+          { name: room.name as string, price_per_night: room.price_per_night as number },
+          booking.check_in,
+          booking.check_out,
+          promos
+        ),
+        adjustments
+      ).total,
       isCurrent: room.id === booking.room_id,
       isFree:
         room.id === booking.room_id ||
@@ -1237,15 +1303,28 @@ export async function changeBookingRoom(
     return { success: false, error: 'Room not found.' }
   }
 
-  const nights = nightsBetween(booking.check_in, booking.check_out)
-  const newTotal =
-    totalChoice === 'update_to_new_rate' ? toRoom.price_per_night * nights : oldTotal
+  // Same room type: the guest keeps their existing total exactly as is.
+// Only a different type gets repriced (promo-aware, night by night).
+const sameType = fromRoom?.name != null && fromRoom.name === toRoom.name
 
-  const { error: updateError } = await supabase
-    .from('Bookings')
-    .update({ room_id: newRoomId, total_amount: newTotal })
-    .eq('id', bookingId)
+let newTotal = oldTotal
+let discountUpdate: { discount_amount?: number } = {}
 
+if (!sameType) {
+  const promos = await getPromotions(supabase)
+  const adjustments = await fetchAdjustments(supabase, bookingId)
+  const priced = priceWithAdjustments(
+    stayTotal(toRoom, booking.check_in, booking.check_out, promos),
+    adjustments
+  )
+  newTotal = priced.total
+  discountUpdate = priced.discountUpdate
+}
+
+const { error: updateError } = await supabase
+  .from('Bookings')
+  .update({ room_id: newRoomId, total_amount: newTotal, ...discountUpdate })
+  .eq('id', bookingId)
   if (updateError) {
     return { success: false, error: updateError.message }
   }
@@ -1318,7 +1397,7 @@ export async function earlyCheckout(
 
   const { data: booking, error: fetchError } = await supabase
     .from('Bookings')
-    .select('check_in, check_out, status, amount_paid, guest_email, guest_phone, Rooms(price_per_night)')
+    .select('check_in, check_out, status, amount_paid, guest_email, guest_phone, Rooms(name, price_per_night)')
     .eq('id', bookingId)
     .single()
 
@@ -1334,7 +1413,15 @@ export async function earlyCheckout(
 
   const room = Array.isArray(booking.Rooms) ? booking.Rooms[0] : booking.Rooms
   const nightsStayed = nightsBetween(booking.check_in, newCheckOutDate)
-  const newTotal = nightsStayed * (room?.price_per_night ?? 0)
+  // Any early check-in / late check-out fee stays on the booking (staff
+  // can remove one from the booking actions if it no longer applies); a
+  // % discount is recomputed on the shorter stay.
+  const promos = await getPromotions(supabase)
+  const adjustments = await fetchAdjustments(supabase, bookingId)
+  const { total: newTotal, discountUpdate } = priceWithAdjustments(
+    room ? stayTotal(room, booking.check_in, newCheckOutDate, promos) : 0,
+    adjustments
+  )
   const amountPaid = Number(booking.amount_paid ?? 0)
   const overpaid = Math.max(0, amountPaid - newTotal)
 
@@ -1344,7 +1431,7 @@ export async function earlyCheckout(
 
   const { error: updateError } = await supabase
     .from('Bookings')
-    .update({ check_out: newCheckOutDate, total_amount: newTotal, status: 'checked_out' })
+    .update({ check_out: newCheckOutDate, total_amount: newTotal, status: 'checked_out', ...discountUpdate })
     .eq('id', bookingId)
 
   if (updateError) {
@@ -1390,6 +1477,293 @@ export async function earlyCheckout(
   revalidatePath('/admin/check-in/check-out')
   revalidatePath('/admin/calendar')
   return { success: true, overpaid }
+}
+
+// =====================================================================
+// SECTION 8: early check-in / late check-out — an optional extra on a
+// booking, charged at a flat EARLY_LATE_FEE (₦50,000) each, regardless of
+// room type or promo (see pricing.ts). Early check-in is any time
+// before the standard 2:00 PM; late check-out is up to 4:00 PM.
+// =====================================================================
+
+export type EarlyLateKind = 'early_checkin' | 'late_checkout'
+
+const EARLY_LATE_COLUMN: Record<EarlyLateKind, 'early_checkin_fee' | 'late_checkout_fee'> = {
+  early_checkin: 'early_checkin_fee',
+  late_checkout: 'late_checkout_fee',
+}
+
+const EARLY_LATE_EDITABLE_STATUSES = ['pending', 'confirmed', 'checked_in']
+
+export type SetEarlyLateResult =
+  | { success: true; fee: number; newTotal: number }
+  | { success: false; error: string }
+
+/**
+ * Adds (enabled = true) or removes (enabled = false) an early check-in or
+ * late check-out on a booking. The fee is fixed when added (the flat
+ * EARLY_LATE_FEE) and stored in its own column so
+ * later recalculations (edit dates, change room, early checkout) carry it
+ * over unchanged. The total is adjusted by exactly the fee added or
+ * removed, never re-priced from scratch, so nothing else about an
+ * existing total changes as a side effect. Payment status is then
+ * re-derived from the ledger as usual (adding a fee to a paid booking
+ * makes it "partial" until the extra is collected).
+ */
+export async function setEarlyLateOption(
+  bookingId: string,
+  kind: EarlyLateKind,
+  enabled: boolean
+): Promise<SetEarlyLateResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { data: booking, error: fetchError } = await supabase
+    .from('Bookings')
+    .select('status, total_amount, check_in, check_out, Rooms(name, price_per_night)')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchError || !booking) {
+    return { success: false, error: 'Booking not found.' }
+  }
+  if (isBookingLocked(booking)) {
+    return { success: false, error: LOCKED_ERROR }
+  }
+  if (!EARLY_LATE_EDITABLE_STATUSES.includes(booking.status)) {
+    return { success: false, error: 'Only an upcoming or checked-in booking can be changed.' }
+  }
+  // Early check-in can still be ADDED once the guest is checked in — staff
+  // often only record an early arrival after the fact.
+
+  // Read directly (not via fetchExtraFees) — this action can't work at
+  // all without the columns, so a missing-column error should surface as
+  // a clear message rather than be treated as "no fees".
+  const { data: feeRow, error: feeError } = await supabase
+    .from('Bookings')
+    .select('early_checkin_fee, late_checkout_fee')
+    .eq('id', bookingId)
+    .single()
+  if (feeError) {
+    if (isMissingColumnError(feeError)) {
+      return {
+        success: false,
+        error:
+          'Early check-in / late check-out isn\'t set up in the database yet. Run the 20261028 migration in Supabase first.',
+      }
+    }
+    return { success: false, error: feeError.message }
+  }
+
+  const column = EARLY_LATE_COLUMN[kind]
+  const existingFee = feeRow[column] != null ? Number(feeRow[column]) : null
+  if (enabled && existingFee != null) {
+    return { success: false, error: 'This is already on the booking.' }
+  }
+  if (!enabled && existingFee == null) {
+    return { success: false, error: 'This isn\'t on the booking.' }
+  }
+
+  const room = Array.isArray(booking.Rooms) ? booking.Rooms[0] : booking.Rooms
+  const fee = enabled ? earlyLateFee(room) : (existingFee as number)
+  const currentTotal = resolveTotalAmount(
+    { ...booking, early_checkin_fee: feeRow.early_checkin_fee, late_checkout_fee: feeRow.late_checkout_fee },
+    room
+  )
+  const newTotal = enabled ? currentTotal + fee : Math.max(0, currentTotal - fee)
+
+  const { error: updateError } = await supabase
+    .from('Bookings')
+    .update({ [column]: enabled ? fee : null, total_amount: newTotal })
+    .eq('id', bookingId)
+  if (updateError) {
+    return { success: false, error: updateError.message }
+  }
+
+  const totalsResult = await recalculateBookingTotals(supabase, bookingId)
+  if (!totalsResult.success) return totalsResult
+
+  await supabase.from('booking_audit_log').insert({
+    booking_id: bookingId,
+    event_type: kind,
+    reason: null,
+    details: {
+      action: enabled ? 'added' : 'removed',
+      fee,
+      old_total: currentTotal,
+      new_total: newTotal,
+    },
+    performed_by: user?.email ?? null,
+  })
+
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
+  return { success: true, fee, newTotal }
+}
+
+// =====================================================================
+// SECTION 9: staff discounts — an amount or a percentage off a booking's
+// ROOM total (not off early check-in / late check-out fees), always with
+// a reason. A % discount is recomputed whenever the stay is repriced
+// (dates edited, room changed, early checkout), so 10% stays 10%.
+// =====================================================================
+
+export type DiscountInput = { type: 'amount' | 'percent'; value: number; reason: string }
+
+/**
+ * Validates a discount from form fields. An empty value means "no
+ * discount" (ok, discount null). Shared by createManualBooking (form
+ * fields) and setBookingDiscount (via its own object input).
+ */
+function parseDiscountInput(
+  type: string | null,
+  rawValue: string | null,
+  rawReason: string | null
+): { ok: true; discount: DiscountInput | null } | { ok: false; error: string } {
+  const valueText = (rawValue ?? '').trim()
+  if (!valueText) return { ok: true, discount: null }
+  return validateDiscount({
+    type: type === 'percent' ? 'percent' : 'amount',
+    value: Number(valueText),
+    reason: rawReason ?? '',
+  })
+}
+
+function validateDiscount(
+  input: DiscountInput
+): { ok: true; discount: DiscountInput } | { ok: false; error: string } {
+  const reason = input.reason.trim()
+  if (!Number.isFinite(input.value) || input.value <= 0) {
+    return { ok: false, error: 'Enter a discount greater than zero.' }
+  }
+  if (input.type === 'percent' && input.value >= 100) {
+    return { ok: false, error: 'A percentage discount must be less than 100%.' }
+  }
+  if (!reason) {
+    return { ok: false, error: 'Add a reason for the discount (e.g. regular guest, long stay).' }
+  }
+  const value = input.type === 'amount' ? Math.round(input.value) : Math.round(input.value * 100) / 100
+  return { ok: true, discount: { type: input.type, value, reason } }
+}
+
+const DISCOUNT_LOCKED_STATUSES = ['cancelled', 'no_show']
+
+export type SetDiscountResult =
+  | { success: true; discount: number; newTotal: number }
+  | { success: false; error: string }
+
+/**
+ * Adds, changes or (input = null) removes a booking's discount. Works
+ * from the booking's CURRENT stored total — the room part is recovered
+ * as total − fees + current discount — rather than repricing the stay
+ * from scratch, so a booking made before a promo, or a total someone set
+ * by hand, isn't silently repriced as a side effect of adding a discount.
+ */
+export async function setBookingDiscount(
+  bookingId: string,
+  input: DiscountInput | null
+): Promise<SetDiscountResult> {
+  let discount: DiscountInput | null = null
+  if (input) {
+    const checked = validateDiscount(input)
+    if (!checked.ok) return { success: false, error: checked.error }
+    discount = checked.discount
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { data: booking, error: fetchError } = await supabase
+    .from('Bookings')
+    .select('status, total_amount, check_in, check_out, Rooms(name, price_per_night)')
+    .eq('id', bookingId)
+    .single()
+  if (fetchError || !booking) {
+    return { success: false, error: 'Booking not found.' }
+  }
+  if (isBookingLocked(booking) || DISCOUNT_LOCKED_STATUSES.includes(booking.status)) {
+    return { success: false, error: 'This booking can no longer be changed.' }
+  }
+
+  // This action can't work without the discount columns, so check for
+  // them explicitly and say so, rather than treating them as "no discount".
+  const probe = await supabase
+    .from('Bookings')
+    .select('discount_amount, discount_percent, discount_reason')
+    .eq('id', bookingId)
+    .single()
+  if (probe.error) {
+    if (isMissingColumnError(probe.error)) {
+      return {
+        success: false,
+        error: "Discounts aren't set up in the database yet. Run the 20261030 migration in Supabase first.",
+      }
+    }
+    return { success: false, error: probe.error.message }
+  }
+  if (!discount && probe.data.discount_amount == null && probe.data.discount_percent == null) {
+    return { success: false, error: "This booking doesn't have a discount." }
+  }
+
+  const room = Array.isArray(booking.Rooms) ? booking.Rooms[0] : booking.Rooms
+  const adjustments = await fetchAdjustments(supabase, bookingId)
+  const currentTotal = resolveTotalAmount(booking, room)
+  const fees = Number(adjustments.early_checkin_fee ?? 0) + Number(adjustments.late_checkout_fee ?? 0)
+  const currentDiscount = Number(adjustments.discount_amount ?? 0)
+  const roomTotal = Math.max(0, currentTotal - fees + currentDiscount)
+
+  const newFields = discount
+    ? {
+        discount_amount: discount.type === 'amount' ? discount.value : null,
+        discount_percent: discount.type === 'percent' ? discount.value : null,
+      }
+    : { discount_amount: null, discount_percent: null }
+  if (discount?.type === 'amount' && discount.value > roomTotal) {
+    return {
+      success: false,
+      error: `The discount can't be more than the room total (₦${roomTotal.toLocaleString()}).`,
+    }
+  }
+  const newDiscount = discount ? discountFor(newFields, roomTotal) : 0
+  const newTotal = roomTotal + fees - newDiscount
+
+  const { error: updateError } = await supabase
+    .from('Bookings')
+    .update({
+      discount_amount: discount ? newDiscount : null,
+      discount_percent: newFields.discount_percent,
+      discount_reason: discount ? discount.reason : null,
+      total_amount: newTotal,
+    })
+    .eq('id', bookingId)
+  if (updateError) return { success: false, error: updateError.message }
+
+  const totalsResult = await recalculateBookingTotals(supabase, bookingId)
+  if (!totalsResult.success) return totalsResult
+
+  await supabase.from('booking_audit_log').insert({
+    booking_id: bookingId,
+    event_type: 'discount',
+    reason: discount ? discount.reason : probe.data.discount_reason ?? null,
+    details: {
+      action: !discount ? 'removed' : currentDiscount > 0 || probe.data.discount_percent != null ? 'changed' : 'added',
+      type: discount?.type ?? null,
+      percent: discount?.type === 'percent' ? discount.value : null,
+      amount: newDiscount,
+      previous_amount: currentDiscount,
+      old_total: currentTotal,
+      new_total: newTotal,
+    },
+    performed_by: user?.email ?? null,
+  })
+
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
+  return { success: true, discount: newDiscount, newTotal }
 }
 
 // =====================================================================
@@ -1486,7 +1860,14 @@ export async function applyGuestCredit(
 
 export type BookingAuditEntry = {
   id: string
-  eventType: 'room_change' | 'early_checkout' | 'cancellation_money'
+  eventType:
+    | 'room_change'
+    | 'early_checkout'
+    | 'cancellation_money'
+    | 'early_checkin'
+    | 'late_checkout'
+    | 'discount'
+    | 'promo_reprice'
   reason: string | null
   details: Record<string, unknown>
   performedBy: string | null

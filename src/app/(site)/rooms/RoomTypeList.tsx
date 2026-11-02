@@ -11,6 +11,10 @@ export type RoomTypeRowData = {
   coverImage: string | null
   galleryImages: string[]
   priceLabel: string
+  // Set only while a promo applies (src/lib/pricing.ts) — the normal
+  // price, shown struck through next to priceLabel, plus the promo note.
+  regularPriceLabel: string | null
+  promoLabel: string | null
   // Real Rooms columns off the representative room — never invented, for
   // the row's "Guests / Bed" detail line.
   maxOccupancy: number
@@ -94,7 +98,13 @@ export default function RoomTypeList({
                 <p className="room-row-description">{row.content.longDescription}</p>
                 <p className="room-row-price">
                   Starts from {row.priceLabel}<span> / night</span>
+                  {row.regularPriceLabel && (
+                    <s className="room-row-price-was" aria-label={`was ${row.regularPriceLabel}`}>
+                      {row.regularPriceLabel}
+                    </s>
+                  )}
                 </p>
+                {row.promoLabel && <p className="room-row-promo">{row.promoLabel}</p>}
                 <ul className="room-row-facts">
                   <li>Up to {row.maxOccupancy} guest{row.maxOccupancy === 1 ? '' : 's'}</li>
                 </ul>

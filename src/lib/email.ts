@@ -2,6 +2,7 @@ import { Resend } from 'resend'
 import { SITE_URL, HOTEL_ADDRESS, HOTEL_NAME, HOTEL_PHONE_DISPLAY, HOTEL_EMAIL } from './siteConfig'
 import { formatLagosTime } from './dateUtils'
 import { CANCELLATION_POLICY_BULLETS } from './cancellationPolicy'
+import { EARLY_LATE_POLICY_TEXT, STANDARD_CHECK_IN_TIME, STANDARD_CHECK_OUT_TIME } from './pricing'
 
 // Exact policy wording (see cancellationPolicy.ts) as an HTML list —
 // shared by the guest confirmation email below and anywhere else an
@@ -105,7 +106,7 @@ export function buildGuestConfirmationEmail({
         <strong>Check-out:</strong> ${formatDate(checkOut)}
       </p>
 
-      <p>Check-in time is 2:00 PM and check-out time is 12:00 PM. Early check-in or late check-out is available for a fee of 50% of the room's nightly rate, subject to availability.</p>
+      <p>Check-in time is ${STANDARD_CHECK_IN_TIME} and check-out time is ${STANDARD_CHECK_OUT_TIME}. ${EARLY_LATE_POLICY_TEXT}</p>
 
       ${paymentNotice}
 
@@ -149,7 +150,7 @@ export function buildCheckinReminderEmail({
 
       <p>
         <strong>Room:</strong> ${roomName}<br />
-        <strong>Check-in from:</strong> 2:00 PM<br />
+        <strong>Check-in from:</strong> ${STANDARD_CHECK_IN_TIME}<br />
         <strong>Address:</strong> ${HOTEL_ADDRESS}
       </p>
 

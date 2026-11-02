@@ -6,6 +6,8 @@ import type { Room } from '@/lib/types'
 import { getRoomCoverImage, getRoomGallery, getGalleryImages } from '@/lib/roomImages'
 import { HOTEL_NAME, HOTEL_ADDRESS_LOCALITY, HOTEL_ADDRESS_REGION } from '@/lib/siteConfig'
 import { todayInLagos } from '@/lib/dateUtils'
+import { nightlyRate, promoOnDate } from '@/lib/pricing'
+import { getPromotions } from '@/lib/promotions'
 import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER, type RoomTypeKey } from '@/lib/roomTypeContent'
 import PageHero from '../PageHero'
 import RoomTypeList, { type RoomTypeRowData } from './RoomTypeList'
@@ -91,6 +93,8 @@ export default async function RoomsPage({
     else roomsByTypeKey.set(typeKey, [room])
   }
 
+  const promos = await getPromotions()
+
   const rows: RoomTypeRowData[] = await Promise.all(
     ROOM_TYPE_ORDER.filter((key) => roomsByTypeKey.has(key)).map(async (key) => {
       const content = ROOM_TYPE_CONTENT[key]
@@ -110,6 +114,12 @@ export default async function RoomsPage({
         ? await isAnyRoomAvailable(roomIds, rawCheckIn, rawCheckOut)
         : true
 
+      // The rate for the guest's first night if they've chosen dates,
+      // otherwise tonight's — so a promo price shows while it's running
+      // and the normal price returns on its own once it ends.
+      const rateDate = hasDates ? rawCheckIn : todayInLagos()
+      const promo = promoOnDate(representative, rateDate, promos)
+
       return {
         content,
         coverImage: getRoomCoverImage(representative.room_number),
@@ -117,7 +127,9 @@ export default async function RoomsPage({
           0,
           MODAL_GALLERY_MAX_PHOTOS
         ),
-        priceLabel: `₦${representative.price_per_night.toLocaleString()}`,
+        priceLabel: `₦${nightlyRate(representative, rateDate, promos).toLocaleString()}`,
+        regularPriceLabel: promo ? `₦${promo.normalRate.toLocaleString()}` : null,
+        promoLabel: promo?.label ?? null,
         // Real Rooms columns — never invented.
         maxOccupancy: representative.max_occupancy,
         bedType: representative.bed_type,

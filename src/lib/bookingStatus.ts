@@ -6,6 +6,15 @@
 // is what guarantees the admin UI and the server actions it calls can
 // never disagree about whether a booking is paid or locked.
 
+import {
+  stayTotal,
+  bookingTotal,
+  type ExtraFees,
+  type DiscountFields,
+  type PricedRoom,
+  type Promotion,
+} from './pricing'
+
 /**
  * The one status value that makes a booking fully read-only everywhere
  * in the admin dashboard — see isBookingLocked below. Other terminal
@@ -19,26 +28,32 @@ export function isBookingLocked(booking: { status: string }): boolean {
   return booking.status === LOCKED_BOOKING_STATUS
 }
 
-function nightsBetween(checkIn: string, checkOut: string): number {
-  const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime()
-  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
-}
-
 /**
- * A booking's total stay amount — the stored total_amount when present,
- * falling back to nights × price_per_night only for a booking made
- * before that column existed. Used everywhere a total is needed for
- * display or status computation, so the two can never read differently
- * for the same booking (the bug this fixes: the Payments section was
- * displaying this fallback-resolved total, while the server computed
- * payment_status from the raw, sometimes-null column instead).
+ * A booking's total — the stored total_amount when present, falling back
+ * (only for a booking made before that column existed) to the stay's
+ * night-by-night room total plus any early check-in / late check-out
+ * fees. Used everywhere a total is needed for display or status
+ * computation, so the two can never read differently for the same
+ * booking (the bug this fixes: the Payments section was displaying this
+ * fallback-resolved total, while the server computed payment_status from
+ * the raw, sometimes-null column instead).
+ *
+ * total_amount itself always already INCLUDES the extra fees and any
+ * discount — every write path stores bookingTotal(...).total (see
+ * pricing.ts), so nothing is added or taken off a stored value here.
+ *
+ * The fallback (legacy rows only) prices at normal rates unless promos
+ * are passed — every booking made since total_amount existed has it set.
  */
 export function resolveTotalAmount(
-  booking: { total_amount: number | null; check_in: string; check_out: string },
-  room: { price_per_night: number } | null | undefined
+  booking: { total_amount: number | null; check_in: string; check_out: string } & ExtraFees &
+    DiscountFields,
+  room: PricedRoom | null | undefined,
+  promos: Promotion[] = []
 ): number {
-  if (booking.total_amount != null) return booking.total_amount
-  return (room?.price_per_night ?? 0) * nightsBetween(booking.check_in, booking.check_out)
+  if (booking.total_amount != null) return Number(booking.total_amount)
+  const roomTotal = room ? stayTotal(room, booking.check_in, booking.check_out, promos) : 0
+  return bookingTotal(roomTotal, booking).total
 }
 
 export type PaymentStatus = 'unpaid' | 'partial' | 'paid'
