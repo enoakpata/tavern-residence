@@ -186,9 +186,9 @@ export function promoNightCount(
 // Early check-in / late check-out
 // =====================================================================
 
-// Flat fee for each, in naira — the same for every room type, promo or
+// 50% of room rate, promo or
 // not. The one place to change it.
-export const EARLY_LATE_FEE = 50000
+export const EARLY_LATE_FEE_RATE = 0.5
 
 // Guest-facing times, used in the policy copy and emails.
 export const STANDARD_CHECK_IN_TIME = '2:00 PM'
@@ -198,14 +198,13 @@ export const LATE_CHECK_OUT_LATEST_TIME = '4:00 PM'
 // Exact guest-facing wording, used verbatim on the Policies page and in
 // the booking confirmation email so the two can't drift apart.
 export const EARLY_LATE_POLICY_TEXT =
-  `Early check-in (any time before ${STANDARD_CHECK_IN_TIME}) and late check-out (until ${LATE_CHECK_OUT_LATEST_TIME}) are available on request, subject to availability. Each costs ₦${EARLY_LATE_FEE.toLocaleString('en-NG')}.`
-
+  `Early check-in (any time before ${STANDARD_CHECK_IN_TIME}) and late check-out (until ${LATE_CHECK_OUT_LATEST_TIME}) are available on request, subject to availability. Each costs 50% of the room's nightly rate.`
 // Takes the room so a per-room fee could be introduced later without
 // touching any caller; today it's the same flat amount for every room.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function earlyLateFee(_room?: PricedRoom | null): number {
-  return EARLY_LATE_FEE
-}
+export function earlyLateFee(room?: PricedRoom | null): number {
+if (!room) return 0
+  return Math.round(room.price_per_night * EARLY_LATE_FEE_RATE)}
 
 export type ExtraFees = {
   early_checkin_fee?: number | string | null

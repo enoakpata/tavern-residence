@@ -14,7 +14,7 @@ import {
   STANDARD_CHECK_IN_TIME,
   STANDARD_CHECK_OUT_TIME,
   LATE_CHECK_OUT_LATEST_TIME,
-  EARLY_LATE_FEE,
+  EARLY_LATE_FEE_RATE,
 } from '@/lib/pricing'
 import { formatLagosTime, todayInLagos, type BlockedRange } from '@/lib/dateUtils'
 import Link from 'next/link'
@@ -34,8 +34,7 @@ const POLICY_SUMMARY_ROWS = [
   },
   {
     label: 'Early check-in / late check-out',
-    detail: `On request: early check-in any time before ${STANDARD_CHECK_IN_TIME}, late check-out until ${LATE_CHECK_OUT_LATEST_TIME} — ₦${EARLY_LATE_FEE.toLocaleString('en-NG')} each, subject to availability`,
-  },
+    detail: `On request: early check-in any time before ${STANDARD_CHECK_IN_TIME}, late check-out until ${LATE_CHECK_OUT_LATEST_TIME} — ${EARLY_LATE_FEE_RATE * 100}% of the nightly rate each, subject to availability`,  },
   { label: 'Payment', detail: 'Pay the hotel directly on arrival (transfer or card)' },
   { label: 'Cancellation', detail: 'Free up to 24 hours before check-in' },
   {
