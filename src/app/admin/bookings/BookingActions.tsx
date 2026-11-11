@@ -11,10 +11,16 @@ import {
   earlyCheckout,
   setEarlyLateOption,
   setBookingDiscount,
+  deleteBooking,
   type EarlyLateKind,
   type RoomChangeOption,
 } from './actions'
+import EditBookingPanel, { PanelRow, PanelRows, PanelSection } from './EditBookingPanel'
+import GuestDetailsForm from './GuestDetailsForm'
 import ConfirmModal from '@/components/ConfirmModal'
+import { isBookingLocked } from '@/lib/bookingStatus'
+import { displayRoomName } from '@/lib/roomTypeContent'
+import type { Booking } from '@/lib/types'
 import DateRangePicker from '@/components/DateRangePicker'
 import MoneyDispositionChoice, { type MoneyDisposition } from '@/components/MoneyDispositionChoice'
 import { getCancellationOutcome } from '@/lib/cancellationPolicy'
@@ -35,6 +41,11 @@ type BookingActionsProps = {
   checkOut: string
   createdAt: string
   guestName: string
+  // Editable in the Edit booking panel's "Guest details" section.
+  guestPhone: string
+  guestEmail: string | null
+  specialRequests: string | null
+  source: Booking['source']
   roomNumber: string
   // Derived server-side (getBookingDetail) — never the actual card token,
   // which must never reach the client. See that function's own comment.
@@ -65,6 +76,9 @@ type BookingActionsProps = {
   // when opened) know to refetch, since revalidatePath only refreshes the
   // underlying page's Server Components, not this client-held snapshot.
   onActionComplete?: () => void
+  // Called once the booking has been permanently deleted — the parent
+  // should close its view of it (there's nothing left to refetch).
+  onDeleted?: () => void
 }
 
 const CANCELLABLE_STATUSES = ['pending', 'confirmed']
@@ -101,6 +115,14 @@ function nightsBetween(checkIn: string, checkOut: string): number {
   return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)))
 }
 
+// "12 Nov" — compact enough for an Edit booking panel row.
+function formatShortDate(iso: string): string {
+  return parseISODate(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
+const OUTLINE_PILL =
+  'rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50'
+
 export default function BookingActions({
   bookingId,
   status,
@@ -108,6 +130,10 @@ export default function BookingActions({
   checkOut,
   createdAt,
   guestName,
+  guestPhone,
+  guestEmail,
+  specialRequests,
+  source,
   roomNumber,
   hasCardOnFile,
   pricePerNight,
@@ -120,6 +146,7 @@ export default function BookingActions({
   promos,
   amountPaid,
   onActionComplete,
+  onDeleted,
 }: BookingActionsProps) {
   const pricedRoom = { name: roomName, price_per_night: pricePerNight }
   const adjustments = {
@@ -200,6 +227,16 @@ export default function BookingActions({
   const [discountError, setDiscountError] = useState('')
   const [discountResult, setDiscountResult] = useState<null | { success: boolean; message: string }>(null)
 
+  // --- Edit booking panel ---
+  const [editOpen, setEditOpen] = useState(false)
+  const [guestSaving, setGuestSaving] = useState(false)
+
+  // --- Delete booking ---
+  const [pendingDelete, setPendingDelete] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [isDeleting, startDeleteTransition] = useTransition()
+
   function run(
     action: () => Promise<{ success: boolean; error?: string }>,
     errorPrefix = ''
@@ -239,6 +276,56 @@ export default function BookingActions({
   const earlyLateFeeAmount = earlyLateFee(pricedRoom)
   const hasDiscount = discountAmount != null || discountPercent != null
   const canDiscount = !['cancelled', 'no_show'].includes(status)
+  // Guest details can be corrected on any booking that isn't locked
+  // (cancelled) — including a past stay, e.g. to fix a phone number typo.
+  const canEditGuest = !isBookingLocked({ status })
+  const canEditBooking =
+    canEditGuest || canEditDates || canChangeRoom || earlyLateActive || canEarlyCheckout || canDiscount
+
+  // Any of this component's own dialogs open on top of the panel — Escape
+  // then belongs to that dialog, not the panel.
+  const anyDialogOpen =
+    pendingCancel !== null ||
+    cancelResult !== null ||
+    pendingCheckout ||
+    pendingEditDates ||
+    editDatesResult !== null ||
+    pendingChangeRoom ||
+    changeRoomResult !== null ||
+    pendingEarlyCheckout ||
+    earlyCheckoutResult !== null ||
+    pendingEarlyLate !== null ||
+    earlyLateResult !== null ||
+    pendingDiscount ||
+    pendingRemoveDiscount ||
+    discountResult !== null ||
+    pendingDelete
+
+  const deleteConfirmTyped = deleteConfirmText.trim()
+  const deleteConfirmMatches =
+    deleteConfirmTyped === 'DELETE' ||
+    (deleteConfirmTyped.length > 0 && deleteConfirmTyped.toLowerCase() === guestName.trim().toLowerCase())
+
+  function handleDeleteClick() {
+    setDeleteConfirmText('')
+    setDeleteError('')
+    setPendingDelete(true)
+  }
+
+  function handleConfirmDelete() {
+    if (!deleteConfirmMatches || isDeleting) return
+    setDeleteError('')
+    startDeleteTransition(async () => {
+      const res = await deleteBooking(bookingId)
+      if (res.success) {
+        setPendingDelete(false)
+        setEditOpen(false)
+        onDeleted?.()
+      } else {
+        setDeleteError(res.error)
+      }
+    })
+  }
 
   function handleCancelClick() {
     // feeAmount/reason are the policy's suggestion, shown for reference —
@@ -515,87 +602,200 @@ export default function BookingActions({
         </button>
       )}
 
-      {canEditDates && (
-        <button
-          disabled={isPending}
-          onClick={handleEditDatesClick}
-          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
-        >
-          Edit dates
+      {canEditBooking && (
+        <button disabled={isPending} onClick={() => setEditOpen(true)} className={OUTLINE_PILL}>
+          Edit booking
         </button>
       )}
 
       {canCancel && (
-        <button
-          disabled={isPending}
-          onClick={handleCancelClick}
-          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
-        >
+        <button disabled={isPending} onClick={handleCancelClick} className={OUTLINE_PILL}>
           Cancel booking
         </button>
       )}
 
-      {canChangeRoom && (
-        <button
-          disabled={isPending}
-          onClick={handleChangeRoomClick}
-          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
-        >
-          Change room
-        </button>
-      )}
-
-      {canEarlyCheckout && (
-        <button
-          disabled={isPending}
-          onClick={handleEarlyCheckoutClick}
-          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
-        >
-          Early checkout
-        </button>
-      )}
-
-      {(canAddEarlyCheckin || canRemoveEarlyCheckin) && (
-        <button
-          disabled={isPending}
-          onClick={() => setPendingEarlyLate({ kind: 'early_checkin', enabled: canAddEarlyCheckin })}
-          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
-        >
-          {canAddEarlyCheckin ? 'Add early check-in' : 'Remove early check-in'}
-        </button>
-      )}
-
-      {(canAddLateCheckout || canRemoveLateCheckout) && (
-        <button
-          disabled={isPending}
-          onClick={() => setPendingEarlyLate({ kind: 'late_checkout', enabled: canAddLateCheckout })}
-          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
-        >
-          {canAddLateCheckout ? 'Add late check-out' : 'Remove late check-out'}
-        </button>
-      )}
-
-      {canDiscount && (
-        <button
-          disabled={isPending}
-          onClick={handleDiscountClick}
-          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
-        >
-          {hasDiscount ? 'Edit discount' : 'Add discount'}
-        </button>
-      )}
-
-      {canDiscount && hasDiscount && (
-        <button
-          disabled={isPending}
-          onClick={() => setPendingRemoveDiscount(true)}
-          className="rounded-full border border-charcoal/20 px-3 py-1 text-xs text-charcoal/70 hover:bg-charcoal/5 disabled:opacity-50"
-        >
-          Remove discount
-        </button>
-      )}
+      <button
+        disabled={isPending || isDeleting}
+        onClick={handleDeleteClick}
+        className="rounded-full border border-clay/40 px-3 py-1 text-xs text-clay hover:bg-clay/5 disabled:opacity-50"
+      >
+        Delete
+      </button>
 
       {error && <p className="w-full text-xs text-clay">{error}</p>}
+
+      <EditBookingPanel
+        open={editOpen}
+        busy={isPending || guestSaving}
+        suspendEscape={anyDialogOpen}
+        subtitle={roomNumber ? `${guestName} · Room ${roomNumber}` : guestName}
+        onClose={() => setEditOpen(false)}
+      >
+        {canEditGuest && (
+          <PanelSection title="Guest details">
+            <GuestDetailsForm
+              bookingId={bookingId}
+              initial={{
+                guest_name: guestName,
+                guest_phone: guestPhone,
+                guest_email: guestEmail,
+                special_requests: specialRequests,
+                source,
+              }}
+              onSaved={onActionComplete}
+              onSavingChange={setGuestSaving}
+            />
+          </PanelSection>
+        )}
+
+        {(canEditDates || canChangeRoom || earlyLateActive || canEarlyCheckout) && (
+          <PanelSection title="Stay">
+            <PanelRows>
+              {canEditDates && (
+                <PanelRow
+                  label="Dates"
+                  hint={canEditCheckIn ? undefined : 'Checked in — check-out only'}
+                  value={`${formatShortDate(checkIn)} → ${formatShortDate(checkOut)}`}
+                  disabled={isPending}
+                  actions={[{ label: 'Change', chevron: true, onClick: handleEditDatesClick }]}
+                />
+              )}
+              {canChangeRoom && (
+                <PanelRow
+                  label="Room"
+                  value={
+                    roomNumber
+                      ? `${roomNumber} · ${displayRoomName(roomName, 'Room')}`
+                      : displayRoomName(roomName, '—')
+                  }
+                  disabled={isPending}
+                  actions={[{ label: 'Change', chevron: true, onClick: handleChangeRoomClick }]}
+                />
+              )}
+              {earlyLateActive && (
+                <PanelRow
+                  label="Early check-in"
+                  hint={`Before ${STANDARD_CHECK_IN_TIME}`}
+                  value={earlyCheckinFee != null ? `₦${earlyCheckinFee.toLocaleString()}` : 'Not added'}
+                  disabled={isPending}
+                  actions={[
+                    canAddEarlyCheckin
+                      ? {
+                          label: `Add · ₦${earlyLateFeeAmount.toLocaleString()}`,
+                          onClick: () => setPendingEarlyLate({ kind: 'early_checkin', enabled: true }),
+                        }
+                      : {
+                          label: 'Remove',
+                          onClick: () => setPendingEarlyLate({ kind: 'early_checkin', enabled: false }),
+                        },
+                  ]}
+                />
+              )}
+              {earlyLateActive && (
+                <PanelRow
+                  label="Late check-out"
+                  hint={`Until ${LATE_CHECK_OUT_LATEST_TIME}`}
+                  value={lateCheckoutFee != null ? `₦${lateCheckoutFee.toLocaleString()}` : 'Not added'}
+                  disabled={isPending}
+                  actions={[
+                    canAddLateCheckout
+                      ? {
+                          label: `Add · ₦${earlyLateFeeAmount.toLocaleString()}`,
+                          onClick: () => setPendingEarlyLate({ kind: 'late_checkout', enabled: true }),
+                        }
+                      : {
+                          label: 'Remove',
+                          onClick: () => setPendingEarlyLate({ kind: 'late_checkout', enabled: false }),
+                        },
+                  ]}
+                />
+              )}
+              {canEarlyCheckout && (
+                <PanelRow
+                  label="Early checkout"
+                  hint="Guest leaving before their check-out date"
+                  value={`Due out ${formatShortDate(checkOut)}`}
+                  disabled={isPending}
+                  actions={[{ label: 'Start', chevron: true, onClick: handleEarlyCheckoutClick }]}
+                />
+              )}
+            </PanelRows>
+          </PanelSection>
+        )}
+
+        {canDiscount && (
+          <PanelSection title="Pricing">
+            <PanelRows>
+              <PanelRow
+                label="Discount"
+                hint={hasDiscount && discountReason ? discountReason : undefined}
+                value={
+                  hasDiscount
+                    ? `−₦${(discountAmount ?? 0).toLocaleString()}${discountPercent != null ? ` (${discountPercent}%)` : ''}`
+                    : 'None'
+                }
+                disabled={isPending}
+                actions={
+                  hasDiscount
+                    ? [
+                        { label: 'Edit', onClick: handleDiscountClick },
+                        { label: 'Remove', onClick: () => setPendingRemoveDiscount(true) },
+                      ]
+                    : [{ label: 'Add', chevron: true, onClick: handleDiscountClick }]
+                }
+              />
+            </PanelRows>
+          </PanelSection>
+        )}
+      </EditBookingPanel>
+
+      <ConfirmModal
+        open={pendingDelete}
+        tone="danger"
+        title="Delete booking permanently"
+        message={
+          <div>
+            <p>
+              This permanently removes {guestName}&apos;s booking
+              {roomNumber ? ` for Room ${roomNumber}` : ''}, including its payment records and change
+              history. <span className="text-charcoal">This can&apos;t be undone.</span>
+            </p>
+            <p className="mt-2">
+              For a real cancellation, use <span className="text-charcoal">Cancel booking</span> instead —
+              that keeps the record.
+            </p>
+            <label
+              htmlFor="delete-confirm"
+              className="mt-4 block text-xs tracking-widest text-charcoal/60 uppercase"
+            >
+              Type the guest&apos;s name or DELETE to confirm
+            </label>
+            <input
+              id="delete-confirm"
+              value={deleteConfirmText}
+              onChange={(e) => {
+                setDeleteConfirmText(e.target.value)
+                setDeleteError('')
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleConfirmDelete()
+              }}
+              placeholder={guestName}
+              autoComplete="off"
+              disabled={isDeleting}
+              className="mt-1 w-full rounded-sm border border-charcoal/20 px-2 py-1.5 text-sm text-charcoal focus:border-clay focus:outline-none"
+            />
+            {deleteError && <p className="mt-2 text-xs text-clay">{deleteError}</p>}
+          </div>
+        }
+        cancelLabel="Back"
+        confirmLabel={isDeleting ? 'Deleting…' : 'Delete permanently'}
+        confirmDisabled={!deleteConfirmMatches || isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          if (!isDeleting) setPendingDelete(false)
+        }}
+      />
 
       <ConfirmModal
         open={pendingCancel !== null}

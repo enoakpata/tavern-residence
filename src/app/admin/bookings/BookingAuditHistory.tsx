@@ -12,10 +12,33 @@ const EVENT_LABELS: Record<BookingAuditEntry['eventType'], string> = {
   late_checkout: 'Late check-out',
   discount: 'Discount',
   promo_reprice: 'Repriced for a promotion',
+  guest_details_updated: 'Guest details updated',
+}
+
+const GUEST_FIELD_LABELS: Record<string, string> = {
+  guest_name: 'Name',
+  guest_phone: 'Phone',
+  guest_email: 'Email',
+  special_requests: 'Special requests',
+  source: 'Source',
+}
+
+function shortValue(field: string, v: unknown): string {
+  if (typeof v !== 'string' || !v) return '—'
+  const text = field === 'source' ? v.replace('_', '-') : v
+  return text.length > 40 ? `${text.slice(0, 40)}…` : text
 }
 
 function describe(entry: BookingAuditEntry): string {
   const d = entry.details
+  if (entry.eventType === 'guest_details_updated') {
+    const changes = (d.changes ?? {}) as Record<string, { from?: unknown; to?: unknown }>
+    return (
+      Object.entries(changes)
+        .map(([field, c]) => `${GUEST_FIELD_LABELS[field] ?? field}: ${shortValue(field, c?.from)} → ${shortValue(field, c?.to)}`)
+        .join('; ') || 'Details updated'
+    )
+  }
   if (entry.eventType === 'room_change') {
     const from = typeof d.from_type === 'string' ? d.from_type : '—'
     const to = typeof d.to_type === 'string' ? d.to_type : '—'

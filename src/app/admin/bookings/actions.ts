@@ -15,7 +15,7 @@ import {
   buildChargeReceiptEmail,
   buildRoomChangeNotificationEmail,
 } from '@/lib/email'
-import type { Room, BookingPayment, BookingPaymentMethod } from '@/lib/types'
+import type { Room, Booking, BookingPayment, BookingPaymentMethod } from '@/lib/types'
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
 import { displayRoomName, getRoomTypeContentByDbName } from '@/lib/roomTypeContent'
 import { stayTotal, earlyLateFee, bookingTotal, discountFor } from '@/lib/pricing'
@@ -1767,6 +1767,188 @@ export async function setBookingDiscount(
 }
 
 // =====================================================================
+// SECTION 10: guest details — correcting the name/contact/source/notes
+// on a booking from the "Edit booking" panel.
+// =====================================================================
+
+const NOT_SIGNED_IN_ERROR = 'Your session has expired. Sign in again and retry.'
+
+const GUEST_SOURCES: Booking['source'][] = ['online', 'walk_in', 'phone']
+const GUEST_DETAIL_FIELDS = ['guest_name', 'guest_phone', 'guest_email', 'special_requests', 'source'] as const
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export type GuestDetailsInput = {
+  guest_name: string
+  guest_phone: string
+  guest_email: string | null
+  special_requests: string | null
+  source: Booking['source']
+}
+
+export type UpdateGuestDetailsResult =
+  | { success: true; changed: (keyof GuestDetailsInput)[] }
+  | { success: false; error: string }
+
+/**
+ * Updates a booking's guest name, phone, email, special requests and
+ * source. Only fields that actually changed are written, and the change
+ * history gets one 'guest_details_updated' entry listing each old → new
+ * value.
+ *
+ * guest_credits are matched on guest_email / guest_phone (see
+ * getGuestCreditBalance), and this deliberately does NOT rewrite any
+ * guest_credits rows. Changing the email/phone here can therefore stop this
+ * booking from finding credit held under the old contact details. That's
+ * intended: a credit belongs to the guest who earned it, and silently
+ * moving it to whatever contact a booking now shows would be worse.
+ */
+export async function updateGuestDetails(
+  bookingId: string,
+  input: GuestDetailsInput
+): Promise<UpdateGuestDetailsResult> {
+  const next: GuestDetailsInput = {
+    guest_name: (input.guest_name ?? '').trim(),
+    guest_phone: (input.guest_phone ?? '').trim(),
+    guest_email: (input.guest_email ?? '').trim() || null,
+    special_requests: (input.special_requests ?? '').trim() || null,
+    source: input.source,
+  }
+  if (!next.guest_name) return { success: false, error: 'Guest name is required.' }
+  if (!next.guest_phone) return { success: false, error: 'Phone number is required.' }
+  if (next.guest_email && !EMAIL_PATTERN.test(next.guest_email)) {
+    return { success: false, error: 'Enter a valid email address.' }
+  }
+  if (!GUEST_SOURCES.includes(next.source)) {
+    return { success: false, error: 'Choose a valid source.' }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: NOT_SIGNED_IN_ERROR }
+
+  const { data: booking, error: fetchError } = await supabase
+    .from('Bookings')
+    .select('status, guest_name, guest_phone, guest_email, special_requests, source')
+    .eq('id', bookingId)
+    .single()
+  if (fetchError || !booking) {
+    return { success: false, error: 'Booking not found.' }
+  }
+  if (isBookingLocked(booking)) {
+    return { success: false, error: LOCKED_ERROR }
+  }
+
+  const update: Partial<GuestDetailsInput> = {}
+  const changes: Record<string, { from: string | null; to: string | null }> = {}
+  for (const key of GUEST_DETAIL_FIELDS) {
+    // Treat a stored empty string the same as null, so an untouched blank
+    // optional field never counts as a change.
+    const before = ((booking[key] as string | null) ?? '').trim() || null
+    const after = next[key]
+    if (before !== after) {
+      ;(update as Record<string, string | null>)[key] = after
+      changes[key] = { from: before, to: after }
+    }
+  }
+
+  const changed = Object.keys(update) as (keyof GuestDetailsInput)[]
+  if (changed.length === 0) return { success: true, changed }
+
+  const { error: updateError } = await supabase.from('Bookings').update(update).eq('id', bookingId)
+  if (updateError) {
+    console.error('updateGuestDetails update failed:', updateError)
+    return { success: false, error: 'Something went wrong. Please try again.' }
+  }
+
+  const { error: auditError } = await supabase.from('booking_audit_log').insert({
+    booking_id: bookingId,
+    event_type: 'guest_details_updated',
+    reason: null,
+    details: { changes },
+    performed_by: user.email ?? null,
+  })
+  if (auditError) {
+    // The edit itself is saved; most likely the 20261111 migration (which
+    // allows this event_type) hasn't been run yet.
+    console.error('updateGuestDetails audit log insert failed:', auditError)
+  }
+
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
+  revalidatePath('/admin/calendar')
+  return { success: true, changed }
+}
+
+// =====================================================================
+// SECTION 11: permanently delete a booking — for duplicates/test entries,
+// NOT for real cancellations (that's cancelBookingByStaff, which keeps the
+// record). The work happens in the delete_booking() Postgres function
+// (supabase/migrations/20261111_guest_details_and_delete_booking.sql) so
+// payments, history and notifications go in one transaction, and the
+// append-only tables never need a general DELETE policy.
+// =====================================================================
+
+export async function deleteBooking(bookingId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: NOT_SIGNED_IN_ERROR }
+
+  const { data, error } = await supabase.rpc('delete_booking', { p_booking_id: bookingId })
+
+  if (error) {
+    console.error('deleteBooking rpc failed:', {
+      bookingId,
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    })
+    // PGRST202: PostgREST can't find the function; 42883: Postgres can't.
+    if (error.code === 'PGRST202' || error.code === '42883') {
+      return {
+        success: false,
+        error: "Deleting bookings isn't set up in the database yet. Run the 20261111 migration in Supabase first.",
+      }
+    }
+    if (error.code === '23503') {
+      return {
+        success: false,
+        error: "Something else in the database still points at this booking, so it can't be deleted.",
+      }
+    }
+    return { success: false, error: 'Something went wrong. Please try again.' }
+  }
+
+  const result = (data ?? {}) as { ok?: boolean; error?: string; total?: number; status?: string }
+  if (!result.ok) {
+    if (result.error === 'has_payments') {
+      const total = `₦${Number(result.total ?? 0).toLocaleString()}`
+      return {
+        success: false,
+        error:
+          result.status === 'cancelled'
+            ? `This cancelled booking still has ${total} in payments recorded, so it has to stay on file.`
+            : `This booking has ${total} in payments recorded. Void them in the Payments section first, then delete.`,
+      }
+    }
+    if (result.error === 'not_found') {
+      return { success: false, error: 'This booking no longer exists. Refresh the list.' }
+    }
+    if (result.error === 'not_authorized') return { success: false, error: NOT_SIGNED_IN_ERROR }
+    return { success: false, error: 'Something went wrong. Please try again.' }
+  }
+
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
+  revalidatePath('/admin/calendar')
+  return { success: true }
+}
+
+// =====================================================================
 // Guest credit — balance lookup and spending it as a payment on another
 // booking. Granting credit happens inside applyMoneyDispositionForAmount
 // above (the 'hold_credit' branch); this is the other half.
@@ -1868,6 +2050,7 @@ export type BookingAuditEntry = {
     | 'late_checkout'
     | 'discount'
     | 'promo_reprice'
+    | 'guest_details_updated'
   reason: string | null
   details: Record<string, unknown>
   performedBy: string | null

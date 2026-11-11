@@ -10,6 +10,7 @@ export default function ConfirmModal({
   cancelLabel = 'Cancel',
   hideCancel = false,
   confirmDisabled = false,
+  tone = 'default',
   onConfirm,
   onCancel,
 }: {
@@ -26,16 +27,24 @@ export default function ConfirmModal({
   // (e.g. a required checkbox) — disables the confirm button without the
   // caller needing to hide it or duplicate the dialog.
   confirmDisabled?: boolean
+  // 'danger' turns the confirm button clay — for irreversible actions
+  // (e.g. permanently deleting a booking).
+  tone?: 'default' | 'danger'
   onConfirm: () => void
   onCancel: () => void
 }) {
   useEffect(() => {
     if (!open) return
+    // Capture phase on window + stopPropagation: Escape closes only this
+    // dialog, not whatever it's stacked on (e.g. BookingDetailModal and the
+    // Edit booking panel each listen for Escape themselves).
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCancel()
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onCancel()
     }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [open, onCancel])
 
   if (!open) return null
@@ -79,7 +88,9 @@ export default function ConfirmModal({
             type="button"
             onClick={onConfirm}
             disabled={confirmDisabled}
-            className="rounded-full bg-espresso px-4 py-2 text-sm text-ivory transition-colors hover:bg-espresso/90 disabled:cursor-not-allowed disabled:opacity-50"
+            className={`rounded-full px-4 py-2 text-sm text-ivory transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              tone === 'danger' ? 'bg-clay hover:bg-clay/90' : 'bg-espresso hover:bg-espresso/90'
+            }`}
           >
             {confirmLabel}
           </button>

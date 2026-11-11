@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { getBookingDetail, type GetBookingDetailResult } from './bookings/actions'
 import BookingActions from './bookings/BookingActions'
 import PaymentsSection from './bookings/PaymentsSection'
@@ -17,6 +18,7 @@ export default function BookingDetailModal({
   bookingId: string | null
   onClose: () => void
 }) {
+  const router = useRouter()
   const [result, setResult] = useState<GetBookingDetailResult | null>(null)
   const [bookingIdForData, setBookingIdForData] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -248,8 +250,9 @@ export default function BookingDetailModal({
               onActionComplete={refetch}
             />
 
-            {!locked && (
-              <div>
+            {/* Shown for a cancelled (locked) booking too — BookingActions
+                hides everything there except Delete. */}
+            <div>
                 <p className="text-xs tracking-widest text-charcoal/50 uppercase">Actions</p>
                 <div className="mt-3">
                   <BookingActions
@@ -259,6 +262,10 @@ export default function BookingDetailModal({
                     checkOut={booking.check_out}
                     createdAt={booking.created_at}
                     guestName={booking.guest_name}
+                    guestPhone={booking.guest_phone}
+                    guestEmail={booking.guest_email}
+                    specialRequests={booking.special_requests}
+                    source={booking.source}
                     roomNumber={room?.room_number ?? ''}
                     hasCardOnFile={booking.card_chargeable}
                     pricePerNight={room?.price_per_night ?? 0}
@@ -271,10 +278,13 @@ export default function BookingDetailModal({
                     promos={result?.status === 'ok' ? result.promotions : []}
                     amountPaid={booking.amount_paid}
                     onActionComplete={refetch}
+                    onDeleted={() => {
+                      onClose()
+                      router.refresh()
+                    }}
                   />
                 </div>
-              </div>
-            )}
+            </div>
 
             <BookingAuditHistory bookingId={booking.id} refreshSignal={historyRefreshSignal} />
           </div>
