@@ -6,7 +6,7 @@ import type { Metadata } from 'next'
 import { supabase } from '@/lib/supabase'
 import type { Room } from '@/lib/types'
 import { HOTEL_NAME } from '@/lib/siteConfig'
-import { todayInLagos } from '@/lib/dateUtils'
+import { hotelTodayInLagos } from '@/lib/dateUtils'
 import { ACTIVE_BOOKING_STATUSES } from '@/lib/bookings'
 import { displayRoomCategory, displayRoomName } from '@/lib/roomTypeContent'
 import BookingForm from './BookingForm'
@@ -40,7 +40,7 @@ function parseInitialDates(searchParams: { [key: string]: string | string[] | un
     ISO_DATE_PATTERN.test(checkIn) &&
     ISO_DATE_PATTERN.test(checkOut) &&
     checkOut > checkIn &&
-    checkIn >= todayInLagos()
+    checkIn >= hotelTodayInLagos()
 
   return valid ? { checkIn, checkOut } : { checkIn: null, checkOut: null }
 }

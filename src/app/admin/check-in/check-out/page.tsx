@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { bookingsQuery } from '@/lib/adminBookings'
-import { todayInLagos } from '@/lib/dateUtils'
+import { todayInLagos, hotelTodayInLagos } from '@/lib/dateUtils'
 import CheckInButton from './CheckInButton'
 import CheckOutButton from './CheckOutButton'
 import { ActionResultProvider } from './ActionResultContext'
@@ -13,16 +13,22 @@ export default async function TodayPage() {
   // the admin section. Shares bookingsQuery() with the "All Bookings"
   // table (src/lib/adminBookings.ts) so the two views can never quietly
   // drift into disagreeing about what a booking looks like.
+  //
+  // Between midnight and 12:00 PM Lagos the current hotel night is still
+  // yesterday's, so arrivals also include not-yet-checked-in bookings for
+  // that night (e.g. a 1 AM walk-in booked check_in = yesterday). From
+  // 12:00 PM both dates are the same, so it's just today's arrivals.
   const today = todayInLagos()
+  const arrivalDates = Array.from(new Set([hotelTodayInLagos(), today]))
   const { data: todaysCheckIns } = await bookingsQuery(supabase)
-    .eq('check_in', today)
+    .in('check_in', arrivalDates)
     .eq('status', 'confirmed')
     .order('guest_name', { ascending: true })
 
-  // Guests currently staying who are expected to leave today — the daily
-  // auto-checkout cron job (see src/app/api/cron/auto-checkout) still
-  // handles anything left un-checked-out by end of day; this is just the
-  // manual same-day path for staff.
+  // Guests currently staying who are expected to leave today (by 12:00 PM)
+  // — stays on the plain calendar day. The auto-checkout cron (see
+  // src/app/api/cron/auto-checkout) marks anyone still checked in as
+  // checked out at 12:00 PM Lagos; this is the manual path for staff.
   const { data: todaysCheckOuts } = await bookingsQuery(supabase)
     .eq('check_out', today)
     .eq('status', 'checked_in')

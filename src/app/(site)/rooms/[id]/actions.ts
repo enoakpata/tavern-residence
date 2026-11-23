@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { isRoomAvailable } from '@/lib/bookings'
-import { todayInLagos } from '@/lib/dateUtils'
+import { hotelTodayInLagos } from '@/lib/dateUtils'
 import { verifyTransaction, refundTransaction } from '@/lib/paystack'
 import {
   sendEmail,
@@ -80,6 +80,13 @@ export async function createBooking(formData: FormData): Promise<BookingResult> 
     return { success: false, error: 'Check-out must be after check-in.' }
   }
 
+  // The earliest bookable night is the current HOTEL night — before 12:00
+  // PM Lagos that's still yesterday's (a 1 AM arrival books last night),
+  // from 12:00 PM it's today. See hotelTodayInLagos in src/lib/dateUtils.ts.
+  if (checkIn < hotelTodayInLagos()) {
+    return { success: false, error: 'That check-in date has already passed. Please choose new dates.' }
+  }
+
   // Fetched once, early — used for the capacity re-check right below and
   // reused further down (totalAmount) instead of querying Rooms twice.
   const { data: bookedRoom } = await supabase
@@ -148,7 +155,9 @@ const bookingId = crypto.randomUUID()
 // same instant is available below for the confirmation email and the
 // success screen's free-cancellation cutoff on same-day bookings.
 const createdAt = new Date().toISOString()
-const isSameDayBooking = checkIn === todayInLagos()
+// Same-day = booking for the current hotel night (incl. last night's, when
+// booked between midnight and 12:00 PM) — gets the 1-hour grace period.
+const isSameDayBooking = checkIn === hotelTodayInLagos()
 // Night-by-night, so any promo nights in the stay are priced at the
 // promo rate and the rest at the normal rate — see src/lib/pricing.ts.
 // The same function (and the same promotions table) drives the total

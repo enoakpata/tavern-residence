@@ -15,7 +15,7 @@ import AroundTheResidence from './AroundTheResidence'
 import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER } from '@/lib/roomTypeContent'
 import { promoOnDate } from '@/lib/pricing'
 import { getPromotions } from '@/lib/promotions'
-import { todayInLagos } from '@/lib/dateUtils'
+import { hotelTodayInLagos } from '@/lib/dateUtils'
 
 // Without this, Next.js finds no dynamic API in use here and statically
 // prerenders the page once at build time — including the gallery folder
@@ -39,7 +39,7 @@ export default async function Home() {
     .from('Rooms')
     .select('id, room_number, name, price_per_night')
 
-  const today = todayInLagos()
+  const today = hotelTodayInLagos()
   const promos = await getPromotions()
   const roomsByNumber = new Map((roomRows ?? []).map((r) => [r.room_number as string, r]))
 

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { resolveAvailableRoomId } from '@/lib/bookings'
-import { todayInLagos } from '@/lib/dateUtils'
+import { hotelTodayInLagos } from '@/lib/dateUtils'
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
@@ -104,7 +104,7 @@ export default async function BookRoomTypePage({
     ISO_DATE_PATTERN.test(checkIn) &&
     ISO_DATE_PATTERN.test(checkOut) &&
     checkOut > checkIn &&
-    checkIn >= todayInLagos()
+    checkIn >= hotelTodayInLagos()
 
   if (!hasValidDates) {
     // No dates picked yet — no availability to check against, so just the

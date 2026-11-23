@@ -6,7 +6,14 @@ import { bookingsQuery } from '@/lib/adminBookings'
 import { isRoomAvailable, getChargeableAuthCode, ACTIVE_BOOKING_STATUSES } from '@/lib/bookings'
 import { computePaymentStatus, resolveTotalAmount, isBookingLocked } from '@/lib/bookingStatus'
 import { CREDIT_EXPIRY_MONTHS, computeCreditBalance } from '@/lib/guestCredits'
-import { paymentMomentForDate, todayInLagos, toISODate, parseISODate, addMonths } from '@/lib/dateUtils'
+import {
+  paymentMomentForDate,
+  todayInLagos,
+  hotelTodayInLagos,
+  toISODate,
+  parseISODate,
+  addMonths,
+} from '@/lib/dateUtils'
 import { chargeAuthorization } from '@/lib/paystack'
 import {
   sendEmail,
@@ -255,6 +262,12 @@ export async function createManualBooking(formData: FormData): Promise<CreateMan
   }
   if (checkOut <= checkIn) {
     return { success: false, error: 'Check-out must be after check-in.' }
+  }
+  // Earliest check-in is the current HOTEL night: between midnight and
+  // 12:00 PM Lagos that's yesterday, so a 1 AM walk-in is booked for last
+  // night (1 night, out at 12:00 PM today). See hotelTodayInLagos.
+  if (checkIn < hotelTodayInLagos()) {
+    return { success: false, error: 'Check-in can’t be before the current hotel night.' }
   }
   if (amountPaid < 0 || Number.isNaN(amountPaid)) {
     return { success: false, error: 'Amount paid cannot be negative.' }
@@ -806,6 +819,14 @@ export async function editBookingDates(
 
   if (newCheckOut <= newCheckIn) {
     return { success: false, error: 'Check-out must be after check-in.' }
+  }
+
+  // Moving check-in (confirmed bookings only) can't go before the current
+  // hotel night — yesterday's date is still fine before 12:00 PM Lagos.
+  // An unchanged check-in is never re-validated, so a stay already under
+  // way can still have its check-out edited.
+  if (newCheckIn !== booking.check_in && newCheckIn < hotelTodayInLagos()) {
+    return { success: false, error: 'Check-in can’t be moved before the current hotel night.' }
   }
 
   const available = await isRoomAvailable(booking.room_id, newCheckIn, newCheckOut, bookingId)

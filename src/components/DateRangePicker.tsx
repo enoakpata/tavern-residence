@@ -13,6 +13,7 @@ import {
   startOfMonth,
   toISODate,
   todayInLagos,
+  hotelTodayInLagos,
   type BlockedRange,
 } from '@/lib/dateUtils'
 
@@ -89,22 +90,31 @@ export default function DateRangePicker({
   const isDark = theme === 'dark'
   const isViewportAnchored = anchor === 'viewport'
 
+  // "Today" in Lagos time, never the visitor's device clock. For a stay
+  // picker that's the current HOTEL NIGHT (hotelTodayInLagos — before
+  // 12:00 PM it's still yesterday's night, so a 1 AM arrival can book
+  // last night). A picker recording something that already happened
+  // (allowPast — payment dates, early-checkout departure) keeps the plain
+  // calendar day, so its "today" ring lands on the real date.
+  const todayIso = allowPast ? todayInLagos() : hotelTodayInLagos()
+  const today = parseISODate(todayIso)
+
   // A range restored from a URL/prop on mount is only trusted if neither
   // end has already passed — a bookmarked or shared link (or just an old
   // tab left open) can easily carry a check-in/check-out that's since
-  // slipped into the past. Compared as plain ISO strings against "today"
-  // in the hotel's own timezone (not the visitor's device clock), same as
-  // todayInLagos()'s other call sites — if either half is stale, the
-  // whole pair is dropped rather than restoring a half-broken selection.
+  // slipped into the past. Compared as plain ISO strings against the
+  // hotel's current night — if either half is stale, the whole pair is
+  // dropped rather than restoring a half-broken selection.
+  const hotelToday = hotelTodayInLagos()
   const initialRangeIsStale =
-    (initialCheckIn != null && initialCheckIn < todayInLagos()) ||
-    (initialCheckOut != null && initialCheckOut < todayInLagos())
+    (initialCheckIn != null && initialCheckIn < hotelToday) ||
+    (initialCheckOut != null && initialCheckOut < hotelToday)
   const seedCheckIn = !initialRangeIsStale ? initialCheckIn : null
   const seedCheckOut = !initialRangeIsStale ? initialCheckOut : null
 
   const [open, setOpen] = useState(false)
   const [visibleMonth, setVisibleMonth] = useState(() =>
-    seedCheckIn ? startOfMonth(parseISODate(seedCheckIn)) : startOfMonth(new Date())
+    seedCheckIn ? startOfMonth(parseISODate(seedCheckIn)) : startOfMonth(today)
   )
   const [checkIn, setCheckIn] = useState<Date | null>(() =>
     seedCheckIn ? parseISODate(seedCheckIn) : null
@@ -152,9 +162,6 @@ export default function DateRangePicker({
     mq.addEventListener('change', update)
     return () => mq.removeEventListener('change', update)
   }, [])
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -263,7 +270,7 @@ export default function DateRangePicker({
   }
 
   function isBeforeToday(day: Date) {
-    return toISODate(day) < toISODate(today)
+    return toISODate(day) < todayIso
   }
 
   function isBeforeMinDate(day: Date) {

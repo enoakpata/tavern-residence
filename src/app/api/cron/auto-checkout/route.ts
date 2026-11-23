@@ -3,8 +3,9 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { todayInLagos } from '@/lib/dateUtils'
 
 /**
- * Runs once daily via Vercel Cron (see vercel.json). Moves any booking
- * that was actually checked in and whose check-out date has passed to
+ * Runs once daily via Vercel Cron at 11:00 UTC = 12:00 PM Lagos, the
+ * standard check-out time (see vercel.json). Moves any booking that was
+ * actually checked in and whose check-out date is today or earlier to
  * checked_out — never touches bookings that were never checked in, so a
  * no-show is never silently marked as checked out.
  */
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     .from('Bookings')
     .update({ status: 'checked_out' })
     .eq('status', 'checked_in')
-    .lt('check_out', today)
+    .lte('check_out', today)
     .select('id')
 
   if (error) {

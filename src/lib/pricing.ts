@@ -192,6 +192,9 @@ export const EARLY_LATE_FEE_RATE = 0.5
 
 // Guest-facing times, used in the policy copy and emails.
 export const STANDARD_CHECK_IN_TIME = '2:00 PM'
+// Also the hotel-day rollover — keep in sync with HOTEL_DAY_ROLLOVER_HOUR
+// in src/lib/dateUtils.ts (before this time, "today" for stays is still
+// yesterday's night).
 export const STANDARD_CHECK_OUT_TIME = '12:00 PM'
 export const LATE_CHECK_OUT_LATEST_TIME = '4:00 PM'
 

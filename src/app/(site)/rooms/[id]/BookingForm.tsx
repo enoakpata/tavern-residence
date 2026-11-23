@@ -16,7 +16,7 @@ import {
   LATE_CHECK_OUT_LATEST_TIME,
   EARLY_LATE_FEE_RATE,
 } from '@/lib/pricing'
-import { formatLagosTime, todayInLagos, type BlockedRange } from '@/lib/dateUtils'
+import { formatLagosTime, hotelTodayInLagos, type BlockedRange } from '@/lib/dateUtils'
 import Link from 'next/link'
 import { HOTEL_PHONE_DISPLAY, CANCELLATION_FEE_FRACTION, CANCELLATION_POLICY_VERSION } from '@/lib/siteConfig'
 import { CANCELLATION_POLICY_BULLETS, CARD_HOLD_CONSENT_TEXT } from '@/lib/cancellationPolicy'
@@ -163,8 +163,9 @@ export default function BookingForm({
 
   // Same-day bookings can never be more than 24 hours from check-in, so
   // they rely on the separate 1-hour-after-booking grace period instead —
-  // this note only makes sense for them.
-  const isSameDayBooking = checkIn === todayInLagos()
+  // this note only makes sense for them. "Same day" means the current
+  // hotel night, so a 1 AM booking for last night counts.
+  const isSameDayBooking = checkIn === hotelTodayInLagos()
 
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0
   // Same night-by-night pricing createBooking stores (src/lib/pricing.ts)

@@ -5,7 +5,7 @@ import { isAnyRoomAvailable } from '@/lib/bookings'
 import type { Room } from '@/lib/types'
 import { getRoomCoverImage, getRoomGallery, getGalleryImages } from '@/lib/roomImages'
 import { HOTEL_NAME, HOTEL_ADDRESS_LOCALITY, HOTEL_ADDRESS_REGION } from '@/lib/siteConfig'
-import { todayInLagos } from '@/lib/dateUtils'
+import { hotelTodayInLagos } from '@/lib/dateUtils'
 import { nightlyRate, promoOnDate } from '@/lib/pricing'
 import { getPromotions } from '@/lib/promotions'
 import { ROOM_TYPE_CONTENT, ROOM_TYPE_ORDER, type RoomTypeKey } from '@/lib/roomTypeContent'
@@ -47,7 +47,7 @@ export default async function RoomsPage({
     ISO_DATE_PATTERN.test(rawCheckIn) &&
     ISO_DATE_PATTERN.test(rawCheckOut) &&
     rawCheckOut > rawCheckIn &&
-    rawCheckIn >= todayInLagos()
+    rawCheckIn >= hotelTodayInLagos()
 
   // The availability bar always submits adults alongside children (never
   // just one), so adults present is enough to treat this as "a guest
@@ -117,7 +117,7 @@ export default async function RoomsPage({
       // The rate for the guest's first night if they've chosen dates,
       // otherwise tonight's — so a promo price shows while it's running
       // and the normal price returns on its own once it ends.
-      const rateDate = hasDates ? rawCheckIn : todayInLagos()
+      const rateDate = hasDates ? rawCheckIn : hotelTodayInLagos()
       const promo = promoOnDate(representative, rateDate, promos)
 
       return {

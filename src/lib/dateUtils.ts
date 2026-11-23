@@ -29,6 +29,38 @@ export function todayInLagos(): string {
 }
 
 /**
+ * The Lagos hour (0–23) at which the hotel night rolls over — the
+ * standard check-out time, STANDARD_CHECK_OUT_TIME ('12:00 PM') in
+ * src/lib/pricing.ts. Change the two together.
+ */
+export const HOTEL_DAY_ROLLOVER_HOUR = 12
+
+/**
+ * The date of the CURRENT HOTEL NIGHT in Lagos, as 'YYYY-MM-DD'. A night
+ * runs 2:00 PM → 12:00 PM next day, so before HOTEL_DAY_ROLLOVER_HOUR the
+ * current night is still the one that started yesterday: a guest arriving
+ * at 1:00 AM on 24 Nov is staying the night of 23 Nov (check_in 23 Nov,
+ * check_out 24 Nov, 1 night). From 12:00 PM onward it's today's date.
+ *
+ * Use this wherever a STAY date (check-in/check-out) is compared with
+ * "today". Keep todayInLagos() for plain calendar-day things — payment
+ * dates, promotions admin, credit expiry, departures due today.
+ */
+export function hotelTodayInLagos(): string {
+  const now = new Date()
+  const lagosHour = Number(
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', hour: '2-digit', hourCycle: 'h23' }).format(now)
+  )
+  const today = todayInLagos()
+  if (lagosHour >= HOTEL_DAY_ROLLOVER_HOUR) return today
+  // Pure calendar arithmetic on the Lagos date string (UTC so the host's
+  // timezone can't shift it).
+  const d = new Date(`${today}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
  * Tomorrow's date in Lagos — same rationale as todayInLagos(). WAT has no
  * daylight saving, so a flat 24-hour offset from the current instant
  * always lands on the correct next calendar day once formatted back into
