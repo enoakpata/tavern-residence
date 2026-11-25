@@ -18,6 +18,7 @@ export default function CancelBookingButton({
   pricePerNight,
   hasCardOnFile,
   amountPaid,
+  isPayOnline = false,
 }: {
   bookingId: string
   checkIn: string
@@ -27,6 +28,8 @@ export default function CancelBookingButton({
   // src/app/(site)/booking/[id]/page.tsx.
   hasCardOnFile: boolean
   amountPaid: number
+  // Pay online bookings: whatever's paid becomes credit, never a fee.
+  isPayOnline?: boolean
 }) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
@@ -47,7 +50,12 @@ export default function CancelBookingButton({
   // outside the free window only applies if our team follows up and
   // applies it manually, per policy (and never if the stay's already
   // been paid for — see cancellationPreviewMessage).
-  const message = cancellationPreviewMessage({ feeMayApply, reason, alreadyPaid })
+  const message = cancellationPreviewMessage({
+    feeMayApply,
+    reason,
+    alreadyPaid,
+    paidOnlineAmount: isPayOnline ? amountPaid : 0,
+  })
 
   function handleConfirm() {
     setModalOpen(false)

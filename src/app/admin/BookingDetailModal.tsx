@@ -8,7 +8,14 @@ import PaymentsSection from './bookings/PaymentsSection'
 import BookingAuditHistory from './bookings/BookingAuditHistory'
 import { resolveTotalAmount, isBookingLocked } from '@/lib/bookingStatus'
 import { formatLagosDateTime } from '@/lib/dateUtils'
-import { STATUS_STYLES, STATUS_LABELS, PAYMENT_STYLES } from '@/lib/statusStyles'
+import {
+  STATUS_STYLES,
+  STATUS_LABELS,
+  PAYMENT_STYLES,
+  PAID_ONLINE_BADGE_STYLE,
+  PAYMENT_OPTION_LABELS,
+  onlinePaymentBadgeLabel,
+} from '@/lib/statusStyles'
 import { displayRoomCategory, displayRoomName } from '@/lib/roomTypeContent'
 
 export default function BookingDetailModal({
@@ -134,6 +141,11 @@ export default function BookingDetailModal({
               >
                 {booking.payment_status.replace('_', ' ')}
               </span>
+              {onlinePaymentBadgeLabel(booking) && (
+                <span className={`rounded-full px-3 py-1 text-xs ${PAID_ONLINE_BADGE_STYLE}`}>
+                  {onlinePaymentBadgeLabel(booking)}
+                </span>
+              )}
             </div>
 
             {locked && (
@@ -175,6 +187,12 @@ export default function BookingDetailModal({
               <div>
                 <dt className="text-charcoal/50">Source</dt>
                 <dd className="mt-1 text-charcoal capitalize">{booking.source.replace('_', ' ')}</dd>
+              </div>
+              <div>
+                <dt className="text-charcoal/50">Payment option</dt>
+                <dd className="mt-1 text-charcoal">
+                  {PAYMENT_OPTION_LABELS[booking.payment_option] ?? 'Pay in person'}
+                </dd>
               </div>
               <div>
                 <dt className="text-charcoal/50">Booked</dt>
@@ -277,6 +295,7 @@ export default function BookingDetailModal({
                     discountReason={booking.discount_reason}
                     promos={result?.status === 'ok' ? result.promotions : []}
                     amountPaid={booking.amount_paid}
+                    paymentOption={booking.payment_option}
                     onActionComplete={refetch}
                     onDeleted={() => {
                       onClose()

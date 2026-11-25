@@ -53,7 +53,8 @@ export default function ManageBookingSearch() {
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
-    const now = Date.now()
+    const currentTime = () =>Date.now()
+    const now = currentTime()
     if (cooldownUntil && now < cooldownUntil) {
       setErrorCode('rate_limited')
       return

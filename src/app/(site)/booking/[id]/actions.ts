@@ -7,13 +7,21 @@ import { sendEmail, buildCancellationNotificationEmail } from '@/lib/email'
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
 import { displayRoomName } from '@/lib/roomTypeContent'
 import type { ManageBookingErrorCode } from '@/lib/manageBookingMessages'
+import { convertOnlinePaymentToCredit } from '@/lib/onlinePayments'
 
 const NON_CANCELLABLE_STATUSES = ['cancelled', 'checked_out', 'no_show']
 
 // An error code, never raw text — see findBookings in
 // manage-booking/actions.ts for the same pattern and why.
 export type CancelBookingResult =
-  | { success: true; feeMayApply: boolean; feeAmount: number; alreadyPaid: boolean }
+  | {
+      success: true
+      feeMayApply: boolean
+      feeAmount: number
+      alreadyPaid: boolean
+      // Pay online: the amount paid that was saved as guest credit (0 otherwise).
+      creditAmount: number
+    }
   | { success: false; code: ManageBookingErrorCode }
 
 /**
@@ -104,14 +112,33 @@ export async function cancelBooking(bookingId: string): Promise<CancelBookingRes
   const alreadyPaid = Number(booking.amount_paid ?? 0) > 0
   const feeMayApply = feeApplies && hasCardOnFile && !alreadyPaid
 
-  const { error } = await supabaseAdmin
+  // Conditional on the status still being cancellable, so a double-click
+  // can only cancel (and grant any credit) once.
+  const { data: claimed, error } = await supabaseAdmin
     .from('Bookings')
     .update({ status: 'cancelled' })
     .eq('id', bookingId)
+    .not('status', 'in', `(${NON_CANCELLABLE_STATUSES.join(',')})`)
+    .select('id')
+    .maybeSingle()
 
   if (error) {
     console.error('cancelBooking update failed:', error)
     return { success: false, code: 'server_error' }
+  }
+  if (!claimed) {
+    return { success: false, code: 'already_cancelled' }
+  }
+
+  // Pay online: never refunded, no fee — the full amount paid becomes
+  // guest credit for a future stay (the guest is emailed).
+  let creditAmount = 0
+  if (booking.payment_option === 'pay_online' && alreadyPaid) {
+    const credit = await convertOnlinePaymentToCredit(supabaseAdmin, booking, 'cancelled', 'guest')
+    creditAmount = credit.amount
+    if (!credit.success) {
+      console.error('Saving online payment as credit failed for cancelled booking', bookingId, credit.error)
+    }
   }
 
   await notifyCancellation(bookingId, booking, feeMayApply, feeAmount)
@@ -122,5 +149,5 @@ export async function cancelBooking(bookingId: string): Promise<CancelBookingRes
   revalidatePath('/admin/bookings')
   revalidatePath('/admin/check-in/check-out')
   revalidatePath('/admin/calendar')
-  return { success: true, feeMayApply, feeAmount, alreadyPaid }
+  return { success: true, feeMayApply, feeAmount, alreadyPaid, creditAmount }
 }

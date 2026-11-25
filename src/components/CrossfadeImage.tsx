@@ -69,6 +69,7 @@ export default function CrossfadeImage({
       // back to a photo that was showing a moment ago) — nothing to
       // load, just reveal it.
       pendingLayer.current = null
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFront(incoming)
       return
     }

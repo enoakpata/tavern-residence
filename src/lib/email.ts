@@ -2,6 +2,7 @@ import { Resend } from 'resend'
 import { SITE_URL, HOTEL_ADDRESS, HOTEL_NAME, HOTEL_PHONE_DISPLAY, HOTEL_EMAIL } from './siteConfig'
 import { formatLagosTime } from './dateUtils'
 import { CANCELLATION_POLICY_BULLETS } from './cancellationPolicy'
+import { creditSavedMessage } from './creditMessages'
 import { EARLY_LATE_POLICY_TEXT, STANDARD_CHECK_IN_TIME, STANDARD_CHECK_OUT_TIME } from './pricing'
 
 // Exact policy wording (see cancellationPolicy.ts) as an HTML list —
@@ -55,7 +56,7 @@ export function buildGuestConfirmationEmail({
   createdAt,
   isSameDayBooking = false,
   totalAmount,
-  cardLast4,
+  paymentOption = 'pay_in_person',
 }: {
   guestName: string
   roomName: string
@@ -69,6 +70,9 @@ export function buildGuestConfirmationEmail({
   // bookings created from the admin dashboard have neither.
   totalAmount?: number
   cardLast4?: string
+  // Pay online bookings get no payment line at all (Paystack sends its own
+  // receipt); Pay in person bookings get the amount due on arrival.
+  paymentOption?: 'pay_online' | 'pay_in_person'
 }) {
   const manageUrl = `${SITE_URL}/booking/${bookingId}`
 
@@ -84,13 +88,13 @@ export function buildGuestConfirmationEmail({
       )} (1 hour after booking).`
     : ''
 
-  // Never claims payment was received — it wasn't; the stay is paid
-  // directly to the hotel (transfer or card on arrival). The
-  // ₦100 Paystack charge mentioned here is a verification charge only,
-  // already refunded by the time this email sends.
-  const paymentNotice = totalAmount
-    ? `<p>Your total for this stay is ₦${totalAmount.toLocaleString()}, payable directly to us — by bank transfer or card on arrival. This isn't paid online.</p>`
-    : ''
+  // Pay in person: the stay is paid at the hotel, so say what's due.
+  // Pay online: deliberately says nothing about payment — Paystack sends
+  // the guest its own receipt.
+  const paymentNotice =
+    totalAmount && paymentOption !== 'pay_online'
+      ? `<p>Pay in person at the hotel — ₦${totalAmount.toLocaleString()} due on arrival.</p>`
+      : ''
   // const cardHoldNotice = cardLast4
   //   ? `<p>We verified and securely hold a card ending ${cardLast4} to cover a cancellation or no-show fee only, per our cancellation policy below — it will never be charged for the stay itself.</p>`
   //   : ''
@@ -178,6 +182,7 @@ export function buildHotelNotificationEmail({
   roomName,
   checkIn,
   checkOut,
+  paidOnlineAmount,
 }: {
   guestName: string
   guestPhone: string
@@ -186,10 +191,13 @@ export function buildHotelNotificationEmail({
   roomName: string
   checkIn: string
   checkOut: string
+  // Set for a Pay online booking — the amount already paid by card.
+  paidOnlineAmount?: number
 }) {
   const html = `
     <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
       <p>New booking request received:</p>
+      ${paidOnlineAmount ? `<p><strong>Paid online:</strong> ₦${paidOnlineAmount.toLocaleString()} (card, via Paystack)</p>` : ''}
       <p>
         <strong>Guest:</strong> ${guestName}<br />
         <strong>Phone:</strong> ${guestPhone}<br />
@@ -289,6 +297,51 @@ export function buildCancellationNotificationEmail({
 
   return {
     subject: `Booking cancelled: ${guestName} — Room ${roomNumber}`,
+    html,
+  }
+}
+
+/**
+ * Sent to the guest when their Pay online booking is cancelled (by them
+ * or by staff) or marked as a no-show. Deliberately never says "refund".
+ */
+export function buildOnlineCreditEmail({
+  guestName,
+  checkIn,
+  checkOut,
+  amount,
+  reason,
+}: {
+  guestName: string
+  checkIn: string
+  checkOut: string
+  amount: number
+  reason: 'cancelled' | 'no_show'
+}) {
+  const what =
+    reason === 'no_show'
+      ? `We didn't see you for your stay (${formatDate(checkIn)} – ${formatDate(checkOut)}), so the booking has been closed as a no-show.`
+      : `Your booking for ${formatDate(checkIn)} – ${formatDate(checkOut)} has been cancelled.`
+
+  const html = `
+    <div style="font-family: sans-serif; color: #26241f; max-width: 480px; margin: 0 auto;">
+      <p>Hi ${guestName},</p>
+
+      <p>${what}</p>
+
+      <p>${creditSavedMessage(amount)}</p>
+
+      <p>Reach us at ${HOTEL_PHONE_DISPLAY} or ${HOTEL_EMAIL}.</p>
+
+      <p>— ${HOTEL_NAME}</p>
+    </div>
+  `
+
+  return {
+    subject:
+      reason === 'no_show'
+        ? `Your stay credit — ${HOTEL_NAME}`
+        : `Booking cancelled — your credit with ${HOTEL_NAME}`,
     html,
   }
 }

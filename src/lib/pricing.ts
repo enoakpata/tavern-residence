@@ -204,7 +204,6 @@ export const EARLY_LATE_POLICY_TEXT =
   `Early check-in (any time before ${STANDARD_CHECK_IN_TIME}) and late check-out (until ${LATE_CHECK_OUT_LATEST_TIME}) are available on request, subject to availability. Each costs 50% of the room's nightly rate.`
 // Takes the room so a per-room fee could be introduced later without
 // touching any caller; today it's the same flat amount for every room.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function earlyLateFee(room?: PricedRoom | null): number {
 if (!room) return 0
   return Math.round(room.price_per_night * EARLY_LATE_FEE_RATE)}

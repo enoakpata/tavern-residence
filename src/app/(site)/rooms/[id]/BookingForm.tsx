@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
-import { checkAvailability, createBooking } from './actions'
+import { checkAvailability, createBooking, startOnlinePayment, confirmOnlinePayment } from './actions'
 import DateRangePicker from '@/components/DateRangePicker'
 import ConfirmModal from '@/components/ConfirmModal'
 import type { Room } from '@/lib/types'
@@ -19,7 +19,11 @@ import {
 import { formatLagosTime, hotelTodayInLagos, type BlockedRange } from '@/lib/dateUtils'
 import Link from 'next/link'
 import { HOTEL_PHONE_DISPLAY, CANCELLATION_FEE_FRACTION, CANCELLATION_POLICY_VERSION } from '@/lib/siteConfig'
-import { CANCELLATION_POLICY_BULLETS, CARD_HOLD_CONSENT_TEXT } from '@/lib/cancellationPolicy'
+import {
+  CANCELLATION_POLICY_BULLETS,
+  CARD_HOLD_CONSENT_TEXT,
+  PAY_ONLINE_CONSENT_TEXT,
+} from '@/lib/cancellationPolicy'
 
 // The compact "Before you book" summary (point 2 of the policy-step
 // redesign) — short rows, no icons, kept in sync with
@@ -35,10 +39,15 @@ const POLICY_SUMMARY_ROWS = [
   {
     label: 'Early check-in / late check-out',
     detail: `On request: early check-in any time before ${STANDARD_CHECK_IN_TIME}, late check-out until ${LATE_CHECK_OUT_LATEST_TIME} — ${EARLY_LATE_FEE_RATE * 100}% of the nightly rate each, subject to availability`,  },
-  { label: 'Payment', detail: 'Pay the hotel directly on arrival (transfer or card)' },
-  { label: 'Cancellation', detail: 'Free up to 24 hours before check-in' },
   {
-    label: 'Late cancellation or no-show',
+    label: 'Pay online',
+    detail:
+      "The full stay is paid by card now. Online payments are non-refundable — if you cancel or don't arrive, there's no fee and the full amount is kept as credit for a future stay.",
+  },
+  { label: 'Pay in person', detail: 'Pay the hotel directly on arrival (transfer or card)' },
+  { label: 'Cancellation (pay in person)', detail: 'Free up to 24 hours before check-in' },
+  {
+    label: 'Late cancellation or no-show (pay in person)',
     detail: `${CANCELLATION_FEE_FRACTION * 100}% of one night's rate, charged to your card`,
   },
   { label: 'House rules', detail: 'No pets; no smoking in rooms (₦200,000 fee if violated)' },
@@ -80,6 +89,18 @@ declare global {
 
 type Step = 'form' | 'verifying' | 'success' | 'error'
 
+type PaymentOption = 'pay_online' | 'pay_in_person'
+
+// The two selectable payment cards. The total is shown on both.
+const PAYMENT_OPTIONS: { value: PaymentOption; title: string; detail: string }[] = [
+  { value: 'pay_online', title: 'Pay online', detail: 'Pay the full stay now by card' },
+  {
+    value: 'pay_in_person',
+    title: 'Pay in person',
+    detail: "Pay at the hotel when you arrive — we'll save your card for the booking guarantee",
+  },
+]
+
 export default function BookingForm({
   room,
   promos,
@@ -113,6 +134,18 @@ export default function BookingForm({
   const [checkIn, setCheckIn] = useState<string | null>(initialCheckIn)
   const [checkOut, setCheckOut] = useState<string | null>(initialCheckOut)
   const [pendingFormData, setPendingFormData] = useState<FormData | null>(null)
+  // Must be picked before booking — no default, so the guest makes a
+  // deliberate choice between paying now and paying at the hotel.
+  const [paymentOption, setPaymentOption] = useState<PaymentOption | null>(null)
+  // Set once a Pay online booking is confirmed — drives the success
+  // screen's "Paid online — ₦X".
+  const [paidOnlineAmount, setPaidOnlineAmount] = useState(0)
+  // Guards the Paystack popup's onClose firing after a successful payment
+  // (it must not show "payment not completed" over the success screen).
+  const paymentSucceededRef = useRef(false)
+  // The room was taken while a Pay online guest was paying — the payment
+  // is refunded automatically, and the unavailable modal says so.
+  const [unavailableRefunded, setUnavailableRefunded] = useState(false)
 
   // Required before the card step can proceed — reset every time the
   // policy modal is (re)opened, so a guest can't check it once, cancel
@@ -234,6 +267,12 @@ export default function BookingForm({
       return
     }
 
+    if (!paymentOption) {
+      setErrorMessage('Please choose Pay online or Pay in person.')
+      setStep('error')
+      return
+    }
+
     // Before proceeding to the availability check and payment, the guest
     // must see and acknowledge a condensed summary of the policies.
     setConsentChecked(false)
@@ -261,6 +300,7 @@ export default function BookingForm({
 
   function handleUnavailableDismiss() {
     setUnavailableDates(null)
+    setUnavailableRefunded(false)
   }
 
   function handlePaymentNotCompletedDismiss() {
@@ -282,6 +322,11 @@ export default function BookingForm({
     const submittedCheckIn = formData.get('check_in') as string
     const submittedCheckOut = formData.get('check_out') as string
     const submittedGuestEmail = formData.get('guest_email') as string
+
+    if (paymentOption === 'pay_online') {
+      startPayOnline(formData, submittedCheckIn, submittedCheckOut)
+      return
+    }
 
     startTransition(async () => {
       // Step 1: check the room is actually free before we ever ask for
@@ -309,6 +354,8 @@ export default function BookingForm({
         email: submittedGuestEmail,
         amount: 10000, // ₦100 in kobo — refunded automatically after verification
         currency: 'NGN',
+        // Card only — only a card payment gives a reusable authorization.
+        channels: ['card'],
         ref: `tavern_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
         callback: (response: { reference: string }) => {
           // Step 3: card charge succeeded on Paystack's side — now hand
@@ -343,6 +390,73 @@ export default function BookingForm({
     })
   }
 
+  // Pay online: the server creates a pending booking (holding the room)
+  // and returns the exact amount + reference; the popup must use exactly
+  // those. The server then verifies the payment itself before confirming —
+  // the client never decides the amount or whether it was paid.
+  function startPayOnline(formData: FormData, submittedCheckIn: string, submittedCheckOut: string) {
+    startTransition(async () => {
+      if (!window.PaystackPop) {
+        setErrorMessage('Payment system is still loading. Please try again in a moment.')
+        setStep('error')
+        return
+      }
+
+      const start = await startOnlinePayment(formData)
+      if (!start.success) {
+        if (start.error === ROOM_NO_LONGER_AVAILABLE_ERROR) {
+          setUnavailableDates({ checkIn: submittedCheckIn, checkOut: submittedCheckOut })
+        } else {
+          setErrorMessage(start.error)
+          setStep('error')
+        }
+        return
+      }
+
+      paymentSucceededRef.current = false
+      setStep('verifying')
+
+      const handler = window.PaystackPop.setup({
+        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
+        email: start.email,
+        amount: start.amountKobo,
+        currency: 'NGN',
+        ref: start.reference,
+        // Card only — no bank transfer / USSD, so we always get a card
+        // authorization back.
+        channels: ['card'],
+        callback: (response: { reference: string }) => {
+          paymentSucceededRef.current = true
+          startTransition(async () => {
+            const res = await confirmOnlinePayment(response.reference)
+            if (res.success) {
+              setBookingId(res.bookingId)
+              setBookingCreatedAt(res.createdAt)
+              setPaidOnlineAmount(res.amountPaid)
+              setStep('success')
+            } else if (res.error === ROOM_NO_LONGER_AVAILABLE_ERROR) {
+              setStep('form')
+              setUnavailableRefunded(true)
+              setUnavailableDates({ checkIn: submittedCheckIn, checkOut: submittedCheckOut })
+            } else {
+              setErrorMessage(res.error)
+              setStep('error')
+            }
+          })
+        },
+        onClose: () => {
+          if (paymentSucceededRef.current) return
+          // Nothing was charged. The pending booking keeps the room for a
+          // short while, then frees it automatically.
+          setStep('form')
+          setPaymentNotCompleted(true)
+        },
+      })
+
+      handler.openIframe()
+    })
+  }
+
   return (
     <>
       {/* Loads Paystack's inline widget script once, before it's needed */}
@@ -355,17 +469,33 @@ export default function BookingForm({
       >
         {displaySuccess ? (
           <div className="rounded-sm border border-espresso/20 bg-espresso/5 p-6">
-            <p className="font-display text-xl text-espresso">Request received</p>
-            <p className="mt-2 text-sm text-charcoal/70">
-              Your card has been verified and your booking request is in. We&apos;ll
-              confirm with you shortly by email. Your booking
-              reference is{' '}
-              <span className="font-medium text-charcoal">
-                {bookingId.slice(0, 8)}
-              </span>
-              .
-            </p>
-            {isSameDayBooking && bookingCreatedAt && (
+            {paidOnlineAmount > 0 ? (
+              <>
+                <p className="font-display text-xl text-espresso">Booking confirmed</p>
+                <p className="mt-2 text-sm text-charcoal">
+                  Paid online — ₦{paidOnlineAmount.toLocaleString()}
+                </p>
+                <p className="mt-2 text-sm text-charcoal/70">
+                  Your stay is booked and paid. We&apos;ve emailed your confirmation. Your booking
+                  reference is{' '}
+                  <span className="font-medium text-charcoal">{bookingId.slice(0, 8)}</span>.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-display text-xl text-espresso">Request received</p>
+                <p className="mt-2 text-sm text-charcoal/70">
+                  Your card has been verified and your booking request is in. We&apos;ll
+                  confirm with you shortly by email. Your booking
+                  reference is{' '}
+                  <span className="font-medium text-charcoal">
+                    {bookingId.slice(0, 8)}
+                  </span>
+                  .
+                </p>
+              </>
+            )}
+            {isSameDayBooking && bookingCreatedAt && paidOnlineAmount === 0 && (
               <p className="mt-2 text-sm text-charcoal/70">
                 You can cancel for free until{' '}
                 {formatLagosTime(
@@ -490,14 +620,66 @@ export default function BookingForm({
               />
             </div>
 
-            <div className="rounded-sm bg-charcoal/5 p-4 text-xs text-charcoal/60">
-              Payment for your stay is made directly to us — by transfer
-              or card on arrival. A refundable ₦100 card verification
-              charge will be made and immediately refunded, so we can
-              securely hold a card on file. That card is only ever charged
-              for a cancellation or no-show fee under our cancellation
-              policy — never for the stay itself.
-            </div>
+            <fieldset>
+              <legend className="text-xs tracking-widest text-charcoal/60 uppercase">
+                How would you like to pay?
+              </legend>
+              <div role="radiogroup" className="mt-2 grid gap-3 sm:grid-cols-2">
+                {PAYMENT_OPTIONS.map((opt) => {
+                  const selected = paymentOption === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => {
+                        setPaymentOption(opt.value)
+                        if (step === 'error') setErrorMessage('')
+                      }}
+                      className={`relative rounded-sm border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brass/60 ${
+                        selected
+                          ? 'border-espresso bg-ivory ring-1 ring-espresso'
+                          : 'border-charcoal/15 bg-white hover:border-brass/60'
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`absolute top-4 right-4 flex h-4 w-4 items-center justify-center rounded-full border ${
+                          selected ? 'border-espresso' : 'border-charcoal/30'
+                        }`}
+                      >
+                        {selected && <span className="h-2 w-2 rounded-full bg-espresso" />}
+                      </span>
+                      <span className="block pr-6 font-display text-lg text-charcoal">{opt.title}</span>
+                      <span className="mt-1 block text-sm text-brass">
+                        {nights > 0 ? `₦${totalPrice.toLocaleString()}` : 'Select dates for the total'}
+                      </span>
+                      <span className="mt-2 block text-xs leading-snug text-charcoal/60">{opt.detail}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </fieldset>
+
+            {paymentOption === 'pay_online' && (
+              <div className="rounded-sm bg-charcoal/5 p-4 text-xs text-charcoal/60">
+                You&apos;ll pay the full total by card in one payment. Online payments are
+                non-refundable: if you cancel or don&apos;t arrive, there&apos;s no cancellation
+                fee and the full amount is kept as credit for a future stay.
+              </div>
+            )}
+
+            {paymentOption === 'pay_in_person' && (
+              <div className="rounded-sm bg-charcoal/5 p-4 text-xs text-charcoal/60">
+                Payment for your stay is made directly to us — by transfer
+                or card on arrival. A refundable ₦100 card verification
+                charge will be made and immediately refunded, so we can
+                securely hold a card on file. That card is only ever charged
+                for a cancellation or no-show fee under our cancellation
+                policy — never for the stay itself.
+              </div>
+            )}
 
             {step === 'error' && errorMessage && (
               <p className="text-sm text-clay">{errorMessage}</p>
@@ -508,10 +690,16 @@ export default function BookingForm({
               disabled={isPending || step === 'verifying'}
               className="w-full rounded-sm bg-espresso py-4 text-sm tracking-widest text-ivory uppercase transition-colors hover:bg-espresso/90 disabled:opacity-50"
             >
-              {step === 'verifying' ? 'Verifying card…' : 'Book now'}
+              {step === 'verifying'
+                ? paymentOption === 'pay_online'
+                  ? 'Processing payment…'
+                  : 'Verifying card…'
+                : paymentOption === 'pay_online' && nights > 0
+                  ? `Pay ₦${totalPrice.toLocaleString()} & book`
+                  : 'Book now'}
             </button>
 
-            {isSameDayBooking && (
+            {isSameDayBooking && paymentOption !== 'pay_online' && (
               <p className="text-xs text-charcoal/50">
                 Since check-in is today, you&apos;ll have 1 hour after booking
                 to cancel for free. After that, the standard cancellation policy applies.
@@ -574,7 +762,9 @@ export default function BookingForm({
                 onChange={(e) => setConsentChecked(e.target.checked)}
                 className="mt-0.5 h-4 w-4 shrink-0 accent-espresso"
               />
-              <span>{CARD_HOLD_CONSENT_TEXT}</span>
+              <span>
+                {paymentOption === 'pay_online' ? PAY_ONLINE_CONSENT_TEXT : CARD_HOLD_CONSENT_TEXT}
+              </span>
             </label>
           </div>
         }
@@ -588,7 +778,11 @@ export default function BookingForm({
       <ConfirmModal
         open={unavailableDates !== null}
         title="No longer available"
-        message="Sorry, this room was just booked for those dates by another guest. Would you like to see other rooms available for the same dates?"
+        message={
+          unavailableRefunded
+            ? 'Sorry, this room was booked by another guest while you were paying. Your payment is being refunded in full. Would you like to see other rooms available for the same dates?'
+            : 'Sorry, this room was just booked for those dates by another guest. Would you like to see other rooms available for the same dates?'
+        }
         confirmLabel="See other rooms"
         cancelLabel="Choose different dates"
         onConfirm={handleSeeOtherRooms}

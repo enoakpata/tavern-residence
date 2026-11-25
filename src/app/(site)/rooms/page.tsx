@@ -70,7 +70,7 @@ export default async function RoomsPage({
     return (
       <main className="mx-auto max-w-6xl px-6 py-24 md:px-12">
         <p className="text-charcoal/70">
-          We couldn't load rooms right now. Please try again shortly.
+          We couldn&apos;t load rooms right now. Please try again shortly.
         </p>
       </main>
     )

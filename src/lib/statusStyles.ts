@@ -31,3 +31,22 @@ export const PAYMENT_STYLES: Record<string, string> = {
   paid: 'bg-verdant/15 text-verdant',
   refunded: 'bg-charcoal/10 text-charcoal/60',
 }
+
+// Small badge for Pay online bookings — shown on the bookings list and the
+// booking detail panel. A pending Pay online booking is a room hold while
+// the guest is still in the Paystack popup (deleted after 30 minutes if
+// never paid — see src/lib/onlinePayments.ts).
+export const PAID_ONLINE_BADGE_STYLE = 'bg-espresso/10 text-espresso'
+
+export function onlinePaymentBadgeLabel(booking: {
+  payment_option?: string | null
+  status: string
+}): string | null {
+  if (booking.payment_option !== 'pay_online') return null
+  return booking.status === 'pending' ? 'Awaiting online payment' : 'Paid online'
+}
+
+export const PAYMENT_OPTION_LABELS: Record<string, string> = {
+  pay_online: 'Pay online',
+  pay_in_person: 'Pay in person',
+}

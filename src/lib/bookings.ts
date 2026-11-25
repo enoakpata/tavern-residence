@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import { supabaseAdmin } from './supabaseAdmin'
 import { getCancellationOutcome, type CancellationOutcome } from './cancellationPolicy'
 import type { Booking } from './types'
+import { expireAbandonedOnlineBookings } from './onlinePayments'
 
 /**
  * Statuses that mean a booking still occupies its room's dates — used
@@ -15,7 +16,10 @@ export const ACTIVE_BOOKING_STATUSES = ['pending', 'confirmed', 'checked_in']
 /**
  * Returns true if the room is free for the given date range.
  * A booking blocks the room if it's "pending", "confirmed", or already
- * "checked_in" — cancelled/no_show/checked_out bookings don't block.
+ * "checked_in" — cancelled/no_show/checked_out bookings don't block. A
+ * "pending" Pay online booking is the room hold while the guest is paying;
+ * it's deleted if unpaid after ONLINE_PAYMENT_HOLD_MINUTES (see
+ * expireAbandonedOnlineBookings in src/lib/onlinePayments.ts).
  *
  * Overlap logic: two date ranges [checkIn, checkOut) overlap when
  * existing.check_in < newCheckOut AND existing.check_out > newCheckIn
@@ -35,6 +39,10 @@ export async function isRoomAvailable(
   checkOut: string,
   excludeBookingId?: string
 ) {
+  // Unpaid Pay online holds older than ONLINE_PAYMENT_HOLD_MINUTES stop
+  // blocking the room — cleared here, right before every check.
+  await expireAbandonedOnlineBookings()
+
   if (excludeBookingId) {
     const { data, error } = await supabaseAdmin
       .from('Bookings')
@@ -89,6 +97,7 @@ export async function resolveAvailableRoomId(
   checkOut: string
 ): Promise<string | null> {
   if (roomIds.length === 0) return null
+  await expireAbandonedOnlineBookings()
 
   const { data, error } = await supabase
     .from('booking_availability')

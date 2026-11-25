@@ -12,6 +12,7 @@ import {
   setEarlyLateOption,
   setBookingDiscount,
   deleteBooking,
+  markNoShow,
   type EarlyLateKind,
   type RoomChangeOption,
 } from './actions'
@@ -24,7 +25,7 @@ import type { Booking } from '@/lib/types'
 import DateRangePicker from '@/components/DateRangePicker'
 import MoneyDispositionChoice, { type MoneyDisposition } from '@/components/MoneyDispositionChoice'
 import { getCancellationOutcome } from '@/lib/cancellationPolicy'
-import { parseISODate, toISODate, type BlockedRange } from '@/lib/dateUtils'
+import { parseISODate, toISODate, hotelTodayInLagos, type BlockedRange } from '@/lib/dateUtils'
 import {
   stayTotal,
   earlyLateFee,
@@ -71,6 +72,9 @@ type BookingActionsProps = {
   // fee/card charge once anything's been paid, section 8) and whether
   // "Early checkout" needs to ask about an overpayment (section 7).
   amountPaid: number
+  // 'pay_online' bookings: cancellation / no-show / early-checkout
+  // overpayment always becomes guest credit — never a refund or a fee.
+  paymentOption: 'pay_online' | 'pay_in_person'
   // Called after any action succeeds — lets a parent that's showing its
   // own snapshot of this booking (the detail modal, which fetches once
   // when opened) know to refetch, since revalidatePath only refreshes the
@@ -145,9 +149,11 @@ export default function BookingActions({
   discountReason,
   promos,
   amountPaid,
+  paymentOption,
   onActionComplete,
   onDeleted,
 }: BookingActionsProps) {
+  const isPayOnline = paymentOption === 'pay_online'
   const pricedRoom = { name: roomName, price_per_night: pricePerNight }
   const adjustments = {
     early_checkin_fee: earlyCheckinFee,
@@ -174,6 +180,8 @@ export default function BookingActions({
   const [cancelRefundMethod, setCancelRefundMethod] = useState<'transfer' | 'pos'>('transfer')
   const [cancelDispositionNote, setCancelDispositionNote] = useState('')
   const [pendingCheckout, setPendingCheckout] = useState(false)
+  const [pendingNoShow, setPendingNoShow] = useState(false)
+  const [noShowResult, setNoShowResult] = useState<null | { success: boolean; message: string }>(null)
   const [cancelResult, setCancelResult] = useState<null | { success: boolean; message: string }>(
     null
   )
@@ -254,6 +262,10 @@ export default function BookingActions({
 
   const canCancel = CANCELLABLE_STATUSES.includes(status)
   const canCheckOut = status === 'checked_in'
+  // A guest who hasn't checked in by the night of their stay. Offered from
+  // the current hotel night (so a booking for last night still counts
+  // before 12:00 PM).
+  const canMarkNoShow = status === 'confirmed' && checkIn <= hotelTodayInLagos()
   const canEditDates = EDITABLE_DATE_STATUSES.includes(status)
   // Check-in already happened for a checked-in guest, so only check-out
   // stays editable at that point — a confirmed booking (not yet arrived)
@@ -270,9 +282,7 @@ export default function BookingActions({
   // staff often record an early arrival after the fact.
   const earlyLateActive = ['pending', 'confirmed', 'checked_in'].includes(status)
   const canAddEarlyCheckin = earlyLateActive && earlyCheckinFee == null
-  const canRemoveEarlyCheckin = earlyLateActive && earlyCheckinFee != null
   const canAddLateCheckout = earlyLateActive && lateCheckoutFee == null
-  const canRemoveLateCheckout = earlyLateActive && lateCheckoutFee != null
   const earlyLateFeeAmount = earlyLateFee(pricedRoom)
   const hasDiscount = discountAmount != null || discountPercent != null
   const canDiscount = !['cancelled', 'no_show'].includes(status)
@@ -288,6 +298,8 @@ export default function BookingActions({
     pendingCancel !== null ||
     cancelResult !== null ||
     pendingCheckout ||
+    pendingNoShow ||
+    noShowResult !== null ||
     pendingEditDates ||
     editDatesResult !== null ||
     pendingChangeRoom ||
@@ -377,6 +389,26 @@ export default function BookingActions({
         onActionComplete?.()
       } else {
         setCancelResult({ success: false, message: res.error })
+      }
+    })
+  }
+
+  function handleConfirmNoShow() {
+    setPendingNoShow(false)
+    startTransition(async () => {
+      const res = await markNoShow(bookingId)
+      if (res.success) {
+        setNoShowResult({
+          success: true,
+          message:
+            res.creditError ??
+            (res.creditAmount > 0
+              ? `Marked as no-show. ₦${res.creditAmount.toLocaleString()} paid online saved as guest credit — the guest has been emailed.`
+              : 'Marked as no-show.'),
+        })
+        onActionComplete?.()
+      } else {
+        setNoShowResult({ success: false, message: res.error })
       }
     })
   }
@@ -614,6 +646,12 @@ export default function BookingActions({
         </button>
       )}
 
+      {canMarkNoShow && (
+        <button disabled={isPending} onClick={() => setPendingNoShow(true)} className={OUTLINE_PILL}>
+          Mark no-show
+        </button>
+      )}
+
       <button
         disabled={isPending || isDeleting}
         onClick={handleDeleteClick}
@@ -801,7 +839,13 @@ export default function BookingActions({
         open={pendingCancel !== null}
         title="Cancel booking"
         message={
-          hasAmountPaid ? (
+          hasAmountPaid && isPayOnline ? (
+            <p>
+              Guest paid ₦{amountPaid.toLocaleString()} online. No cancellation fee is charged and
+              nothing is refunded — the full amount is saved as guest credit for a future stay (no
+              expiry), and the guest is emailed.
+            </p>
+          ) : hasAmountPaid ? (
             <div>
               <p>
                 Guest has paid ₦{amountPaid.toLocaleString()}, so no cancellation fee is charged —
@@ -847,6 +891,29 @@ export default function BookingActions({
         }
         onConfirm={handleConfirmCancel}
         onCancel={() => setPendingCancel(null)}
+      />
+
+      <ConfirmModal
+        open={pendingNoShow}
+        title="Mark as no-show"
+        message={
+          isPayOnline && hasAmountPaid
+            ? `Mark ${guestName} as a no-show? The ₦${amountPaid.toLocaleString()} they paid online is saved as guest credit for a future stay (no fee, no refund), and the room's dates are released.`
+            : `Mark ${guestName} as a no-show? The room's dates are released. Any no-show fee is charged separately with "Charge saved card".`
+        }
+        confirmLabel="Mark no-show"
+        onConfirm={handleConfirmNoShow}
+        onCancel={() => setPendingNoShow(false)}
+      />
+
+      <ConfirmModal
+        open={noShowResult !== null}
+        title={noShowResult?.success ? 'No-show recorded' : "Couldn't mark no-show"}
+        message={noShowResult?.message ?? ''}
+        confirmLabel="OK"
+        hideCancel
+        onConfirm={() => setNoShowResult(null)}
+        onCancel={() => setNoShowResult(null)}
       />
 
       <ConfirmModal
@@ -1086,6 +1153,7 @@ export default function BookingActions({
                 onRefundMethodChange={setEarlyRefundMethod}
                 note={earlyNote}
                 onNoteChange={setEarlyNote}
+                creditOnly={isPayOnline}
               />
             )}
 

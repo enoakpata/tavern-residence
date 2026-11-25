@@ -17,7 +17,7 @@ import {
 
 export const metadata: Metadata = {
   title: `Policies | ${HOTEL_NAME}`,
-  description: `Check-in from ${STANDARD_CHECK_IN_TIME}, check-out by ${STANDARD_CHECK_OUT_TIME}; late check-out until ${LATE_CHECK_OUT_LATEST_TIME} on request. Free cancellation up to 24 hours before check-in; no smoking in rooms, in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION}.`,
+  description: `Check-in from ${STANDARD_CHECK_IN_TIME}, check-out by ${STANDARD_CHECK_OUT_TIME}; late check-out until ${LATE_CHECK_OUT_LATEST_TIME} on request. Pay online or in person; free cancellation up to 24 hours before check-in for Pay in person bookings; no smoking in rooms, in ${HOTEL_ADDRESS_LOCALITY}, ${HOTEL_ADDRESS_REGION}.`,
 }
 
 export default function PoliciesPage() {
@@ -43,6 +43,23 @@ export default function PoliciesPage() {
             <p>Check-out: by {STANDARD_CHECK_OUT_TIME}</p>
             <p>{EARLY_LATE_POLICY_TEXT}</p>
           </div>
+        </section>
+
+        <section className="border-t border-charcoal/10 pt-12">
+          <h2 className="font-display text-2xl text-charcoal">Payment</h2>
+          <p className="mt-4 text-charcoal/70">When you book, choose one of two options:</p>
+          <ul className="mt-4 list-disc space-y-2 pl-5 text-charcoal/70">
+            <li>
+              <span className="text-charcoal">Pay online</span> — pay the full stay by card when you
+              book. Online payments are non-refundable: if you cancel or don&apos;t arrive, no
+              cancellation fee is charged and the full amount is kept as credit for a future stay.            wit.
+            </li>
+            <li>
+              <span className="text-charcoal">Pay in person</span> — pay at the hotel when you arrive
+              (transfer or card). We verify your card with a ₦100 charge that is refunded straight
+              away, and keep it on file only for the cancellation and no-show charges below.
+            </li>
+          </ul>
         </section>
 
         <section className="border-t border-charcoal/10 pt-12">

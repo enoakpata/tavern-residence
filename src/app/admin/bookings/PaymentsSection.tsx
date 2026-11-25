@@ -1,7 +1,14 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { recordPayment, voidPayment, getBookingPayments, getGuestCreditBalance, applyGuestCredit } from './actions'
+import {
+  recordPayment,
+  voidPayment,
+  getBookingPayments,
+  getGuestCreditBalance,
+  applyGuestCredit,
+  type BookingCreditGrant,
+} from './actions'
 import ConfirmModal from '@/components/ConfirmModal'
 import DateRangePicker from '@/components/DateRangePicker'
 import MoneyInput from '@/components/MoneyInput'
@@ -46,6 +53,10 @@ export default function PaymentsSection({
 }) {
   const [isPending, startTransition] = useTransition()
   const [payments, setPayments] = useState<BookingPayment[]>([])
+  // Credit granted OUT of this booking (cancelled / no-show Pay online
+  // booking, or "hold as credit") — listed in History so the money paid
+  // can be traced to where it went.
+  const [creditsFromBooking, setCreditsFromBooking] = useState<BookingCreditGrant[]>([])
   const [loadingPayments, setLoadingPayments] = useState(true)
   // Distinct from "no payments yet" — a real query failure here must
   // not break the rest of the booking detail view, so this only drives
@@ -54,14 +65,16 @@ export default function PaymentsSection({
 
   function refetchPayments() {
     setLoadingPayments(true)
-    getBookingPayments(bookingId).then(({ payments: rows, failed }) => {
+    getBookingPayments(bookingId).then(({ payments: rows, credits, failed }) => {
       setPayments(rows)
+      setCreditsFromBooking(credits)
       setPaymentsFailed(failed)
       setLoadingPayments(false)
     })
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refetchPayments()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId])
@@ -112,6 +125,7 @@ export default function PaymentsSection({
 
   const balance = totalAmount != null ? totalAmount - amountPaid : null
   const overpaidBy = totalAmount != null ? overpaidAmount(amountPaid, totalAmount) : null
+  const creditedTotal = creditsFromBooking.reduce((sum, c) => sum + c.amount, 0)
   const cancellationFeePayment = payments.find(
     (p) => p.type === 'cancellation_fee' && p.status === 'success' && Number(p.amount) > 0
   )
@@ -223,6 +237,13 @@ export default function PaymentsSection({
           {cancellationFeePayment
             ? `A cancellation fee of ₦${Number(cancellationFeePayment.amount).toLocaleString()} was charged.`
             : 'No cancellation fee was charged.'}
+        </p>
+      )}
+
+      {creditedTotal > 0 && (
+        <p className="mt-3 text-xs text-charcoal/60">
+          Moved to guest credit from this booking:{' '}
+          <span className="text-charcoal">₦{creditedTotal.toLocaleString()}</span>
         </p>
       )}
 
@@ -368,7 +389,7 @@ export default function PaymentsSection({
               Try again
             </button>
           </div>
-        ) : payments.length === 0 ? (
+        ) : payments.length === 0 && creditsFromBooking.length === 0 ? (
           <p className="mt-2 text-xs text-charcoal/50">No payments recorded yet.</p>
         ) : (
           <table className="mt-2 w-full text-xs">
@@ -384,7 +405,7 @@ export default function PaymentsSection({
                     {Number(p.amount) < 0 ? '−' : ''}₦{Math.abs(Number(p.amount)).toLocaleString()}
                   </td>
                   <td className="py-2 pr-2 whitespace-nowrap text-charcoal/60 uppercase">
-                    {p.method}
+                    {p.recorded_by === 'online' ? 'card · online' : p.method}
                   </td>
                   <td className="py-2 pr-2 text-charcoal/60 capitalize">
                     {p.type.replace('_', ' ')}
@@ -402,6 +423,18 @@ export default function PaymentsSection({
                       </button>
                     )}
                   </td>
+                </tr>
+              ))}
+              {creditsFromBooking.map((c) => (
+                <tr key={`credit-${c.id}`} className="border-b border-charcoal/10 last:border-0">
+                  <td className="py-2 pr-2 whitespace-nowrap text-charcoal/60">
+                    {formatLagosDateTime(c.created_at)}
+                  </td>
+                  <td className="py-2 pr-2 whitespace-nowrap text-brass">₦{c.amount.toLocaleString()}</td>
+                  <td className="py-2 pr-2 whitespace-nowrap text-charcoal/60 uppercase">credit</td>
+                  <td className="py-2 pr-2 text-charcoal/60">Moved to guest credit</td>
+                  <td className="py-2 pr-2 text-charcoal/50">{c.note}</td>
+                  <td className="py-2" />
                 </tr>
               ))}
             </tbody>

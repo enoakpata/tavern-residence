@@ -38,4 +38,4 @@ export const CANCELLATION_FEE_FRACTION = 0.5
 // card-hold consent box at booking time (BookingForm.tsx) — bump this any
 // time the cancellation policy wording actually changes, so each
 // booking's consent record stays tied to the exact wording the guest saw.
-export const CANCELLATION_POLICY_VERSION = '2026-10-14-v2'
+export const CANCELLATION_POLICY_VERSION = '2026-11-24-v3' // v3: Pay online option added

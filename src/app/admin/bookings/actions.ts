@@ -2,18 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { bookingsQuery } from '@/lib/adminBookings'
 import { isRoomAvailable, getChargeableAuthCode, ACTIVE_BOOKING_STATUSES } from '@/lib/bookings'
 import { computePaymentStatus, resolveTotalAmount, isBookingLocked } from '@/lib/bookingStatus'
-import { CREDIT_EXPIRY_MONTHS, computeCreditBalance } from '@/lib/guestCredits'
-import {
-  paymentMomentForDate,
-  todayInLagos,
-  hotelTodayInLagos,
-  toISODate,
-  parseISODate,
-  addMonths,
-} from '@/lib/dateUtils'
+import { computeCreditBalance, grantGuestCredit } from '@/lib/guestCredits'
+import { convertOnlinePaymentToCredit } from '@/lib/onlinePayments'
+import { paymentMomentForDate, todayInLagos, hotelTodayInLagos } from '@/lib/dateUtils'
 import { chargeAuthorization } from '@/lib/paystack'
 import {
   sendEmail,
@@ -24,7 +17,7 @@ import {
 } from '@/lib/email'
 import type { Room, Booking, BookingPayment, BookingPaymentMethod } from '@/lib/types'
 import { HOTEL_EMAIL } from '@/lib/siteConfig'
-import { displayRoomName, getRoomTypeContentByDbName } from '@/lib/roomTypeContent'
+import { displayRoomName } from '@/lib/roomTypeContent'
 import { stayTotal, earlyLateFee, bookingTotal, discountFor } from '@/lib/pricing'
 import { getPromotions } from '@/lib/promotions'
 import {
@@ -106,6 +99,7 @@ const OPTIONAL_DETAIL_COLUMN_GROUPS = [
   ['cancelled_at'], // 20261015
   ['early_checkin_fee', 'late_checkout_fee'], // 20261028
   ['discount_amount', 'discount_percent', 'discount_reason'], // 20261030
+  ['payment_option'], // 20261124
 ] as const
 
 type OptionalDetailColumns = {
@@ -115,6 +109,7 @@ type OptionalDetailColumns = {
   discount_amount: number | null
   discount_percent: number | null
   discount_reason: string | null
+  payment_option: 'pay_online' | 'pay_in_person'
 }
 
 const EMPTY_OPTIONAL_DETAIL: OptionalDetailColumns = {
@@ -124,6 +119,7 @@ const EMPTY_OPTIONAL_DETAIL: OptionalDetailColumns = {
   discount_amount: null,
   discount_percent: null,
   discount_reason: null,
+  payment_option: 'pay_in_person',
 }
 
 export type GetBookingDetailResult =
@@ -197,6 +193,7 @@ function normalizeOptional(row: Record<string, unknown>): Partial<OptionalDetail
     if (key in row) out[key] = num(row[key])
   }
   if ('discount_reason' in row) out.discount_reason = (row.discount_reason as string | null) ?? null
+  if ('payment_option' in row) out.payment_option = row.payment_option === 'pay_online' ? 'pay_online' : 'pay_in_person'
   return out
 }
 
@@ -600,7 +597,16 @@ export async function voidPayment(
   return { success: true }
 }
 
-export type GetBookingPaymentsResult = { payments: BookingPayment[]; failed: boolean }
+// A credit GRANT that came out of this booking (cancelled / no-show Pay
+// online booking, or a "hold as credit" disposition) — shown in the
+// Payments history so Paid vs. where-the-money-went balances.
+export type BookingCreditGrant = { id: string; amount: number; note: string | null; created_at: string }
+
+export type GetBookingPaymentsResult = {
+  payments: BookingPayment[]
+  credits: BookingCreditGrant[]
+  failed: boolean
+}
 
 /**
  * Most-recent-first payment history for a booking's Payments section.
@@ -626,9 +632,26 @@ export async function getBookingPayments(bookingId: string): Promise<GetBookingP
       details: error.details,
       hint: error.hint,
     })
-    return { payments: [], failed: true }
+    return { payments: [], credits: [], failed: true }
   }
-  return { payments: (data ?? []) as BookingPayment[], failed: false }
+
+  const { data: creditRows } = await supabase
+    .from('guest_credits')
+    .select('id, amount, note, created_at')
+    .eq('source_booking_id', bookingId)
+    .gt('amount', 0)
+    .order('created_at', { ascending: false })
+
+  return {
+    payments: (data ?? []) as BookingPayment[],
+    credits: (creditRows ?? []).map((c) => ({
+      id: c.id as string,
+      amount: Number(c.amount),
+      note: (c.note as string | null) ?? null,
+      created_at: c.created_at as string,
+    })),
+    failed: false,
+  }
 }
 
 export type ChargeSavedCardReason = 'cancellation_fee' | 'no_show' | 'other'
@@ -762,6 +785,9 @@ export async function updateBookingStatus(
     return { success: false, error: LOCKED_ERROR }
   }
 
+  // No-show has money rules of its own (Pay online → credit).
+  if (status === 'no_show') return markNoShow(bookingId)
+
   const { error } = await supabase
     .from('Bookings')
     .update({ status })
@@ -771,6 +797,56 @@ export async function updateBookingStatus(
   revalidatePath('/admin/bookings')
   revalidatePath('/admin/check-in/check-out')
   return { success: true }
+}
+
+export type MarkNoShowResult =
+  | { success: true; creditAmount: number; creditError?: string }
+  | { success: false; error: string }
+
+/**
+ * Marks a confirmed booking whose guest never arrived as a no-show.
+ *
+ * Pay online: everything paid becomes guest credit (never refunded, no
+ * fee) — convertOnlinePaymentToCredit. Pay in person: just the status
+ * change, as before; any no-show fee is still a separate, manual
+ * "Charge saved card".
+ *
+ * The status change is a conditional update (only from 'confirmed'), so a
+ * double-click can't grant the credit twice.
+ */
+export async function markNoShow(bookingId: string): Promise<MarkNoShowResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { data: claimed, error } = await supabase
+    .from('Bookings')
+    .update({ status: 'no_show' })
+    .eq('id', bookingId)
+    .eq('status', 'confirmed')
+    .select('id, guest_name, guest_email, guest_phone, check_in, check_out, amount_paid, payment_option')
+    .maybeSingle()
+
+  if (error) return { success: false, error: 'Something went wrong. Please try again.' }
+  if (!claimed) {
+    return { success: false, error: 'Only a confirmed booking (guest not yet checked in) can be marked as a no-show.' }
+  }
+
+  let creditAmount = 0
+  let creditError: string | undefined
+  if (claimed.payment_option === 'pay_online' && Number(claimed.amount_paid ?? 0) > 0) {
+    const credit = await convertOnlinePaymentToCredit(supabase, claimed, 'no_show', user?.email ?? null)
+    creditAmount = credit.amount
+    if (!credit.success) {
+      creditError = `Marked as no-show, but saving the ₦${credit.amount.toLocaleString()} paid online as guest credit failed: ${credit.error}. The guest is still owed this as credit — handle it manually.`
+    }
+  }
+
+  revalidatePath('/admin/bookings')
+  revalidatePath('/admin/check-in/check-out')
+  revalidatePath('/admin/calendar')
+  return { success: true, creditAmount, creditError }
 }
 
 /**
@@ -1004,6 +1080,25 @@ export async function cancelBookingByStaff(
   // already collected — skip straight to deciding what happens to it,
   // and never touch the saved card.
   const amountPaid = Number(booking.amount_paid ?? 0)
+
+  // Pay online: we never refund a cancellation and never charge a fee —
+  // everything paid becomes guest credit, whatever the dialog sent.
+  if (amountPaid > 0 && booking.payment_option === 'pay_online') {
+    const credit = await convertOnlinePaymentToCredit(supabase, booking, 'cancelled', user?.email ?? null)
+    await notifyCancellationByEmail(booking, false, 0)
+    revalidatePath('/admin/bookings')
+    revalidatePath('/admin/check-in/check-out')
+    if (!credit.success) {
+      return {
+        success: true,
+        feeCharged: false,
+        feeAmount: 0,
+        chargeError: `Booking cancelled, but saving the ₦${amountPaid.toLocaleString()} paid online as guest credit failed: ${credit.error}. The guest is still owed this as credit — handle it manually.`,
+      }
+    }
+    return { success: true, feeCharged: false, feeAmount: 0, moneyDisposition: 'hold_credit' }
+  }
+
   if (amountPaid > 0) {
     const disposition = moneyDisposition?.disposition ?? 'keep'
     if (disposition !== 'keep') {
@@ -1130,7 +1225,7 @@ export type MoneyDisposition = 'hold_credit' | 'refund' | 'keep'
 
 /**
  * - hold_credit: grants the guest a credit (guest_credits, a positive
- *   row expiring CREDIT_EXPIRY_MONTHS from today) they can later have
+ *   row — currently never expires, see grantGuestCredit) they can later have
  *   applied to a future booking (see applyGuestCredit below).
  * - refund: records a negative booking_payments row (type 'refund',
  *   method transfer/pos — the admin physically pays it back outside
@@ -1155,18 +1250,15 @@ async function applyMoneyDispositionForAmount(
   if (!(args.amount > 0)) return { success: true }
 
   if (args.disposition === 'hold_credit') {
-    const expiresAt = toISODate(addMonths(parseISODate(todayInLagos()), CREDIT_EXPIRY_MONTHS))
-    const { error } = await supabase.from('guest_credits').insert({
-      guest_email: args.guestEmail,
-      guest_phone: args.guestPhone,
+    return grantGuestCredit(supabase, {
+      bookingId: args.bookingId,
       amount: args.amount,
-      source_booking_id: args.bookingId,
-      expires_at: expiresAt,
+      guestEmail: args.guestEmail,
+      guestPhone: args.guestPhone,
       note: args.note,
-      performed_by: args.performedBy,
+      performedBy: args.performedBy,
+      today: todayInLagos(),
     })
-    if (error) return { success: false, error: error.message }
-    return { success: true }
   }
 
   if (args.disposition === 'refund') {
@@ -1418,7 +1510,7 @@ export async function earlyCheckout(
 
   const { data: booking, error: fetchError } = await supabase
     .from('Bookings')
-    .select('check_in, check_out, status, amount_paid, guest_email, guest_phone, Rooms(name, price_per_night)')
+    .select('check_in, check_out, status, amount_paid, guest_email, guest_phone, payment_option, Rooms(name, price_per_night)')
     .eq('id', bookingId)
     .single()
 
@@ -1445,6 +1537,10 @@ export async function earlyCheckout(
   )
   const amountPaid = Number(booking.amount_paid ?? 0)
   const overpaid = Math.max(0, amountPaid - newTotal)
+
+  // Pay online money is never refunded — an overpayment always becomes
+  // guest credit, whatever the dialog sent.
+  if (booking.payment_option === 'pay_online') disposition = 'hold_credit'
 
   if (overpaid > 0 && !disposition) {
     return { success: false, error: 'Choose what happens to the overpayment.' }
@@ -2072,6 +2168,7 @@ export type BookingAuditEntry = {
     | 'discount'
     | 'promo_reprice'
     | 'guest_details_updated'
+    | 'online_payment_credit'
   reason: string | null
   details: Record<string, unknown>
   performedBy: string | null

@@ -1,4 +1,5 @@
 import { HOTEL_PHONE_DISPLAY, HOTEL_EMAIL } from './siteConfig'
+import { creditSavedMessage } from './creditMessages'
 
 // Every guest-facing message the manage-booking flow (lookup, the
 // booking page, cancellation) can show — one place, keyed by a code the
@@ -57,11 +58,17 @@ export function cancellationPreviewMessage({
   feeMayApply,
   reason,
   alreadyPaid,
+  paidOnlineAmount = 0,
 }: {
   feeMayApply: boolean
   reason: string
   alreadyPaid: boolean
+  // Pay online bookings: the amount paid, which becomes guest credit.
+  paidOnlineAmount?: number
 }): string {
+  if (paidOnlineAmount > 0) {
+    return `No cancellation fee applies. If you cancel, your payment of ₦${paidOnlineAmount.toLocaleString()} will be saved as credit for a future stay. Continue?`
+  }
   if (alreadyPaid) {
     return "You've already paid for this stay, so no cancellation fee applies if you cancel now — we'll be in touch about your payment. Continue?"
   }
@@ -76,11 +83,16 @@ export function cancellationSuccessMessage({
   feeMayApply,
   feeAmount,
   alreadyPaid,
+  creditAmount = 0,
 }: {
   feeMayApply: boolean
   feeAmount: number
   alreadyPaid: boolean
+  creditAmount?: number
 }): string {
+  if (creditAmount > 0) {
+    return `Your booking has been cancelled. ${creditSavedMessage(creditAmount)}`
+  }
   if (alreadyPaid) {
     return "Your booking has been cancelled. Since you've already paid, no cancellation fee applies — we'll be in touch about your payment."
   }

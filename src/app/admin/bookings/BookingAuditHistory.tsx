@@ -13,6 +13,7 @@ const EVENT_LABELS: Record<BookingAuditEntry['eventType'], string> = {
   discount: 'Discount',
   promo_reprice: 'Repriced for a promotion',
   guest_details_updated: 'Guest details updated',
+  online_payment_credit: 'Online payment saved as credit',
 }
 
 const GUEST_FIELD_LABELS: Record<string, string> = {
@@ -78,6 +79,11 @@ function describe(entry: BookingAuditEntry): string {
     const oldTotal = typeof d.old_total === 'number' ? d.old_total : 0
     const newTotal = typeof d.new_total === 'number' ? d.new_total : 0
     return `Repriced for ${name}: ₦${oldTotal.toLocaleString()} → ₦${newTotal.toLocaleString()}`
+  }
+  if (entry.eventType === 'online_payment_credit') {
+    const amount = typeof d.amount === 'number' ? d.amount : 0
+    const why = d.reason === 'no_show' ? 'No-show' : 'Cancelled'
+    return `${why} — ₦${amount.toLocaleString()} paid online moved to guest credit (no fee, no refund)`
   }
   // cancellation_money
   const amount = typeof d.amount === 'number' ? d.amount : 0

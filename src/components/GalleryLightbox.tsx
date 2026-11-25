@@ -87,7 +87,6 @@ export default function GalleryLightbox({
     // Only ever runs once per mount — the lightbox is mounted/unmounted
     // by its parent (openIndex !== null), not re-rendered with a new
     // `index` in place, so this isn't re-triggered by navigation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

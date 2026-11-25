@@ -8,6 +8,7 @@ import type { Room } from '@/lib/types'
 import { HOTEL_NAME } from '@/lib/siteConfig'
 import { hotelTodayInLagos } from '@/lib/dateUtils'
 import { ACTIVE_BOOKING_STATUSES } from '@/lib/bookings'
+import { expireAbandonedOnlineBookings } from '@/lib/onlinePayments'
 import { displayRoomCategory, displayRoomName } from '@/lib/roomTypeContent'
 import BookingForm from './BookingForm'
 import { getPromotions } from '@/lib/promotions'
@@ -156,6 +157,9 @@ export default async function RoomDetailPage({
   // view exposes only room_id/check_in/check_out/status and is the same
   // one isRoomAvailable() already relies on for the guest-facing
   // availability check.
+  // Abandoned Pay online holds are cleared first so they don't grey out
+  // dates that are actually free.
+  await expireAbandonedOnlineBookings()
   const { data: bookings } = await supabase
     .from('booking_availability')
     .select('check_in, check_out')

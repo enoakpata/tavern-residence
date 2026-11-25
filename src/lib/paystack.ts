@@ -1,8 +1,24 @@
 // Server-only Paystack helpers. Never import this file into a client component —
 // it uses the secret key, which must never reach the browser.
 
+import { createHmac, timingSafeEqual } from 'crypto'
+
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY!
 const PAYSTACK_BASE_URL = 'https://api.paystack.co'
+
+/**
+ * True if a webhook body really came from Paystack: x-paystack-signature
+ * is the HMAC-SHA512 of the raw request body, keyed with our secret key.
+ * Must be given the body exactly as received (request.text()), not
+ * re-serialized JSON.
+ */
+export function isValidWebhookSignature(rawBody: string, signature: string | null): boolean {
+  if (!signature || !PAYSTACK_SECRET_KEY) return false
+  const expected = createHmac('sha512', PAYSTACK_SECRET_KEY).update(rawBody).digest('hex')
+  const a = Buffer.from(expected, 'utf8')
+  const b = Buffer.from(signature, 'utf8')
+  return a.length === b.length && timingSafeEqual(a, b)
+}
 
 type VerifyResult =
   | {
@@ -22,6 +38,58 @@ type VerifyResult =
   // actually went through, since there's nothing to refund.
   | { success: false; error: string; transactionId: number | null }
 
+export type PaystackAuthorization = {
+  authorization_code?: string
+  last4?: string
+  card_type?: string
+  exp_month?: string
+  exp_year?: string
+  reusable?: boolean
+}
+
+/** The fields of a Paystack transaction this app actually checks. */
+export type PaystackTransaction = {
+  // 'success' | 'failed' | 'abandoned' | 'ongoing' | 'pending' | 'reversed' …
+  status: string
+  reference: string
+  amountKobo: number
+  currency: string
+  transactionId: number
+  authorization: PaystackAuthorization | null
+}
+
+/**
+ * Looks a transaction up by reference (Paystack's verify endpoint) and
+ * returns its raw outcome, without deciding anything — null if Paystack
+ * doesn't know the reference or the call itself failed. Used by
+ * verifyTransaction below (the ₦100 card check) and by the Pay online
+ * flow (src/lib/onlinePayments.ts), which checks amount/currency itself.
+ */
+export async function getTransaction(reference: string): Promise<PaystackTransaction | null> {
+  try {
+    const res = await fetch(
+      `${PAYSTACK_BASE_URL}/transaction/verify/${encodeURIComponent(reference)}`,
+      {
+        headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
+        cache: 'no-store',
+      }
+    )
+    const json = await res.json()
+    if (!res.ok || !json.status || !json.data) return null
+    return {
+      status: String(json.data.status),
+      reference: String(json.data.reference),
+      amountKobo: Number(json.data.amount),
+      currency: String(json.data.currency),
+      transactionId: Number(json.data.id),
+      authorization: json.data.authorization ?? null,
+    }
+  } catch (error) {
+    console.error('Paystack transaction lookup failed for', reference, error)
+    return null
+  }
+}
+
 /**
  * Confirms a Paystack transaction actually succeeded, and pulls out the
  * reusable authorization_code (this is the "saved card" reference we store
@@ -29,21 +97,14 @@ type VerifyResult =
  * card details).
  */
 export async function verifyTransaction(reference: string): Promise<VerifyResult> {
-  const res = await fetch(
-    `${PAYSTACK_BASE_URL}/transaction/verify/${encodeURIComponent(reference)}`,
-    {
-      headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
-    }
-  )
+  const tx = await getTransaction(reference)
 
-  const json = await res.json()
-
-  if (!res.ok || !json.status || json.data?.status !== 'success') {
+  if (!tx || tx.status !== 'success') {
     return { success: false, error: 'Card verification failed. Please try again.', transactionId: null }
   }
 
-  const auth = json.data.authorization
-  const transactionId = json.data.id
+  const auth = tx.authorization
+  const transactionId = tx.transactionId
 
   if (!auth?.authorization_code || !auth?.reusable) {
     // The transaction itself succeeded (checked above) — a valid card can
@@ -60,12 +121,12 @@ export async function verifyTransaction(reference: string): Promise<VerifyResult
   return {
     success: true,
     authorizationCode: auth.authorization_code,
-    last4: auth.last4,
-    cardType: auth.card_type,
-    expMonth: auth.exp_month,
-    expYear: auth.exp_year,
+    last4: auth.last4 ?? '',
+    cardType: auth.card_type ?? '',
+    expMonth: auth.exp_month ?? '',
+    expYear: auth.exp_year ?? '',
     reusable: auth.reusable,
-    amountKobo: json.data.amount,
+    amountKobo: tx.amountKobo,
     transactionId,
   }
 }

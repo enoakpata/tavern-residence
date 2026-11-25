@@ -2,7 +2,12 @@ import { createClient } from '@/lib/supabase/server'
 import { bookingsQuery } from '@/lib/adminBookings'
 import ViewBookingButton from './ViewBookingButton'
 import BookingFilters from './BookingFilters'
-import { STATUS_STYLES, PAYMENT_STYLES } from '@/lib/statusStyles'
+import {
+  STATUS_STYLES,
+  PAYMENT_STYLES,
+  PAID_ONLINE_BADGE_STYLE,
+  onlinePaymentBadgeLabel,
+} from '@/lib/statusStyles'
 import { displayRoomCategory } from '@/lib/roomTypeContent'
 
 export default async function BookingsPage({
@@ -141,6 +146,13 @@ export default async function BookingsPage({
                       >
                         {b.payment_status.replace('_', ' ')}
                       </span>
+                      {onlinePaymentBadgeLabel(b) && (
+                        <span
+                          className={`ml-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] ${PAID_ONLINE_BADGE_STYLE}`}
+                        >
+                          {onlinePaymentBadgeLabel(b)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <ViewBookingButton bookingId={b.id} />

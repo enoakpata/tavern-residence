@@ -35,10 +35,7 @@ export default function Header() {
   // flips a boolean, so it can't cause per-pixel re-render jank.
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
-    if (!hasHero) {
-      setScrolled(false)
-      return
-    }
+    if (!hasHero) return
     function handleScroll() {
       setScrolled(window.scrollY > 40)
     }
@@ -89,6 +86,7 @@ export default function Header() {
       background.forEach((element, index) => { element.inert = previousInert[index] })
       desktop.removeEventListener('change', closeOnDesktop)
       document.removeEventListener('keydown', handleKey)
+      const header = headerRef.current
       headerRef.current?.querySelector<HTMLElement>('.guest-menu-toggle')?.focus({ preventScroll: true })
     }
   }, [open])

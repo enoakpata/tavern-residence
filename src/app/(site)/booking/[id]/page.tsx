@@ -135,6 +135,7 @@ export default async function ManageBookingPage({
             pricePerNight={room?.price_per_night ?? 0}
             hasCardOnFile={Boolean(getChargeableAuthCode(booking)) && booking.card_reusable !== false}
             amountPaid={booking.amount_paid ?? 0}
+            isPayOnline={booking.payment_option === 'pay_online'}
           />
         </div>
       ) : (

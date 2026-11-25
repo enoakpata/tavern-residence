@@ -90,18 +90,28 @@ export function getCancellationOutcome({
 }
 
 // Exact wording, used verbatim everywhere the cancellation policy is
-// shown to a guest: the booking form's policy summary/full-policy
-// expansion, the manage-booking cancellation flow, guest confirmation/
-// cancellation emails, and the Policies page. One array so none of those
-// can drift out of sync.
+// shown to a guest: the booking form's full-policy expansion, the
+// manage-booking cancellation flow, guest confirmation emails, and the
+// Policies page. One array so none of those can drift out of sync.
+//
+// The fee rules (getCancellationOutcome above) apply to Pay in person
+// bookings only. A Pay online booking has already been paid, and a guest
+// who has paid is never charged a cancellation fee — cancelling or not
+// arriving turns the payment into guest credit instead (see
+// convertOnlinePaymentToCredit in src/lib/onlinePayments.ts).
 export const CANCELLATION_POLICY_BULLETS = [
-  'Free cancellation up to 24 hours before check-in.',
-  "Late cancellation or no-show: if you cancel less than 24 hours before check-in, or do not arrive, a charge of 50% of one night's rate applies.",
-  'Same-day bookings: you may cancel free of charge within 1 hour of making the booking. After that, cancellation or no-show incurs the 50% charge.',
-  'A valid card is required to hold your booking. It is used only to collect cancellation or no-show charges under this policy. Your stay is paid directly to the hotel.',
+  'Pay in person: free cancellation up to 24 hours before check-in.',
+  "Pay in person, late cancellation or no-show: if you cancel less than 24 hours before check-in, or do not arrive, a charge of 50% of one night's rate applies.",
+  'Pay in person, same-day bookings: you may cancel free of charge within 1 hour of making the booking. After that, cancellation or no-show incurs the 50% charge.',
+  'Pay in person: a valid card is required to hold your booking. It is used only to collect cancellation or no-show charges under this policy. Your stay is paid directly to the hotel.',
+  "Pay online: online payments are non-refundable. If you cancel or don't arrive, no cancellation fee is charged — the full amount you paid is kept as credit for a future stay.",
 ]
 
-// The required card-hold consent checkbox wording (BookingForm.tsx) —
-// stored verbatim.
+// The required consent checkbox wording (BookingForm.tsx) — one per
+// payment option, stored by version (CANCELLATION_POLICY_VERSION) together
+// with the booking's payment_option.
 export const CARD_HOLD_CONSENT_TEXT =
   "I agree to the cancellation policy and authorise Tavern Residence to charge my card 50% of one night's rate if I cancel late or don't arrive."
+
+export const PAY_ONLINE_CONSENT_TEXT =
+  "I agree to the booking policy and understand that online payments are non-refundable — if I cancel or don't arrive, my payment is kept as credit for a future stay."

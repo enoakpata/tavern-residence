@@ -45,6 +45,7 @@ export default function MoneyDispositionChoice({
   onRefundMethodChange,
   note,
   onNoteChange,
+  creditOnly = false,
 }: {
   amount: number
   disposition: MoneyDisposition
@@ -53,14 +54,21 @@ export default function MoneyDispositionChoice({
   onRefundMethodChange: (value: 'transfer' | 'pos') => void
   note: string
   onNoteChange: (value: string) => void
+  // Pay online bookings: money paid online is never refunded or kept, it
+  // always becomes guest credit — only that option is offered (the server
+  // enforces the same rule).
+  creditOnly?: boolean
 }) {
+  const options = creditOnly
+    ? DISPOSITION_OPTIONS.filter((opt) => opt.value === 'hold_credit')
+    : DISPOSITION_OPTIONS
   return (
     <div className="mt-3 space-y-2">
       <p className="text-xs tracking-widest text-charcoal/60 uppercase">
         What happens to the ₦{amount.toLocaleString()} already paid?
       </p>
       <div className="space-y-1.5">
-        {DISPOSITION_OPTIONS.map((opt) => (
+        {options.map((opt) => (
           <label
             key={opt.value}
             className={`flex cursor-pointer items-start gap-2.5 rounded-sm border px-3 py-2 text-sm transition-colors ${
@@ -83,8 +91,13 @@ export default function MoneyDispositionChoice({
           </label>
         ))}
       </div>
+      {creditOnly && (
+        <p className="text-xs text-charcoal/50">
+          Paid online — this always goes to guest credit, never refunded.
+        </p>
+      )}
 
-      {disposition === 'refund' && (
+      {disposition === 'refund' && !creditOnly && (
         <div>
           <label className="block text-xs tracking-widest text-charcoal/60 uppercase">
             Refund method
